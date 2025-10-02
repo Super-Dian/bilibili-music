@@ -31,10 +31,16 @@ const onChange = (v: (string | number | boolean)[]) => {
     fromData.lyricsData = null;
     subtitle.value = [];
     lyricsRecord.label = undefined;
+    noSubtitle.value = true;
   }
 };
 
 const error = ref("");
+
+function skipLyrics() {
+  noSubtitle.value = true;
+  next();
+}
 
 function next() {
   fromData.record.lyrics = lyricsRecord.label;
@@ -455,7 +461,13 @@ function editLyrics(item: SubTitle) {
         status="error"
         :title="error"
         subtitle="请查看视频是否有字幕,包括AI字幕,如果没有,请跳过"
-      />
+      >
+        <template #extra>
+          <a-space>
+            <a-button type="primary" @click="skipLyrics">跳过字幕嵌入</a-button>
+          </a-space>
+        </template>
+      </a-result>
       <a-checkbox-group
         v-model="subtitle"
         @change="onChange"
