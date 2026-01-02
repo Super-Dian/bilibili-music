@@ -2,6 +2,7 @@
 import { fromData } from "@/data";
 import { onMounted, reactive } from "vue";
 import Btn from "@/components/btn.vue";
+import { GM_getValue } from "$";
 
 const emits = defineEmits(["next", "prev"]);
 const covers = reactive<{ label: string; url?: string }[]>([]);
@@ -26,6 +27,18 @@ onMounted(() => {
     url: fromData.videoData?.owner.face,
   });
   const url = covers?.[0]?.url;
+  if(fromData.usedefaultconfig){
+    const defaultRule = GM_getValue("default_rule");
+    const coverLabel = defaultRule?.cover;
+    const coverItem = covers.find((item) => item.label === coverLabel);
+    if(coverItem && coverItem.url){
+      fromData.coverUrl = coverItem.url;
+      cover.value = [coverItem.url];
+      coverRecord.label = coverItem.label;
+      next();
+      return;
+    }
+  }
   if (url) {
     fromData.coverUrl = url.toString();
     cover.value = [url];

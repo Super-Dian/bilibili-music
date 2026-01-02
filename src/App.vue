@@ -15,15 +15,17 @@ const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
 
 const handleOk = () => {
   Message.error("暂未实现");
-  return false
   const defaultRule = GM_getValue("default_rule");
+  console.log("默认规则:", defaultRule);
+  //return false;
   if (!defaultRule) {
     Message.error("未找到默认规则");
     return false;
   }
-  console.log(defaultRule);
+  fromData.usedefaultconfig = true;
+  onNext();
   // visible.value = false;
-  return false;
+  //return false;
 };
 
 const handleCancel = () => {

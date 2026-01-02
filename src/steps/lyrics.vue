@@ -7,6 +7,7 @@ import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
 import { Lyrics, lyrics_clip } from "@ocyss/bilibili-music-backend";
+import { GM_getValue } from "$";
 const emits = defineEmits(["next", "prev"]);
 
 type SubTitle = PlayerData["subtitle"]["subtitles"][number];
@@ -124,12 +125,39 @@ onMounted(() => {
       subtitles.value = _subtitles;
       if (fromData.playerData)
         fromData.playerData.subtitle.subtitles = _subtitles;
-      if (_subtitles.length > 0) {
+
+    // 新增：尝试使用本地默认语言配置（lan_doc），否则回退到第一个
+    if (_subtitles.length > 0) {
+      if (fromData.usedefaultconfig) {
+        const defaultLan = GM_getValue("default_rule");
+        const default_lyrics_lan = defaultLan?.lyrics;
+        console.log(default_lyrics_lan);
+        const matched = default_lyrics_lan
+          ? _subtitles.find((s) => s.lan_doc === default_lyrics_lan)
+          : undefined;
+        if (matched) {
+          subtitle.value = [matched.id_str];
+          lyricsRecord.label = matched.lan_doc;
+          let lyricsData = matched.data?.body.map((item) => [
+          Math.round(item.from * 1000),
+          item.content,
+          ]);
+          fromData.lyricsData = lyricsData;
+        } else {
+          const val = _subtitles[0].id_str;
+          subtitle.value = [val];
+          lyricsRecord.label = _subtitles[0].lan_doc;
+        }
+        
+        emits("next");
+      } else {
         const val = _subtitles[0].id_str;
         subtitle.value = [val];
         lyricsRecord.label = _subtitles[0].lan_doc;
       }
-      // console.log(_subtitles);
+    }
+  console.log(_subtitles);
+
     })
     .catch((err) => {
       error.value = err.message;

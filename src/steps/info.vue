@@ -57,6 +57,17 @@ const handleFileSelect = (value: string) => {
 
 onMounted(() => {
   const noMusic = !fromData.data ? "_no_music" : "";
+  if(fromData.usedefaultconfig){
+    const defaultRule = GM_getValue("default_rule");
+    const format = defaultRule.format;
+    if(format){
+      handleTitleSelect(format.title in titleSelects ? format.title : titleSelects[0]);
+      handleAuthorSelect(format.author in authorSelects ? format.author : authorSelects[0]);
+      handleFileSelect(format.file in fileSelects ? format.file : fileSelects[0]);
+      next();
+      return;
+    }
+  }
   const titleFormat = GM_getValue(`title-format${noMusic}`, titleSelects[0]);
   const authorFormat = GM_getValue(`author-format${noMusic}`, authorSelects[0]);
   const fileFormat = GM_getValue(`file-format${noMusic}`, fileSelects[0]);

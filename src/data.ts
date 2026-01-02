@@ -43,6 +43,7 @@ export const defaultData = {
     cover: undefined as string | undefined,
     lyrics: undefined as string | undefined,
   },
+  usedefaultconfig: false,
 };
 
 export const fromData = reactive(clone(defaultData));

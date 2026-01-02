@@ -271,6 +271,9 @@ onMounted(() => {
     currentTime.value = video.currentTime;
     duration.value = video.duration;
   }
+  if(fromData.usedefaultconfig){
+    next();
+  }
 });
 
 onUnmounted(() => {
