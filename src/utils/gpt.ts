@@ -1,5 +1,6 @@
-import { userConfig } from "@/data";
 import { Message } from "@arco-design/web-vue";
+
+import { userConfig } from "@/data";
 
 export type ChatCompletionMessageParam = {
   role: "system" | "user" | "assistant";

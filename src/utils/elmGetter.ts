@@ -15,10 +15,10 @@ const elProto = win.Element.prototype;
 
 const matches =
   elProto.matches ||
-  elProto.matchesSelector ||
   elProto.webkitMatchesSelector ||
   elProto.mozMatchesSelector ||
-  elProto.oMatchesSelector;
+  elProto.msMatchesSelector;
+
 const MutationObs = win.MutationObserver || win.WebkitMutationObserver || win.MozMutationObserver;
 function addObserver(target, callback) {
   const observer = new MutationObs((mutations) => {
@@ -82,7 +82,7 @@ function getOne(selector, parent, timeout) {
       const node = query(false, selector, el, true);
       if (node) {
         removeFilter(parent, filter);
-        timer && clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         resolve(node);
       }
     };
@@ -149,15 +149,12 @@ async function rm(
   ...args: [Element, number] | [number] | [Element] | []
 ) {
   if (Array.isArray(selector)) {
-    await Promise.all(
-      selector.map((s) => {
-        get(s, ...args).then((e) => e.remove());
-      }),
-    );
+    await Promise.all(selector.map((s) => get(s, ...args).then((e) => e.remove())));
   } else {
     await get(selector, ...args).then((e) => e.remove());
   }
 }
+
 export default {
   get,
   each,

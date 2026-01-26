@@ -1,4 +1,5 @@
 import { GM_cookie, GM_xmlhttpRequest, GmXhrRequest } from "$";
+
 import { logger } from "./logger";
 
 export class RequestError extends Error {
@@ -34,48 +35,53 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
 }: RequestArgs<TContext, TResponseType>) {
   headers["Referer"] = window.location.href;
   headers["User-Agent"] = window.navigator.userAgent;
-  return new Promise<TContext>(async (resolve, reject) => {
-    const ck = cookie
-      ? await new Promise<ResolvedReturnType<(typeof GM_cookie)["list"]>>((resolve, reject) =>
-          GM_cookie.list({}, (ck, err) => {
-            if (err) {
-              reject(err);
+  return new Promise<TContext>((resolve, reject) => {
+    void (async () => {
+      try {
+        const ck = cookie
+          ? await new Promise<ResolvedReturnType<(typeof GM_cookie)["list"]>>((resolve, reject) =>
+              GM_cookie.list({}, (ck, err) => {
+                if (err) {
+                  reject(err);
+                }
+                resolve(ck);
+              }),
+            )
+          : [];
+        logger.debug("music-log/requests", { url, data, method, headers, ck });
+        GM_xmlhttpRequest<TContext, TResponseType>({
+          method,
+          url,
+          data,
+          headers,
+          timeout: timeout * 1000,
+          responseType,
+          cookie: ck.map((c) => `${c.name}=${c.value}`).join("; "),
+
+          ontimeout() {
+            reject(new RequestError(`超时 ${Math.round(timeout / 1000)}s`));
+          },
+          onabort() {
+            reject(new RequestError("用户中止"));
+          },
+          onerror(e) {
+            const msg = `${e.responseText} | ${e.error}`;
+            reject(new RequestError(msg));
+          },
+          onloadend(e) {
+            resolve(e.response);
+          },
+          onloadstart(e) {
+            if (responseType === "stream") {
+              const reader = (e.response as ReadableStream<Uint8Array>).getReader();
+              onStream(reader);
             }
-            resolve(ck);
-          }),
-        )
-      : [];
-    logger.debug("music-log/requests", { url, data, method, headers, ck });
-    const abort = GM_xmlhttpRequest<TContext, TResponseType>({
-      method,
-      url,
-      data,
-      headers,
-      timeout: timeout * 1000,
-      responseType,
-      cookie: ck.map((c) => `${c.name}=${c.value}`).join("; "),
-
-      ontimeout() {
-        reject(new RequestError(`超时 ${Math.round(timeout / 1000)}s`));
-      },
-      onabort() {
-        reject(new RequestError("用户中止"));
-      },
-      onerror(e) {
-        const msg = `${e.responseText} | ${e.error}, ${e}`;
-
-        reject(new RequestError(msg));
-      },
-      onloadend(e) {
-        resolve(e.response);
-      },
-      onloadstart(e) {
-        if (responseType === "stream") {
-          const reader = (e.response as ReadableStream<Uint8Array>).getReader();
-          onStream(reader);
-        }
-      },
-    });
+          },
+        });
+      } catch (err) {
+        reject(err);
+      }
+    })();
   });
 }
 

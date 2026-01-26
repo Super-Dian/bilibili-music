@@ -211,10 +211,10 @@ function main() {
         metadataArgs.push("-metadata", `lyrics=${lrcString}`);
       }
       if (fromData.data?.album) {
-        metadataArgs.push(...["-metadata", `album=${fromData.data.album}`]);
+        metadataArgs.push("-metadata", `album=${fromData.data.album}`);
       }
       if (fromData.data?.music_publish) {
-        metadataArgs.push(...["-metadata", `date=${fromData.data.music_publish}`]);
+        metadataArgs.push("-metadata", `date=${fromData.data.music_publish}`);
       }
       await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"]);
       const fileData = await ffmpeg.readFile("output.m4a");

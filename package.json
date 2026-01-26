@@ -10,8 +10,8 @@
     "preview": "vite preview",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
-    "lint": "oxlint",
-    "lint:fix": "oxlint --fix"
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix"
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",
@@ -31,6 +31,7 @@
     "lint-staged": "^16.2.7",
     "oxfmt": "^0.27.0",
     "oxlint": "^1.42.0",
+    "oxlint-tsgolint": "^0.11.2",
     "typescript": "^5.4.5",
     "unplugin-auto-import": "^0.17.6",
     "unplugin-vue-components": "^0.27.0",
@@ -40,6 +41,7 @@
     "vue-tsc": "^2.0.19"
   },
   "lint-staged": {
-    "*": "oxfmt --no-error-on-unmatched-pattern"
+    "*": "oxfmt --no-error-on-unmatched-pattern",
+    "*.{js,jsx,ts,tsx,mjs,cjs}": "oxlint --fix"
   }
 }

@@ -1,6 +1,7 @@
-import { reactive } from "vue";
-import { deepmerge, clone } from "@/utils/deepmerge";
 import { GM_getValue, GM_setValue, unsafeWindow } from "$";
+import { reactive } from "vue";
+
+import { deepmerge, clone } from "@/utils/deepmerge";
 import { logger } from "@/utils/logger";
 // import { ClipRanges, Lyrics } from "@ocyss/wasm-music-backend";
 

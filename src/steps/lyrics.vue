@@ -191,7 +191,7 @@ const lyricsBodyLine = computed(() => {
   // 原长度，剪辑长度，AI改写长度
   if (!editLyricsData.value?.data) return [0, 0, 0];
   return [
-    !!editLyricsData.value.data._lyricsBody
+    editLyricsData.value.data._lyricsBody
       ? editLyricsData.value.data._lyricsBody.length
       : editLyricsData.value.data.body.length,
     editLyricsData.value.data._editBody.split("\n").length,

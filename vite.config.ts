@@ -1,14 +1,14 @@
-import { defineConfig, loadEnv } from "vite";
-import vue from "@vitejs/plugin-vue";
-import monkey, { cdn, util } from "vite-plugin-monkey";
-import { vitePluginForArco } from "@arco-plugins/vite-vue";
-import process from "process";
-import path from "path";
-import AutoImport from "unplugin-auto-import/vite";
-import Components from "unplugin-vue-components/vite";
-import { ArcoResolver } from "unplugin-vue-components/resolvers";
-import wasm from "vite-plugin-wasm";
 import fs from "fs";
+import path from "path";
+import process from "process";
+
+import { vitePluginForArco } from "@arco-plugins/vite-vue";
+import vue from "@vitejs/plugin-vue";
+import AutoImport from "unplugin-auto-import/vite";
+import { ArcoResolver } from "unplugin-vue-components/resolvers";
+import Components from "unplugin-vue-components/vite";
+import { defineConfig, loadEnv } from "vite";
+import monkey, { cdn, util } from "vite-plugin-monkey";
 
 const pathSrc = path.resolve(__dirname, "src");
 const rootDir = process.cwd();
@@ -16,11 +16,10 @@ const rootDir = process.cwd();
 // https://vitejs.dev/config/
 export default defineConfig(() => {
   const env = loadEnv("", process.cwd(), "");
-  const VITE_RELEASE_MODE = env.VITE_RELEASE_MODE ?? "dev";
+  const _VITE_RELEASE_MODE = env.VITE_RELEASE_MODE ?? "dev";
   const VITE_VERSION = env.VITE_VERSION ?? "dev";
   return {
     plugins: [
-      // wasm(),
       vue(),
       vitePluginForArco({
         style: "css",
@@ -100,10 +99,6 @@ export default defineConfig(() => {
             "www.hhlqilongzhu.cn",
             "api.52vmy.cn",
           ],
-          // resource: {
-          //   wasm_music_backend_bg:
-          //     "https://fastly.jsdelivr.net/npm/@ocyss/wasm-music-backend@0.2.1/wasm_music_backend_bg.wasm",
-          // },
           downloadURL: "https://update.greasyfork.org/scripts/498677.user.js",
           updateURL: "https://update.greasyfork.org/scripts/498677.user.js",
         },
@@ -127,25 +122,21 @@ export default defineConfig(() => {
           prefix: false,
         },
       }),
-      // {
-      //   name: "wasm-cdn",
-      //   renderChunk(code) {
-      //     let tempCode = code;
-      //     const regx = new RegExp(/(__vite__wasmUrl = .*;)/);
-      //     tempCode = code.replace(
-      //       regx,
-      //       `__vite__wasmUrl = _GM_getResourceURL("bilibili_music_backend_bg");`
-      //     );
-      //     return tempCode;
-      //   },
-      // },
     ],
     resolve: {
       alias: {
         "@": pathSrc,
       },
     },
-
+    build: {
+      rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.code === "UNUSED_EXTERNAL_IMPORT") return;
+          if (warning.message.includes("resolveComponent")) return;
+          warn(warning);
+        },
+      },
+    },
     server: {
       headers: {
         "Cross-Origin-Opener-Policy": "same-origin",

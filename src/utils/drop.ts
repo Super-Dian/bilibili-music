@@ -132,7 +132,7 @@ function findAudioSourceWebpage(buffer: Uint8Array): string | null {
           return urlData;
         }
       } catch (e) {
-        console.warn("URL解码失败");
+        console.warn("URL解码失败", e);
       }
     }
 

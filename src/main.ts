@@ -1,11 +1,14 @@
-import elmGetter from "./utils/elmGetter";
-import { createApp } from "vue";
-import App from "@/App.vue";
+import "@/style.css";
+
 import { GM_getResourceURL, GM_registerMenuCommand, unsafeWindow } from "$";
+import { createApp } from "vue";
+
+import App from "@/App.vue";
 import { defaultData } from "@/data";
 import { drop } from "@/utils/drop";
 import { logger } from "@/utils/logger";
-import "@/style.css";
+
+import elmGetter from "./utils/elmGetter";
 
 GM_getResourceURL("wasm_music_backend_bg");
 
@@ -104,7 +107,7 @@ const initFileOpen = () => {
     e.stopPropagation();
     file.style.display = "none";
     const droppedFiles = e.dataTransfer?.files;
-    drop(droppedFiles);
+    await drop(droppedFiles);
   });
 };
 

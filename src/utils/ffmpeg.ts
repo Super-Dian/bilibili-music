@@ -1,5 +1,6 @@
 import { FFmpeg } from "@ffmpeg/ffmpeg";
 import { toBlobURL } from "@ffmpeg/util";
+
 import { logger } from "./logger";
 
 export const ffmpeg = new FFmpeg();
@@ -7,7 +8,7 @@ export const ffmpeg = new FFmpeg();
 export const ffmpegLoad = async () => {
   let tryMultiThread = true;
   // const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd'
-  const baseFFmpegUrl = "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm";
+  // const baseFFmpegUrl = "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm";
   const baseCoreUrl = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/umd";
   const baseCoreMTUrl = "https://unpkg.com/@ffmpeg/core-mt@0.12.10/dist/umd";
   ffmpeg.on("log", ({ message }) => {
