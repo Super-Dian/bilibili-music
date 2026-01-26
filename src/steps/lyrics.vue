@@ -1,12 +1,12 @@
 <script lang="ts" setup>
-import { fromData, userConfig } from "@/data";
+import { fromData, Lyrics, RecordData, userConfig } from "@/data";
 import { onMounted, ref, computed, reactive } from "vue";
 import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
-import { Lyrics, lyrics_clip } from "@ocyss/bilibili-music-backend";
+import { logger } from "@/utils/logger";
 import { GM_getValue } from "$";
 const emits = defineEmits(["next", "prev"]);
 
@@ -75,7 +75,7 @@ function next() {
       ]);
       // 直接下一页的时候在剪辑歌词
       if (fromData.clipRanges && fromData.clipRanges.length > 0) {
-        lyricsData = lyrics_clip(fromData.clipRanges, lyricsData);
+        // lyricsData = lyrics_clip(fromData.clipRanges, lyricsData);
       }
     }
   }
@@ -89,11 +89,11 @@ onMounted(() => {
   const cid = fromData.videoData.cid.toString();
   const bvid = fromData.videoData.bvid;
   const aid = fromData.videoData.aid.toString();
-  console.log({ cid, bvid, aid });
+  logger.debug({ cid, bvid, aid });
   // if (fromData.data) {
   //   request.get({ url: fromData.data.mv_lyric }).then((res) => {
   //     if (!fromData.data) return;
-  //     console.log(fromData.data.mv_lyric, res);
+  //     logger.debug(fromData.data.mv_lyric, res);
   //     fromData.data.mv_lyric_data = res;
   //   });
   // }
@@ -108,7 +108,7 @@ onMounted(() => {
         }),
     })
     .then(async (res: any) => {
-      console.log("playerData", res);
+      logger.debug("playerData", res);
       if (!res.data) return;
       fromData.playerData = res.data as PlayerData;
       if (fromData.playerData.subtitle.subtitles.length === 0) {
@@ -129,7 +129,7 @@ onMounted(() => {
     // 新增：尝试使用本地默认语言配置（lan_doc），否则回退到第一个
     if (_subtitles.length > 0) {
       if (fromData.usedefaultconfig) {
-        const defaultLan = GM_getValue("default_rule");
+        const defaultLan = GM_getValue<RecordData|null>("default_rule");
         const default_lyrics_lan = defaultLan?.lyrics;
         console.log(default_lyrics_lan);
         const matched = default_lyrics_lan
@@ -138,12 +138,15 @@ onMounted(() => {
         if (matched) {
           subtitle.value = [matched.id_str];
           lyricsRecord.label = matched.lan_doc;
-          let lyricsData = matched.data?.body.map((item) => [
+          let lyricsData:Lyrics|undefined = matched.data?.body.map((item) => [
           Math.round(item.from * 1000),
           item.content,
           ]);
-          fromData.lyricsData = lyricsData;
-        } else {
+          if (lyricsData){
+            fromData.lyricsData = lyricsData;
+          }
+        }
+        if (fromData.lyricsData) {
           const val = _subtitles[0].id_str;
           subtitle.value = [val];
           lyricsRecord.label = _subtitles[0].lan_doc;
@@ -342,7 +345,7 @@ ${table}
           result += l[2] + "\n";
         }
       }
-      console.log("AI 改写结果", { res, result, match, contentMap });
+      logger.debug("AI 改写结果", { res, result, match, contentMap });
       aiRewriteContent.value = result;
       // const match = res.match(/```[\s\S]*?\n([\s\S]*?)\n```/);
       // aiRewriteContent.value = match ? match[1].trim() : res;
@@ -362,7 +365,7 @@ const onlineLyricsOptions = ref<SelectOptionGroup[]>([]);
 const onlineLyricsIndex = ref<string>("");
 
 watch(onlineLyricsIndex, (value) => {
-  console.log("watch onlineLyricsIndex", value);
+  logger.debug("watch onlineLyricsIndex", value);
   if (value) {
     onlineLyricsLoading2.value = true;
     try {
@@ -457,13 +460,13 @@ function editLyrics(item: SubTitle) {
   editLyricsData.value = JSON.parse(JSON.stringify(item)) as Subtitle2;
   if (editLyricsData.value.data) {
     if (fromData.clipRanges && fromData.clipRanges.length > 0) {
-      editLyricsData.value.data._lyricsBody = lyrics_clip(
-        fromData.clipRanges,
-        editLyricsData.value.data.body.map((item) => [
-          Math.round(item.from * 1000),
-          item.content,
-        ])
-      );
+      // editLyricsData.value.data._lyricsBody = lyrics_clip(
+      //   fromData.clipRanges,
+      //   editLyricsData.value.data.body.map((item) => [
+      //     Math.round(item.from * 1000),
+      //     item.content,
+      //   ])
+      // );
       editLyricsData.value.data._editBody =
         editLyricsData.value.data._lyricsBody
           .map((item) => item[1].replaceAll(/(^♪ )|( ♪$)/g, ""))
@@ -532,7 +535,7 @@ function editLyrics(item: SubTitle) {
                     style="
                       width: 100%;
                       height: 280px;
-                      white-space: pre;
+                      white-space: break-spaces;
                       overflow-y: scroll;
                       color: #4f4d4d;
                     "

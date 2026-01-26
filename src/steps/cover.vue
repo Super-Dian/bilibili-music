@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { fromData } from "@/data";
+import { fromData, RecordData } from "@/data";
 import { onMounted, reactive } from "vue";
 import Btn from "@/components/btn.vue";
 import { GM_getValue } from "$";
@@ -28,7 +28,7 @@ onMounted(() => {
   });
   const url = covers?.[0]?.url;
   if(fromData.usedefaultconfig){
-    const defaultRule = GM_getValue("default_rule");
+    const defaultRule = GM_getValue<RecordData|null>("default_rule");
     const coverLabel = defaultRule?.cover;
     const coverItem = covers.find((item) => item.label === coverLabel);
     if(coverItem && coverItem.url){

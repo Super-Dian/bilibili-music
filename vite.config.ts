@@ -20,7 +20,7 @@ export default defineConfig(() => {
   const VITE_VERSION = env.VITE_VERSION ?? "dev";
   return {
     plugins: [
-      wasm(),
+      // wasm(),
       vue(),
       vitePluginForArco({
         style: "css",
@@ -40,6 +40,23 @@ export default defineConfig(() => {
           }),
         ],
       }),
+      {
+      name: 'replace-url',
+      apply: 'build',
+      transform(code, id) {
+        if (id.includes('@ffmpeg/ffmpeg/dist/esm/classes.js')) {
+          // this will prevent vite create chunk for worker.js
+          const header = `import MyWorker from '@ffmpeg/ffmpeg/worker?worker&inline';\n`;
+          return (
+            header +
+            code.replace(
+              `new Worker(new URL("./worker.js", import.meta.url), `,
+              `new MyWorker(`
+            )
+          );
+        }
+      },
+    },
       monkey({
         entry: "src/main.ts",
         format: {
@@ -63,7 +80,7 @@ export default defineConfig(() => {
           },
         },
         userscript: {
-          name: "Bilibili🎶音乐姬",
+          name: "Wasm🎶音乐姬",
           version: VITE_VERSION,
           description:
             "仅帮助用户从视频页下载音乐(封面,Tags,歌词,字幕 写入支持)的油猴脚本",
@@ -71,8 +88,8 @@ export default defineConfig(() => {
           grant: ["unsafeWindow"],
           "run-at": "document-start",
           icon: " https://static.hdslb.com/images/favicon.ico",
-          namespace: "https://github.com/Ocyss/bilibili-music",
-          homepage: "https://github.com/Ocyss/bilibili-music",
+          namespace: "https://github.com/Ocyss/wasm-music",
+          homepage: "https://github.com/Ocyss/wasm-music",
           match: ["https://www.bilibili.com/video/*", "https://www.bilibili.com/list/*", "*://www.bilibili.com"],
           connect: [
             "api.bilibili.com",
@@ -83,14 +100,14 @@ export default defineConfig(() => {
             "www.hhlqilongzhu.cn",
             "api.52vmy.cn",
           ],
-          resource: {
-            bilibili_music_backend_bg:
-              "https://fastly.jsdelivr.net/npm/@ocyss/bilibili-music-backend@0.2.0/bilibili_music_backend_bg.wasm",
-          },
+          // resource: {
+          //   wasm_music_backend_bg:
+          //     "https://fastly.jsdelivr.net/npm/@ocyss/wasm-music-backend@0.2.1/wasm_music_backend_bg.wasm",
+          // },
           downloadURL:
-            "https://update.greasyfork.org/scripts/498677/Bilibili%F0%9F%8E%B6%E9%9F%B3%E4%B9%90%E5%A7%AC.user.js",
+            "https://update.greasyfork.org/scripts/498677.user.js",
           updateURL:
-            "https://update.greasyfork.org/scripts/498677/Bilibili%F0%9F%8E%B6%E9%9F%B3%E4%B9%90%E5%A7%AC.user.js",
+            "https://update.greasyfork.org/scripts/498677.user.js",
         },
         build: {
           externalGlobals: {
@@ -101,29 +118,44 @@ export default defineConfig(() => {
               "ArcoVue",
               "dist/arco-vue.min.js"
             ),
+            // "@ffmpeg/ffmpeg": cdn.jsdelivr(
+            //   "@ffmpeg/ffmpeg",
+            //   "dist/umd/ffmpeg.js"
+            // ),
+            // "@ffmpeg/util": cdn.jsdelivr(
+            //   "@ffmpeg/util",
+            //   "dist/umd/index.js"
+            // ),
           },
         },
         server: {
           prefix: false,
         },
       }),
-      {
-        name: "wasm-cdn",
-        renderChunk(code) {
-          let tempCode = code;
-          const regx = new RegExp(/(__vite__wasmUrl = .*;)/);
-          tempCode = code.replace(
-            regx,
-            `__vite__wasmUrl = _GM_getResourceURL("bilibili_music_backend_bg");`
-          );
-          return tempCode;
-        },
-      },
+      // {
+      //   name: "wasm-cdn",
+      //   renderChunk(code) {
+      //     let tempCode = code;
+      //     const regx = new RegExp(/(__vite__wasmUrl = .*;)/);
+      //     tempCode = code.replace(
+      //       regx,
+      //       `__vite__wasmUrl = _GM_getResourceURL("bilibili_music_backend_bg");`
+      //     );
+      //     return tempCode;
+      //   },
+      // },
     ],
     resolve: {
       alias: {
         "@": pathSrc,
       },
     },
+   
+  server: {
+    headers: {
+      'Cross-Origin-Opener-Policy': 'same-origin',
+      'Cross-Origin-Embedder-Policy': 'require-corp'
+    }
+  }
   };
 });

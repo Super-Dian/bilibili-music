@@ -1,15 +1,16 @@
 <script lang="ts" setup>
 import { fromData } from "@/data";
-import { onMounted, reactive, ref, computed } from "vue";
+import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import Btn from "@/components/btn.vue";
 
 interface DeletedSection {
-  start: number;
-  end: number;
-  id: number;
+	start: number;
+	end: number;
+	id: number;
 }
 
 let video: HTMLVideoElement | null = null;
+let ratechangeHandler: ((this: HTMLVideoElement, ev: Event) => any) | null = null;
 const currentTime = ref(0);
 const duration = ref(0);
 const deletedSections = ref<DeletedSection[]>([]);
@@ -18,296 +19,320 @@ const tempStart = ref(0);
 const isAuditioning = ref(false);
 const isPlaying = ref(false);
 
+// 倍速控制
+const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const selectedSpeed = ref<number>(1);
+
 // 添加时间提示和拖动状态
 const isDragging = ref(false);
 const hoverTime = ref<number | null>(null);
 const tooltipStyle = ref({
-  left: "0px",
-  display: "none",
+	left: "0px",
+	display: "none",
 });
 
 // 格式化时间显示
 const formatTime = (time: number) => {
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+	const minutes = Math.floor(time / 60);
+	const seconds = Math.floor(time % 60);
+	return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 };
 
 // 计算时间位置
 const calculateTimeFromEvent = (event: MouseEvent, element: HTMLElement) => {
-  const rect = element.getBoundingClientRect();
-  const offsetX = event.clientX - rect.left;
-  return (offsetX / rect.width) * duration.value;
+	const rect = element.getBoundingClientRect();
+	const offsetX = event.clientX - rect.left;
+	return (offsetX / rect.width) * duration.value;
 };
 
 // 处理鼠标移动
 const handleTimelineMouseMove = (event: MouseEvent) => {
-  const timeline = event.currentTarget as HTMLElement;
-  const time = calculateTimeFromEvent(event, timeline);
-  hoverTime.value = time;
+	const timeline = event.currentTarget as HTMLElement;
+	const time = calculateTimeFromEvent(event, timeline);
+	hoverTime.value = time;
 
-  // 更新提示框位置
-  tooltipStyle.value = {
-    left: `${event.clientX}px`,
-    display: "block",
-  };
+	// 更新提示框位置
+	tooltipStyle.value = {
+		left: `${event.clientX}px`,
+		display: "block",
+	};
 
-  // 如果正在拖动，更新视频时间
-  if (isDragging.value && video) {
-    video.currentTime = time;
-  }
+	// 如果正在拖动，更新视频时间
+	if (isDragging.value && video) {
+		video.currentTime = time;
+	}
 };
 
 // 处理鼠标离开
 const handleTimelineMouseLeave = () => {
-  if (!isDragging.value) {
-    hoverTime.value = null;
-    tooltipStyle.value.display = "none";
-  }
+	if (!isDragging.value) {
+		hoverTime.value = null;
+		tooltipStyle.value.display = "none";
+	}
 };
 
 // 处理鼠标按下
 const handleTimelineMouseDown = (event: MouseEvent) => {
-  isDragging.value = true;
-  document.addEventListener("mousemove", handleDocumentMouseMove);
-  document.addEventListener("mouseup", handleDocumentMouseUp);
+	isDragging.value = true;
+	document.addEventListener("mousemove", handleDocumentMouseMove);
+	document.addEventListener("mouseup", handleDocumentMouseUp);
 };
 
 // 处理文档鼠标移动（拖动时）
 const handleDocumentMouseMove = (event: MouseEvent) => {
-  if (isDragging.value) {
-    const timeline = document.querySelector(".timeline") as HTMLElement;
-    if (timeline) {
-      handleTimelineMouseMove({
-        ...event,
-        currentTarget: timeline,
-      } as MouseEvent);
-    }
-  }
+	if (isDragging.value) {
+		const timeline = document.querySelector(".timeline") as HTMLElement;
+		if (timeline) {
+			handleTimelineMouseMove({
+				...event,
+				currentTarget: timeline,
+			} as MouseEvent);
+		}
+	}
 };
 
 // 处理文档鼠标松开
 const handleDocumentMouseUp = () => {
-  isDragging.value = false;
-  hoverTime.value = null;
-  tooltipStyle.value.display = "none";
-  document.removeEventListener("mousemove", handleDocumentMouseMove);
-  document.removeEventListener("mouseup", handleDocumentMouseUp);
+	isDragging.value = false;
+	hoverTime.value = null;
+	tooltipStyle.value.display = "none";
+	document.removeEventListener("mousemove", handleDocumentMouseMove);
+	document.removeEventListener("mouseup", handleDocumentMouseUp);
 };
 
 // 更新当前时间和视频总长度
 const updateTime = () => {
-  currentTime.value = video?.currentTime ?? 0;
-  duration.value = video?.duration ?? 0;
+	currentTime.value = video?.currentTime ?? 0;
+	duration.value = video?.duration ?? 0;
 };
 
 // 从当前开始删除（删除从当前到结尾的部分）
 const startFromCurrent = () => {
-  deletedSections.value.push({
-    start: currentTime.value,
-    end: duration.value,
-    id: Date.now(),
-  });
-  sortSections();
-  mergeSections();
+	deletedSections.value.push({
+		start: currentTime.value,
+		end: duration.value,
+		id: Date.now(),
+	});
+	sortSections();
+	mergeSections();
 };
 
 // 删除到当前（删除从开始到当前的部分）
 const endAtCurrent = () => {
-  deletedSections.value.push({
-    start: 0,
-    end: currentTime.value,
-    id: Date.now(),
-  });
-  sortSections();
-  mergeSections();
+	deletedSections.value.push({
+		start: 0,
+		end: currentTime.value,
+		id: Date.now(),
+	});
+	sortSections();
+	mergeSections();
 };
 
 // 开始记录要删除的片段
 const startRecording = () => {
-  isRecording.value = true;
-  tempStart.value = currentTime.value;
+	isRecording.value = true;
+	tempStart.value = currentTime.value;
 };
 
 // 结束记录要删除的片段
 const endRecording = () => {
-  if (currentTime.value === tempStart.value) {
-    isRecording.value = false;
-    return;
-  }
-  if (isRecording.value) {
-    deletedSections.value.push({
-      start: tempStart.value,
-      end: currentTime.value,
-      id: Date.now(),
-    });
-    isRecording.value = false;
-    sortSections();
-    mergeSections();
-  }
+	if (currentTime.value === tempStart.value) {
+		isRecording.value = false;
+		return;
+	}
+	if (isRecording.value) {
+		deletedSections.value.push({
+			start: tempStart.value,
+			end: currentTime.value,
+			id: Date.now(),
+		});
+		isRecording.value = false;
+		sortSections();
+		mergeSections();
+	}
 };
 
 // 删除标记的删除片段
 const removeSection = (id: number) => {
-  deletedSections.value = deletedSections.value.filter(
-    (section) => section.id !== id
-  );
+	deletedSections.value = deletedSections.value.filter(
+		(section) => section.id !== id,
+	);
 };
 
 // 按时间排序删除片段
 const sortSections = () => {
-  deletedSections.value.sort((a, b) => a.start - b.start);
+	deletedSections.value.sort((a, b) => a.start - b.start);
 };
 
 // 合并重叠的删除片段
 const mergeSections = () => {
-  if (deletedSections.value.length <= 1) return;
+	if (deletedSections.value.length <= 1) return;
 
-  const merged: DeletedSection[] = [];
-  let current = { ...deletedSections.value[0] };
+	const merged: DeletedSection[] = [];
+	let current = { ...deletedSections.value[0] };
 
-  for (let i = 1; i < deletedSections.value.length; i++) {
-    const section = deletedSections.value[i];
-    if (section.start <= current.end) {
-      // 有重叠，合并片段
-      current.end = Math.max(current.end, section.end);
-    } else {
-      // 无重叠，保存当前片段并开始新片段
-      merged.push(current);
-      current = { ...section };
-    }
-  }
-  merged.push(current);
+	for (let i = 1; i < deletedSections.value.length; i++) {
+		const section = deletedSections.value[i];
+		if (section.start <= current.end) {
+			// 有重叠，合并片段
+			current.end = Math.max(current.end, section.end);
+		} else {
+			// 无重叠，保存当前片段并开始新片段
+			merged.push(current);
+			current = { ...section };
+		}
+	}
+	merged.push(current);
 
-  deletedSections.value = merged;
+	deletedSections.value = merged;
 };
 
 function seekTo(time: number) {
-  if (video) {
-    video.currentTime = time;
-  }
+	if (video) {
+		video.currentTime = time;
+	}
 }
 
 // 添加临时记录片段的显示
 const tempSection = computed(() => {
-  if (!isRecording.value) return null;
-  return {
-    start: tempStart.value,
-    end: currentTime.value,
-  };
+	if (!isRecording.value) return null;
+	return {
+		start: tempStart.value,
+		end: currentTime.value,
+	};
 });
 
 // 修改试听功能，添加跳过删除片段的逻辑
 const startAudition = () => {
-  if (isAuditioning.value) {
-    if (video) {
-      video.pause();
-      isAuditioning.value = false;
-    }
-  } else {
-    isAuditioning.value = true;
-    if (video) {
-      video.currentTime = 0;
-      video.play().catch((error) => {
-        console.error("视频播放失败:", error);
-        isAuditioning.value = false;
-      });
-    }
-  }
+	if (isAuditioning.value) {
+		if (video) {
+			video.pause();
+			isAuditioning.value = false;
+		}
+	} else {
+		isAuditioning.value = true;
+		if (video) {
+			video.currentTime = 0;
+			video.play().catch((error) => {
+				console.error("视频播放失败:", error);
+				isAuditioning.value = false;
+			});
+		}
+	}
 };
 
 // 添加视频时间更新处理函数
 const handleTimeUpdate = () => {
-  if (!video) return;
+	if (!video) return;
 
-  updateTime();
+	updateTime();
 
-  // 试听时检查是否在删除片段中
-  if (isAuditioning.value) {
-    const currentVideoTime = video.currentTime;
-    for (const section of deletedSections.value) {
-      if (currentVideoTime >= section.start && currentVideoTime < section.end) {
-        // 如果在删除片段中，跳到片段结束位置
-        video.currentTime = section.end;
-        break;
-      }
-    }
-  }
+	// 试听时检查是否在删除片段中
+	if (isAuditioning.value) {
+		const currentVideoTime = video.currentTime;
+		for (const section of deletedSections.value) {
+			if (currentVideoTime >= section.start && currentVideoTime < section.end) {
+				// 如果在删除片段中，跳到片段结束位置
+				video.currentTime = section.end;
+				break;
+			}
+		}
+	}
 };
 
 // 添加播放/暂停功能
 const togglePlay = () => {
-  if (!video) return;
+	if (!video) return;
 
-  if (isPlaying.value) {
-    video.pause();
-  } else {
-    video.play().catch((error) => {
-      console.error("视频播放失败:", error);
-    });
-  }
+	if (isPlaying.value) {
+		video.pause();
+	} else {
+		video.play().catch((error) => {
+			console.error("视频播放失败:", error);
+		});
+	}
 };
 
 // 提取事件处理函数
 const handlePlay = () => {
-  isPlaying.value = true;
+	isPlaying.value = true;
 };
 
 const handlePause = () => {
-  isPlaying.value = false;
+	isPlaying.value = false;
 };
 
 const handleEnded = () => {
-  isAuditioning.value = false;
+	isAuditioning.value = false;
 };
 
 onMounted(() => {
-  video = document.querySelector(`.bpx-player-video-wrap video`);
-  if (video) {
-    video.addEventListener("timeupdate", handleTimeUpdate);
-    video.addEventListener("ended", handleEnded);
-    video.addEventListener("play", handlePlay);
-    video.addEventListener("pause", handlePause);
-    currentTime.value = video.currentTime;
-    duration.value = video.duration;
-  }
+	video = document.querySelector(`.bpx-player-video-wrap video`);
+	if (video) {
+		video.addEventListener("timeupdate", handleTimeUpdate);
+		video.addEventListener("ended", handleEnded);
+		video.addEventListener("play", handlePlay);
+		video.addEventListener("pause", handlePause);
+		currentTime.value = video.currentTime;
+		duration.value = video.duration;
+
+		// 初始化倍速值，尝试读取 B 站播放器的 playbackRate
+		selectedSpeed.value = video.playbackRate || 1;
+		fromData.speed = selectedSpeed.value;
+
+		// 监听外部倍速变化（例如用户在原播放器界面修改）
+		ratechangeHandler = () => {
+			selectedSpeed.value = video?.playbackRate ?? selectedSpeed.value;
+			fromData.speed = selectedSpeed.value;
+		};
+		video.addEventListener("ratechange", ratechangeHandler);
+	}
   if(fromData.usedefaultconfig){
     next();
   }
 });
 
 onUnmounted(() => {
-  if (video) {
-    video.removeEventListener("timeupdate", handleTimeUpdate);
-    video.removeEventListener("ended", handleEnded);
-    video.removeEventListener("play", handlePlay);
-    video.removeEventListener("pause", handlePause);
-  }
-  document.removeEventListener("mousemove", handleDocumentMouseMove);
-  document.removeEventListener("mouseup", handleDocumentMouseUp);
+	if (video) {
+		video.removeEventListener("timeupdate", handleTimeUpdate);
+		video.removeEventListener("ended", handleEnded);
+		video.removeEventListener("play", handlePlay);
+		video.removeEventListener("pause", handlePause);
+		if (ratechangeHandler) video.removeEventListener("ratechange", ratechangeHandler);
+	}
+	document.removeEventListener("mousemove", handleDocumentMouseMove);
+	document.removeEventListener("mouseup", handleDocumentMouseUp);
+});
+
+// 当选择的倍速发生变化时，同步到 video 与 fromData
+watch(selectedSpeed, (val) => {
+	if (video) video.playbackRate = val;
+	fromData.speed = val;
 });
 
 // 添加进度条点击跳转
 const handleTimelineClick = (event: MouseEvent) => {
-  const timeline = event.currentTarget as HTMLElement;
-  const rect = timeline.getBoundingClientRect();
-  const offsetX = event.clientX - rect.left;
-  const percentage = offsetX / rect.width;
-  const newTime = percentage * duration.value;
+	const timeline = event.currentTarget as HTMLElement;
+	const rect = timeline.getBoundingClientRect();
+	const offsetX = event.clientX - rect.left;
+	const percentage = offsetX / rect.width;
+	const newTime = percentage * duration.value;
 
-  if (video) {
-    video.currentTime = newTime;
-  }
+	if (video) {
+		video.currentTime = newTime;
+	}
 };
 
 const emits = defineEmits(["next"]);
 
 function next() {
-  fromData.clipRanges = deletedSections.value.map((section) => [
-    Math.round(section.start * 1000),
-    Math.round(section.end * 1000),
-  ]);
-  emits("next");
+	fromData.clipRanges = deletedSections.value.map((section) => [
+		Math.round(section.start * 1000),
+		Math.round(section.end * 1000),
+	]);
+	// 将当前倍速写入 fromData，供后续下载使用
+	fromData.speed = selectedSpeed.value;
+	emits("next");
 }
 </script>
 
@@ -315,6 +340,13 @@ function next() {
 
     <div class="montage-container">
       <a-spin :loading="isAuditioning">
+			<!-- 倍速控制 -->
+			<div style="margin-bottom: 12px; display:flex; align-items:center; gap:8px;">
+				<label style="font-size:13px;">倍速：</label>
+				<select v-model.number="selectedSpeed">
+					<option v-for="s in speedOptions" :key="s" :value="s">{{ s }}x</option>
+				</select>
+			</div>
         <!-- 控制按钮 -->
         <div class="control-buttons">
           <div>

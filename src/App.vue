@@ -5,17 +5,18 @@ import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
-import { fromData, reset } from "./data";
+import { fromData, RecordData, reset } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
 import { Message } from "@arco-design/web-vue";
+import { logger } from "./utils/logger";
 const visible = ref(true);
 const current = ref(1);
 const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
 
 const handleOk = () => {
   Message.error("暂未实现");
-  const defaultRule = GM_getValue("default_rule");
+  const defaultRule = GM_getValue<RecordData|null>("default_rule");
   console.log("默认规则:", defaultRule);
   //return false;
   if (!defaultRule) {
@@ -71,7 +72,7 @@ onMounted(() => {
 
   const music_id = bgmTag?.__vue__?.$props?.info?.music_id;
   if (music_id) {
-  console.log("获取到的Music ID:", music_id, bgmTag?.__vue__);
+  logger.debug("获取到的Music ID:", music_id, bgmTag?.__vue__);
   fetch(
     "https://api.bilibili.com/x/copyright-music-publicity/bgm/detail?" +
       new URLSearchParams({
@@ -131,7 +132,7 @@ function onOpen() {
       </div>
     </template>
     <div
-      style="display: flex; justify-content: space-between; align-items: center"
+      style="display: flex; justify-content: space-between; align-items: center;max-height: 75vh;"
     >
       <a-steps
         :current="current"
@@ -153,6 +154,7 @@ function onOpen() {
           textAlign: 'center',
           background: 'var(--color-bg-2)',
           color: '#C2C7CC',
+          minWidth: 0
         }"
       >
         <a-result

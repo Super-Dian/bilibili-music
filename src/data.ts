@@ -1,7 +1,8 @@
 import { reactive } from "vue";
-import { deepmerge, clone } from "./utils/deepmerge";
+import { deepmerge, clone } from "@/utils/deepmerge";
 import { GM_getValue, GM_setValue, unsafeWindow } from "$";
-import { ClipRanges, Lyrics } from "@ocyss/bilibili-music-backend";
+import { logger } from "@/utils/logger";
+// import { ClipRanges, Lyrics } from "@ocyss/wasm-music-backend";
 
 export const defaultUserConfig = {
   openai: {
@@ -18,9 +19,23 @@ export const userConfig = reactive(
 );
 
 watch(userConfig, (newVal) => {
-  console.log("write userConfig", newVal);
+  logger.debug("write userConfig", newVal);
   GM_setValue("userConfig", clone(newVal));
 });
+
+export type Lyrics = Array<[number, string]>;
+export type ClipRanges = Array<[number, number]>;
+export type RecordData = typeof defaultRecordData;
+
+export const defaultRecordData = {
+    format: {
+      title: "",
+      author: "",
+      file: "",
+    },
+    cover: undefined as string | undefined,
+    lyrics: undefined as string | undefined,
+  }
 
 export const defaultData = {
   data: null as MusicData | null,
@@ -31,18 +46,13 @@ export const defaultData = {
   videoData: null as VideoData | null,
   playerData: null as PlayerData | null,
   videoParse: null as VideoParse | null,
+  
   title: "",
   author: "",
   file: "",
-  record: {
-    format: {
-      title: "",
-      author: "",
-      file: "",
-    },
-    cover: undefined as string | undefined,
-    lyrics: undefined as string | undefined,
-  },
+  // 下载/播放倍速
+  speed: 1,
+  record: defaultRecordData,
   usedefaultconfig: false,
 };
 

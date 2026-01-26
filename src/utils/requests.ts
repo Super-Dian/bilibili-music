@@ -1,4 +1,5 @@
 import { GM_cookie, GM_xmlhttpRequest, GmXhrRequest } from "$";
+import { logger } from "./logger";
 
 export class RequestError extends Error {
   constructor(message: string) {
@@ -53,7 +54,7 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
             })
         )
       : [];
-    console.log("music-log/requests", { url, data, method, headers, ck });
+    logger.debug("music-log/requests", { url, data, method, headers, ck });
     const abort = GM_xmlhttpRequest<TContext, TResponseType>({
       method,
       url,

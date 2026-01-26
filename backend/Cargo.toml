@@ -1,11 +1,11 @@
 [package]
 edition = "2021"
-name = "bilibili-music-backend"
-version = "0.2.0"
+name = "wasm-music-backend"
+version = "0.2.1"
 authors = ["ocyss <bilimusic@ocyss.icu>"]
-description = "Bilibili🎶音乐姬 后端WASM程序"
+description = "Wasm🎶音乐姬 后端WASM程序"
 license = "MIT/Apache-2.0"
-repository = "https://github.com/Ocyss/bilibili-music"
+repository = "https://github.com/Ocyss/wasm-music"
 
 [profile.release]
 opt-level = "z"
@@ -26,3 +26,6 @@ wasm-bindgen = { version = "0.2.92" }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.42"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-O", "--enable-nontrapping-float-to-int", "--enable-bulk-memory"]

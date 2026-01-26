@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { fromData } from "@/data";
+import { fromData, RecordData } from "@/data";
 import Btn from "@/components/btn.vue";
 import { GM_getValue, GM_setValue } from "$";
 
@@ -42,24 +42,27 @@ const handleSelect = (type: keyof typeof infoRecord, format: string) => {
     .replaceAll("5", maps[4]);
 };
 
-const handleTitleSelect = (value: string) => {
+const handleTitleSelect = (value: any) => {
+  if (!value || typeof value!='string')return;
   fromData.title = handleSelect("title", value);
 };
 
-const handleAuthorSelect = (value: string) => {
+const handleAuthorSelect = (value: any) => {
+  if (!value || typeof value!='string')return;
   fromData.author = handleSelect("author", value);
 };
 
-const handleFileSelect = (value: string) => {
+const handleFileSelect = (value: any) => {
+  if (!value || typeof value!='string')return;
   const title = handleSelect("file", value);
-  fromData.file = `${title.replaceAll(invalidFileNameRegex, "")}.wav`;
+  fromData.file = `${title.replaceAll(invalidFileNameRegex, "")}.m4a`;
 };
 
 onMounted(() => {
   const noMusic = !fromData.data ? "_no_music" : "";
   if(fromData.usedefaultconfig){
-    const defaultRule = GM_getValue("default_rule");
-    const format = defaultRule.format;
+    const defaultRule = GM_getValue<RecordData|null>("default_rule");
+    const format = defaultRule?.format;
     if(format){
       handleTitleSelect(format.title in titleSelects ? format.title : titleSelects[0]);
       handleAuthorSelect(format.author in authorSelects ? format.author : authorSelects[0]);
