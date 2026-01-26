@@ -1,7 +1,10 @@
 {
   "name": "wasm-music",
-  "version": "0.0.0",
+  "displayName": "Wasm🎶音乐姬",
+  "version": "0.3.0",
   "private": true,
+  "description": "仅帮助用户从视频页下载音乐(封面,Tags,歌词,字幕 写入支持)的油猴脚本",
+  "author": "Ocyss <git@ocyss.icu> (https://github.com/Ocyss)",
   "type": "module",
   "scripts": {
     "dev": "vite",
