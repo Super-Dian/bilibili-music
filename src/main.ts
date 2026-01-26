@@ -73,7 +73,7 @@ const initFileOpen = () => {
       e.stopPropagation();
       file.style.display = "flex";
     },
-    false
+    false,
   );
 
   document.documentElement.addEventListener(
@@ -84,7 +84,7 @@ const initFileOpen = () => {
       e.stopPropagation();
       file.style.display = "flex";
     },
-    false
+    false,
   );
 
   document.documentElement.addEventListener(
@@ -95,7 +95,7 @@ const initFileOpen = () => {
       e.stopPropagation();
       file.style.display = "none";
     },
-    false
+    false,
   );
 
   document.documentElement.addEventListener("drop", async function (e) {

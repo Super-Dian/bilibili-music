@@ -11,7 +11,7 @@ withDefaults(
   {
     prevLabel: "上一步",
     nextLabel: "下一步",
-  }
+  },
 );
 </script>
 

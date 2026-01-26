@@ -41,22 +41,19 @@ export default defineConfig(() => {
         ],
       }),
       {
-      name: 'replace-url',
-      apply: 'build',
-      transform(code, id) {
-        if (id.includes('@ffmpeg/ffmpeg/dist/esm/classes.js')) {
-          // this will prevent vite create chunk for worker.js
-          const header = `import MyWorker from '@ffmpeg/ffmpeg/worker?worker&inline';\n`;
-          return (
-            header +
-            code.replace(
-              `new Worker(new URL("./worker.js", import.meta.url), `,
-              `new MyWorker(`
-            )
-          );
-        }
+        name: "replace-url",
+        apply: "build",
+        transform(code, id) {
+          if (id.includes("@ffmpeg/ffmpeg/dist/esm/classes.js")) {
+            // this will prevent vite create chunk for worker.js
+            const header = `import MyWorker from '@ffmpeg/ffmpeg/worker?worker&inline';\n`;
+            return (
+              header +
+              code.replace(`new Worker(new URL("./worker.js", import.meta.url), `, `new MyWorker(`)
+            );
+          }
+        },
       },
-    },
       monkey({
         entry: "src/main.ts",
         format: {
@@ -82,15 +79,18 @@ export default defineConfig(() => {
         userscript: {
           name: "Wasm🎶音乐姬",
           version: VITE_VERSION,
-          description:
-            "仅帮助用户从视频页下载音乐(封面,Tags,歌词,字幕 写入支持)的油猴脚本",
+          description: "仅帮助用户从视频页下载音乐(封面,Tags,歌词,字幕 写入支持)的油猴脚本",
           author: "Ocyss",
           grant: ["unsafeWindow"],
           "run-at": "document-start",
           icon: " https://static.hdslb.com/images/favicon.ico",
           namespace: "https://github.com/Ocyss/wasm-music",
           homepage: "https://github.com/Ocyss/wasm-music",
-          match: ["https://www.bilibili.com/video/*", "https://www.bilibili.com/list/*", "*://www.bilibili.com"],
+          match: [
+            "https://www.bilibili.com/video/*",
+            "https://www.bilibili.com/list/*",
+            "*://www.bilibili.com",
+          ],
           connect: [
             "api.bilibili.com",
             "bilibili.com",
@@ -104,20 +104,15 @@ export default defineConfig(() => {
           //   wasm_music_backend_bg:
           //     "https://fastly.jsdelivr.net/npm/@ocyss/wasm-music-backend@0.2.1/wasm_music_backend_bg.wasm",
           // },
-          downloadURL:
-            "https://update.greasyfork.org/scripts/498677.user.js",
-          updateURL:
-            "https://update.greasyfork.org/scripts/498677.user.js",
+          downloadURL: "https://update.greasyfork.org/scripts/498677.user.js",
+          updateURL: "https://update.greasyfork.org/scripts/498677.user.js",
         },
         build: {
           externalGlobals: {
             vue: cdn
               .jsdelivr("Vue", "dist/vue.global.prod.js")
               .concat(util.dataUrl(";window.Vue=Vue;")),
-            "@arco-design/web-vue": cdn.jsdelivr(
-              "ArcoVue",
-              "dist/arco-vue.min.js"
-            ),
+            "@arco-design/web-vue": cdn.jsdelivr("ArcoVue", "dist/arco-vue.min.js"),
             // "@ffmpeg/ffmpeg": cdn.jsdelivr(
             //   "@ffmpeg/ffmpeg",
             //   "dist/umd/ffmpeg.js"
@@ -150,12 +145,12 @@ export default defineConfig(() => {
         "@": pathSrc,
       },
     },
-   
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp'
-    }
-  }
+
+    server: {
+      headers: {
+        "Cross-Origin-Opener-Policy": "same-origin",
+        "Cross-Origin-Embedder-Policy": "require-corp",
+      },
+    },
   };
 });

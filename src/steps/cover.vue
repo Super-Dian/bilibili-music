@@ -10,7 +10,6 @@ const covers = reactive<{ label: string; url?: string }[]>([]);
 const cover = ref<string[]>([]);
 
 onMounted(() => {
-
   covers.push({
     label: "视频封面",
     url: fromData.videoData?.pic,
@@ -27,11 +26,11 @@ onMounted(() => {
     url: fromData.videoData?.owner.face,
   });
   const url = covers?.[0]?.url;
-  if(fromData.usedefaultconfig){
-    const defaultRule = GM_getValue<RecordData|null>("default_rule");
+  if (fromData.usedefaultconfig) {
+    const defaultRule = GM_getValue<RecordData | null>("default_rule");
     const coverLabel = defaultRule?.cover;
     const coverItem = covers.find((item) => item.label === coverLabel);
-    if(coverItem && coverItem.url){
+    if (coverItem && coverItem.url) {
       fromData.coverUrl = coverItem.url;
       cover.value = [coverItem.url];
       coverRecord.label = coverItem.label;
@@ -61,9 +60,7 @@ const onChange = (v: (string | number | boolean)[]) => {
     fromData.coverUrl = val.toString();
     cover.value = [val.toString()];
 
-    coverRecord.label = covers.find(
-      (item) => item.url === val.toString()
-    )?.label;
+    coverRecord.label = covers.find((item) => item.url === val.toString())?.label;
   } else {
     fromData.coverUrl = null;
     cover.value = [];
@@ -73,33 +70,33 @@ const onChange = (v: (string | number | boolean)[]) => {
 </script>
 
 <template>
-    <a-form auto-label-width :model="{}">
-      <a-checkbox-group :model-value="cover" @change="onChange">
-        <template v-for="item in covers" :key="item.label">
-          <a-checkbox :value="item.url">
-            <template #checkbox="{ checked }">
-              <a-space
-                align="start"
-                class="custom-checkbox-card"
-                :class="{ 'custom-checkbox-card-checked': checked }"
-              >
-                <div className="custom-checkbox-card-mask">
-                  <div className="custom-checkbox-card-mask-dot" />
+  <a-form auto-label-width :model="{}">
+    <a-checkbox-group :model-value="cover" @change="onChange">
+      <template v-for="item in covers" :key="item.label">
+        <a-checkbox :value="item.url">
+          <template #checkbox="{ checked }">
+            <a-space
+              align="start"
+              class="custom-checkbox-card"
+              :class="{ 'custom-checkbox-card-checked': checked }"
+            >
+              <div className="custom-checkbox-card-mask">
+                <div className="custom-checkbox-card-mask-dot" />
+              </div>
+              <div>
+                <div className="custom-checkbox-card-title">
+                  {{ item.label }}
                 </div>
-                <div>
-                  <div className="custom-checkbox-card-title">
-                    {{ item.label }}
-                  </div>
-                  <a-image width="80" :src="item.url" :preview="false" />
-                </div>
-              </a-space>
-            </template>
-          </a-checkbox>
-        </template>
-      </a-checkbox-group>
+                <a-image width="80" :src="item.url" :preview="false" />
+              </div>
+            </a-space>
+          </template>
+        </a-checkbox>
+      </template>
+    </a-checkbox-group>
 
-      <Btn @next="next" @prev="$emit('prev')" />
-    </a-form>
+    <Btn @next="next" @prev="$emit('prev')" />
+  </a-form>
 </template>
 
 <style scoped></style>

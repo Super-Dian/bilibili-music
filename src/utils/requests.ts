@@ -8,16 +8,8 @@ export class RequestError extends Error {
   }
 }
 
-export type ResponseType =
-  | "text"
-  | "json"
-  | "arraybuffer"
-  | "blob"
-  | "document"
-  | "stream";
-export type OnStream = (
-  reader: ReadableStreamDefaultReader<Uint8Array>
-) => void;
+export type ResponseType = "text" | "json" | "arraybuffer" | "blob" | "document" | "stream";
+export type OnStream = (reader: ReadableStreamDefaultReader<Uint8Array>) => void;
 export type RequestArgs<TContext, TResponseType extends ResponseType> = Partial<
   Pick<
     GmXhrRequest<TContext, TResponseType>,
@@ -44,14 +36,13 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
   headers["User-Agent"] = window.navigator.userAgent;
   return new Promise<TContext>(async (resolve, reject) => {
     const ck = cookie
-      ? await new Promise<ResolvedReturnType<(typeof GM_cookie)["list"]>>(
-          (resolve, reject) =>
-            GM_cookie.list({}, (ck, err) => {
-              if (err) {
-                reject(err);
-              }
-              resolve(ck);
-            })
+      ? await new Promise<ResolvedReturnType<(typeof GM_cookie)["list"]>>((resolve, reject) =>
+          GM_cookie.list({}, (ck, err) => {
+            if (err) {
+              reject(err);
+            }
+            resolve(ck);
+          }),
         )
       : [];
     logger.debug("music-log/requests", { url, data, method, headers, ck });
@@ -89,7 +80,7 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
 }
 
 request.post = <TContext, TResponseType extends ResponseType = "json">(
-  args: Omit<RequestArgs<TContext, TResponseType>, "method">
+  args: Omit<RequestArgs<TContext, TResponseType>, "method">,
 ) => {
   return request<TContext, TResponseType>({
     method: "POST",
@@ -98,7 +89,7 @@ request.post = <TContext, TResponseType extends ResponseType = "json">(
 };
 
 request.get = <TContext, TResponseType extends ResponseType = "json">(
-  args: Omit<RequestArgs<TContext, TResponseType>, "method">
+  args: Omit<RequestArgs<TContext, TResponseType>, "method">,
 ) => {
   return request<TContext, TResponseType>({
     method: "GET",

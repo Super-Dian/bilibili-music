@@ -16,7 +16,7 @@ const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
 
 const handleOk = () => {
   Message.error("暂未实现");
-  const defaultRule = GM_getValue<RecordData|null>("default_rule");
+  const defaultRule = GM_getValue<RecordData | null>("default_rule");
   console.log("默认规则:", defaultRule);
   //return false;
   if (!defaultRule) {
@@ -57,13 +57,10 @@ onMounted(() => {
   sideShow.value = GM_getValue("sideShow") || true;
   //每次运行都重置数据
   reset();
-  const bgmTag = document.querySelector<HTMLDivElement & { __vue__: any }>(
-    ".tag .bgm-tag"
-  );
+  const bgmTag = document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
 
   fromData.videoData = clone(
-    document.querySelector<HTMLDivElement & { __vue__: any }>("#playerWrap")
-      ?.__vue__?.videoData
+    document.querySelector<HTMLDivElement & { __vue__: any }>("#playerWrap")?.__vue__?.videoData,
   );
   if (!fromData.videoData) {
     fromData.err = "未找到视频数据，后续操作无法继续";
@@ -72,22 +69,22 @@ onMounted(() => {
 
   const music_id = bgmTag?.__vue__?.$props?.info?.music_id;
   if (music_id) {
-  logger.debug("获取到的Music ID:", music_id, bgmTag?.__vue__);
-  fetch(
-    "https://api.bilibili.com/x/copyright-music-publicity/bgm/detail?" +
-      new URLSearchParams({
-        music_id,
+    logger.debug("获取到的Music ID:", music_id, bgmTag?.__vue__);
+    fetch(
+      "https://api.bilibili.com/x/copyright-music-publicity/bgm/detail?" +
+        new URLSearchParams({
+          music_id,
+        }),
+    )
+      .then((res) => {
+        return res.json();
       })
-  )
-    .then((res) => {
-      return res.json();
-    })
-    .then((data) => {
-      fromData.data = data.data;
-    })
-    .catch((e) => {
-      fromData.err = e;
-    });
+      .then((data) => {
+        fromData.data = data.data;
+      })
+      .catch((e) => {
+        fromData.err = e;
+      });
   }
 });
 
@@ -132,15 +129,9 @@ function onOpen() {
       </div>
     </template>
     <div
-      style="display: flex; justify-content: space-between; align-items: center;max-height: 75vh;"
+      style="display: flex; justify-content: space-between; align-items: center; max-height: 75vh"
     >
-      <a-steps
-        :current="current"
-        @change="setCurrent"
-        direction="vertical"
-        small
-        v-show="sideShow"
-      >
+      <a-steps :current="current" @change="setCurrent" direction="vertical" small v-show="sideShow">
         <a-step>音频剪辑</a-step>
         <a-step>基本信息</a-step>
         <a-step>封面获取</a-step>
@@ -154,7 +145,7 @@ function onOpen() {
           textAlign: 'center',
           background: 'var(--color-bg-2)',
           color: '#C2C7CC',
-          minWidth: 0
+          minWidth: 0,
         }"
       >
         <a-result
@@ -163,11 +154,7 @@ function onOpen() {
           :title="fromData.err"
           subtitle="您可以重新打开弹窗, 重新获取数据, 或者刷新页面. 如果多次且更换视频也无法使用请联系开发者"
         />
-        <component
-          :is="steps[current - 1]"
-          @prev="onPrev"
-          @next="onNext"
-        />
+        <component :is="steps[current - 1]" @prev="onPrev" @next="onNext" />
       </div>
     </div>
   </a-modal>

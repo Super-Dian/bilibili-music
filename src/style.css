@@ -85,8 +85,7 @@
 
 .arco-steps-item-active .arco-steps-icon,
 .arco-btn.arco-btn-primary,
-.arco-steps-item:not(:last-child).arco-steps-item-finish
-  .arco-steps-item-tail::after {
+.arco-steps-item:not(:last-child).arco-steps-item-finish .arco-steps-item-tail::after {
   background-color: var(--brand_blue) !important;
 }
 
@@ -100,6 +99,6 @@
   transition: all 0.3s ease !important;
 }
 
-.arco-modal-body{
+.arco-modal-body {
   scrollbar-width: thin;
 }

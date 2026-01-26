@@ -15,7 +15,7 @@ export const defaultUserConfig = {
 export const userConfig = reactive(
   deepmerge(defaultUserConfig, GM_getValue("userConfig", {}), {
     clone: false,
-  })
+  }),
 );
 
 watch(userConfig, (newVal) => {
@@ -28,14 +28,14 @@ export type ClipRanges = Array<[number, number]>;
 export type RecordData = typeof defaultRecordData;
 
 export const defaultRecordData = {
-    format: {
-      title: "",
-      author: "",
-      file: "",
-    },
-    cover: undefined as string | undefined,
-    lyrics: undefined as string | undefined,
-  }
+  format: {
+    title: "",
+    author: "",
+    file: "",
+  },
+  cover: undefined as string | undefined,
+  lyrics: undefined as string | undefined,
+};
 
 export const defaultData = {
   data: null as MusicData | null,
@@ -46,7 +46,7 @@ export const defaultData = {
   videoData: null as VideoData | null,
   playerData: null as PlayerData | null,
   videoParse: null as VideoParse | null,
-  
+
   title: "",
   author: "",
   file: "",

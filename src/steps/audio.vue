@@ -4,8 +4,8 @@ import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
 import FileSaver from "file-saver";
 import { GM_setValue } from "$";
-import { fetchFile } from '@ffmpeg/util';
-import { ffmpeg,ffmpegLoad } from "@/utils/ffmpeg";
+import { fetchFile } from "@ffmpeg/util";
+import { ffmpeg, ffmpegLoad } from "@/utils/ffmpeg";
 
 const steps = [
   "获取音频",
@@ -19,13 +19,13 @@ const stepIndex = ref(0);
 const error = ref<string | null>();
 
 const fileBlob = ref<string | Blob>();
-const status = computed(() =>
-  error.value ? "error" : fileBlob.value ? "success" : null
-);
+const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
 
-function formatLrc(ms:number) {
-  const m = Math.floor(ms / 60000).toString().padStart(2, '0');
-  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, '0');
+function formatLrc(ms: number) {
+  const m = Math.floor(ms / 60000)
+    .toString()
+    .padStart(2, "0");
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
   return `[${m}:${s}]`;
 }
 function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infinity) {
@@ -36,7 +36,10 @@ function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infin
     let curr = sorted[0];
     for (let i = 1; i < sorted.length; i++) {
       if (sorted[i][0] <= curr[1]) curr[1] = Math.max(curr[1], sorted[i][1]);
-      else { merged.push(curr); curr = sorted[i]; }
+      else {
+        merged.push(curr);
+        curr = sorted[i];
+      }
     }
     merged.push(curr);
   }
@@ -44,7 +47,7 @@ function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infin
   // 2. 反转逻辑：生成保留区间
   const keep: Array<{ start: number; end?: number }> = [];
   let lastPos = 0;
-  
+
   for (const [dStart, dEnd] of merged) {
     if (dStart > lastPos) {
       keep.push({ start: lastPos / 1000, end: dStart / 1000 }); // 转换为秒
@@ -52,34 +55,34 @@ function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infin
     lastPos = dEnd;
   }
   // 添加最后一段 (到文件结束)
-  keep.push({ start: lastPos / 1000 }); 
-  
+  keep.push({ start: lastPos / 1000 });
+
   return { keepRanges: keep, mergedDeleteRanges: merged };
 }
 
 function processLyrics(lyrics: Lyrics, deleteRanges: ClipRanges, speed: number) {
-  const { mergedDeleteRanges } = getKeepRanges(deleteRanges); 
+  const { mergedDeleteRanges } = getKeepRanges(deleteRanges);
 
   return lyrics.reduce<Lyrics>((acc, [ms, text]) => {
-  let time = ms;
-  // 1. 减去被删掉的长度 (只计算在该歌词时间戳之前的删除区间)
-  const deletedBefore = mergedDeleteRanges
-    .filter(([start]) => ms >= start)
-    .reduce((sum, [start, end]) => {
-      const actualEnd = Math.min(ms, end);
-      return sum + (actualEnd - start);
-    }, 0);
-  
-  time -= deletedBefore;
-  
-  // 2. 检查歌词是否在删除区间内
-  const isDeleted = mergedDeleteRanges.some(([start, end]) => ms >= start && ms < end);
-  
-  if (!isDeleted) {
-    acc.push([time / speed, text]);
-  }
-  return acc;
-}, []);
+    let time = ms;
+    // 1. 减去被删掉的长度 (只计算在该歌词时间戳之前的删除区间)
+    const deletedBefore = mergedDeleteRanges
+      .filter(([start]) => ms >= start)
+      .reduce((sum, [start, end]) => {
+        const actualEnd = Math.min(ms, end);
+        return sum + (actualEnd - start);
+      }, 0);
+
+    time -= deletedBefore;
+
+    // 2. 检查歌词是否在删除区间内
+    const isDeleted = mergedDeleteRanges.some(([start, end]) => ms >= start && ms < end);
+
+    if (!isDeleted) {
+      acc.push([time / speed, text]);
+    }
+    return acc;
+  }, []);
 }
 
 function main() {
@@ -93,7 +96,7 @@ function main() {
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
     })
     .then(async (res: any) => {
-      await ffmpegLoad()
+      await ffmpegLoad();
       let audioUrl = undefined;
       let dash = res.data.dash;
       if (!dash) {
@@ -112,30 +115,32 @@ function main() {
         audioUrl = dash.dolby.audio[0].base_url;
       }
       if (!audioUrl && dash.audio) {
-        const bestAudio = dash.audio.reduce((prev:any, current:any) => 
-          (prev.bandwidth > current.bandwidth) ? prev : current
+        const bestAudio = dash.audio.reduce((prev: any, current: any) =>
+          prev.bandwidth > current.bandwidth ? prev : current,
         );
-        audioUrl =  bestAudio.base_url||bestAudio.baseUrl;
+        audioUrl = bestAudio.base_url || bestAudio.baseUrl;
       }
       stepIndex.value++;
-      await ffmpeg.writeFile("input.m4s",await fetchFile(audioUrl))
+      await ffmpeg.writeFile("input.m4s", await fetchFile(audioUrl));
       // https://wiki.multimedia.cx/index.php/FFmpeg_Metadata
-      const inputArgs = ['-i', 'input.m4s'];
+      const inputArgs = ["-i", "input.m4s"];
       const processArgs = [];
-      let filterChains:string[] = [];
-      let lastStreamLabel = '[0:a]';
-      const { keepRanges } = getKeepRanges(fromData.clipRanges||[]);
+      let filterChains: string[] = [];
+      let lastStreamLabel = "[0:a]";
+      const { keepRanges } = getKeepRanges(fromData.clipRanges || []);
       if (keepRanges.length > 0) {
-        const segmentLabels:string[] = [];
+        const segmentLabels: string[] = [];
         keepRanges.forEach((r, i) => {
-          const endStr = r.end ? `:end=${r.end}` : '';
+          const endStr = r.end ? `:end=${r.end}` : "";
           const label = `[a${i}]`;
           filterChains.push(`[0:a]atrim=start=${r.start}${endStr},asetpts=PTS-STARTPTS${label}`);
           segmentLabels.push(label);
         });
         if (segmentLabels.length > 1) {
-          const concatLabel = '[out_clip]';
-          filterChains.push(`${segmentLabels.join('')}concat=n=${segmentLabels.length}:v=0:a=1${concatLabel}`);
+          const concatLabel = "[out_clip]";
+          filterChains.push(
+            `${segmentLabels.join("")}concat=n=${segmentLabels.length}:v=0:a=1${concatLabel}`,
+          );
           lastStreamLabel = concatLabel;
         } else {
           // 如果只有一个片段，不需要 concat，直接指向该片段
@@ -143,80 +148,83 @@ function main() {
         }
       }
       if (fromData.speed !== 1) {
-        const speedLabel = '[final_a]';
+        const speedLabel = "[final_a]";
         filterChains.push(`${lastStreamLabel}atempo=${fromData.speed}${speedLabel}`);
         lastStreamLabel = speedLabel;
-        processArgs.push('-c:a', 'aac', '-q:a', '2');
+        processArgs.push("-c:a", "aac", "-q:a", "2");
       } else {
         if (filterChains.length > 0) {
-          processArgs.push('-c:a', 'aac', '-q:a', '2');
+          processArgs.push("-c:a", "aac", "-q:a", "2");
         } else {
-          processArgs.push('-c:a', 'copy');
+          processArgs.push("-c:a", "copy");
         }
       }
       if (filterChains.length > 0) {
-        processArgs.push('-filter_complex', filterChains.join(';'));
+        processArgs.push("-filter_complex", filterChains.join(";"));
       }
-      processArgs.push('-map', lastStreamLabel === '[0:a]' ? '0:a' : lastStreamLabel);
+      processArgs.push("-map", lastStreamLabel === "[0:a]" ? "0:a" : lastStreamLabel);
       const metadataArgs = [
-        '-metadata', `title=${fromData.title}`,
-        '-metadata', `artist=${fromData.author}`,
-        '-metadata', `source_url=${location.href.split("?")[0]}`,
-        '-metadata', `publisher=${location.href.split("?")[0]}`,
-        '-metadata', `encoded_by=ocyss/wasm-music`,
-        '-metadata', `comment=Wasm🎶音乐姬下载,仅供个人学习使用,严谨售卖和其他侵权行为`,
+        "-metadata",
+        `title=${fromData.title}`,
+        "-metadata",
+        `artist=${fromData.author}`,
+        "-metadata",
+        `source_url=${location.href.split("?")[0]}`,
+        "-metadata",
+        `publisher=${location.href.split("?")[0]}`,
+        "-metadata",
+        `encoded_by=ocyss/wasm-music`,
+        "-metadata",
+        `comment=Wasm🎶音乐姬下载,仅供个人学习使用,严谨售卖和其他侵权行为`,
       ];
       if (fromData.coverUrl) {
-        await ffmpeg.writeFile("cover.jpg",await fetchFile(fromData.coverUrl!.replace("http://", "https://")))
-        inputArgs.push('-i', 'cover.jpg');
-        processArgs.push('-map', '1:0');
-        processArgs.push('-c:v', 'mjpeg');
-        processArgs.push('-disposition:v', 'attached_pic');
+        await ffmpeg.writeFile(
+          "cover.jpg",
+          await fetchFile(fromData.coverUrl!.replace("http://", "https://")),
+        );
+        inputArgs.push("-i", "cover.jpg");
+        processArgs.push("-map", "1:0");
+        processArgs.push("-c:v", "mjpeg");
+        processArgs.push("-disposition:v", "attached_pic");
       }
-      
-      if (fromData.lyricsData && fromData.lyricsData.length>0){
+
+      if (fromData.lyricsData && fromData.lyricsData.length > 0) {
         const finalLyrics = processLyrics(
-            fromData.lyricsData, 
-            fromData.clipRanges || [], 
-            fromData.speed || 1
-          );
+          fromData.lyricsData,
+          fromData.clipRanges || [],
+          fromData.speed || 1,
+        );
         const header = [
-          `[ti:${fromData.title}]`,              // 标题
-          `[ar:${fromData.author}]`,             // 艺术家
-          `[al:${fromData.data?.album || ""}]`,  // 专辑
-          `[re:ocyss/wasm-music]`,               // 制作工具
-          `[ve:1.0.0]`,                          // 版本
+          `[ti:${fromData.title}]`, // 标题
+          `[ar:${fromData.author}]`, // 艺术家
+          `[al:${fromData.data?.album || ""}]`, // 专辑
+          `[re:ocyss/wasm-music]`, // 制作工具
+          `[ve:1.0.0]`, // 版本
           `[url: ${location.href.split("?")[0]}]`,
+        ].filter((line) => !line.includes(": ]"));
 
-        ].filter(line => !line.includes(": ]"));
+        const lrcString = [
+          ...header,
+          ...finalLyrics.map((item) => `${formatLrc(item[0])} ${item[1]}`),
+        ].join("\n");
 
-        const lrcString = [...header,...finalLyrics
-          .map(item => `${formatLrc(item[0])} ${item[1]}`)]
-          .join("\n");
-          
-        metadataArgs.push('-metadata', `lyrics=${lrcString}`);
+        metadataArgs.push("-metadata", `lyrics=${lrcString}`);
       }
-      if (fromData.data?.album){
-        metadataArgs.push(...[
-          '-metadata', `album=${fromData.data.album}`,
-        ])
+      if (fromData.data?.album) {
+        metadataArgs.push(...["-metadata", `album=${fromData.data.album}`]);
       }
-      if (fromData.data?.music_publish){
-        metadataArgs.push(...[
-          '-metadata', `date=${fromData.data.music_publish}`,
-        ])
+      if (fromData.data?.music_publish) {
+        metadataArgs.push(...["-metadata", `date=${fromData.data.music_publish}`]);
       }
-      await ffmpeg.exec([
-          ...inputArgs,
-          ...processArgs,
-          ...metadataArgs,
-          'output.m4a'
-      ]);
-      const fileData = await ffmpeg.readFile('output.m4a');
-      
-      fileBlob.value = typeof fileData==='string' ? fileData : new Blob([fileData as Uint8Array<ArrayBuffer>], { type:"audio/m4a"});
-      stepIndex.value = steps.length - 1
-    })
+      await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"]);
+      const fileData = await ffmpeg.readFile("output.m4a");
+
+      fileBlob.value =
+        typeof fileData === "string"
+          ? fileData
+          : new Blob([fileData as Uint8Array<ArrayBuffer>], { type: "audio/m4a" });
+      stepIndex.value = steps.length - 1;
+    });
 }
 
 const download = () => {
@@ -230,7 +238,6 @@ const download = () => {
 onMounted(() => {
   main();
 });
-
 
 const saveDefault = () => {
   GM_setValue("default_rule", JSON.parse(JSON.stringify(fromData.record)));
@@ -272,12 +279,7 @@ const saveDefault = () => {
       </template>
     </a-result>
     <a-button @click="saveDefault">保存为默认规则</a-button>
-    <Btn
-      @prev="$emit('prev')"
-      @next="main"
-      :next="{ disabled: !fileBlob }"
-      nextLabel="重试"
-    />
+    <Btn @prev="$emit('prev')" @next="main" :next="{ disabled: !fileBlob }" nextLabel="重试" />
   </div>
 </template>
 
