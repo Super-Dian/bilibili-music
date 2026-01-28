@@ -14,6 +14,7 @@ const current = ref(1);
 const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
 
 const handleOk = () => {
+  Message.error("暂未实现");
   const defaultRule = GM_getValue("default_rule");
   console.log("默认规则:", defaultRule);
   //return false;
