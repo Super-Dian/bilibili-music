@@ -1,6 +1,6 @@
 <script lang="ts" setup>
 import { fromData } from "@/data";
-import { onMounted, reactive, ref, computed } from "vue";
+import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import Btn from "@/components/btn.vue";
 
 interface DeletedSection {
@@ -10,6 +10,7 @@ interface DeletedSection {
 }
 
 let video: HTMLVideoElement | null = null;
+let ratechangeHandler: ((this: HTMLVideoElement, ev: Event) => any) | null = null;
 const currentTime = ref(0);
 const duration = ref(0);
 const deletedSections = ref<DeletedSection[]>([]);
@@ -17,6 +18,10 @@ const isRecording = ref(false);
 const tempStart = ref(0);
 const isAuditioning = ref(false);
 const isPlaying = ref(false);
+
+// 倍速控制
+const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
+const selectedSpeed = ref<number>(1);
 
 // 添加时间提示和拖动状态
 const isDragging = ref(false);
@@ -149,9 +154,7 @@ const endRecording = () => {
 
 // 删除标记的删除片段
 const removeSection = (id: number) => {
-  deletedSections.value = deletedSections.value.filter(
-    (section) => section.id !== id
-  );
+  deletedSections.value = deletedSections.value.filter((section) => section.id !== id);
 };
 
 // 按时间排序删除片段
@@ -270,8 +273,19 @@ onMounted(() => {
     video.addEventListener("pause", handlePause);
     currentTime.value = video.currentTime;
     duration.value = video.duration;
+
+    // 初始化倍速值，尝试读取 B 站播放器的 playbackRate
+    selectedSpeed.value = video.playbackRate || 1;
+    fromData.speed = selectedSpeed.value;
+
+    // 监听外部倍速变化（例如用户在原播放器界面修改）
+    ratechangeHandler = () => {
+      selectedSpeed.value = video?.playbackRate ?? selectedSpeed.value;
+      fromData.speed = selectedSpeed.value;
+    };
+    video.addEventListener("ratechange", ratechangeHandler);
   }
-  if(fromData.usedefaultconfig){
+  if (fromData.usedefaultconfig) {
     next();
   }
 });
@@ -282,9 +296,16 @@ onUnmounted(() => {
     video.removeEventListener("ended", handleEnded);
     video.removeEventListener("play", handlePlay);
     video.removeEventListener("pause", handlePause);
+    if (ratechangeHandler) video.removeEventListener("ratechange", ratechangeHandler);
   }
   document.removeEventListener("mousemove", handleDocumentMouseMove);
   document.removeEventListener("mouseup", handleDocumentMouseUp);
+});
+
+// 当选择的倍速发生变化时，同步到 video 与 fromData
+watch(selectedSpeed, (val) => {
+  if (video) video.playbackRate = val;
+  fromData.speed = val;
 });
 
 // 添加进度条点击跳转
@@ -307,115 +328,106 @@ function next() {
     Math.round(section.start * 1000),
     Math.round(section.end * 1000),
   ]);
+  // 将当前倍速写入 fromData，供后续下载使用
+  fromData.speed = selectedSpeed.value;
   emits("next");
 }
 </script>
 
 <template>
-
-    <div class="montage-container">
-      <a-spin :loading="isAuditioning">
-        <!-- 控制按钮 -->
-        <div class="control-buttons">
-          <div>
-            <a-button @click="endAtCurrent">从这开头</a-button>
-            <a-button @click="startFromCurrent">从这结尾</a-button>
-          </div>
-          <div>
-            <a-button
-              type="primary"
-              @click="startRecording"
-              :disabled="isRecording"
-            >
-              <template #icon>
-                <icon-play-circle-fill v-if="!isPlaying" />
-                <icon-pause-circle-fill v-else />
-              </template>
-              开始记录
-            </a-button>
-            <a-button @click="togglePlay">
-              <template #icon>
-                <icon-play-circle-fill v-if="!isPlaying" />
-                <icon-pause-circle-fill v-else />
-              </template>
-            </a-button>
-            <a-button
-              @click="endRecording"
-              :disabled="!isRecording"
-              type="primary"
-            >
-              <template #icon>
-                <icon-play-circle-fill v-if="!isPlaying" />
-                <icon-pause-circle-fill v-else />
-              </template>
-              结束记录
-            </a-button>
-          </div>
+  <div class="montage-container">
+    <a-spin :loading="isAuditioning">
+      <!-- 倍速控制 -->
+      <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px">
+        <label style="font-size: 13px">倍速：</label>
+        <select v-model.number="selectedSpeed">
+          <option v-for="s in speedOptions" :key="s" :value="s">{{ s }}x</option>
+        </select>
+      </div>
+      <!-- 控制按钮 -->
+      <div class="control-buttons">
+        <div>
+          <a-button @click="endAtCurrent">从这开头</a-button>
+          <a-button @click="startFromCurrent">从这结尾</a-button>
         </div>
+        <div>
+          <a-button type="primary" @click="startRecording" :disabled="isRecording">
+            <template #icon>
+              <icon-play-circle-fill v-if="!isPlaying" />
+              <icon-pause-circle-fill v-else />
+            </template>
+            开始记录
+          </a-button>
+          <a-button @click="togglePlay">
+            <template #icon>
+              <icon-play-circle-fill v-if="!isPlaying" />
+              <icon-pause-circle-fill v-else />
+            </template>
+          </a-button>
+          <a-button @click="endRecording" :disabled="!isRecording" type="primary">
+            <template #icon>
+              <icon-play-circle-fill v-if="!isPlaying" />
+              <icon-pause-circle-fill v-else />
+            </template>
+            结束记录
+          </a-button>
+        </div>
+      </div>
 
-        <!-- 进度条 -->
-        <div
-          class="timeline"
-          v-if="duration"
-          @mousemove="handleTimelineMouseMove"
-          @mouseleave="handleTimelineMouseLeave"
-          @mousedown="handleTimelineMouseDown"
-          @click="handleTimelineClick"
-        >
-          <div class="timeline-inner">
-            <div
-              v-for="section in deletedSections"
-              :key="section.id"
-              class="deleted-segment"
-              :style="{
-                left: `${(section.start / duration) * 100}%`,
-                width: `${((section.end - section.start) / duration) * 100}%`,
-              }"
-            ></div>
-            <div
-              v-if="tempSection"
-              class="recording-segment"
-              :style="{
-                left: `${(tempSection.start / duration) * 100}%`,
-                width: `${
-                  ((tempSection.end - tempSection.start) / duration) * 100
-                }%`,
-              }"
-            ></div>
-          </div>
+      <!-- 进度条 -->
+      <div
+        class="timeline"
+        v-if="duration"
+        @mousemove="handleTimelineMouseMove"
+        @mouseleave="handleTimelineMouseLeave"
+        @mousedown="handleTimelineMouseDown"
+        @click="handleTimelineClick"
+      >
+        <div class="timeline-inner">
           <div
-            class="current-time-marker"
-            :style="{ left: `${(currentTime / duration) * 100}%` }"
+            v-for="section in deletedSections"
+            :key="section.id"
+            class="deleted-segment"
+            :style="{
+              left: `${(section.start / duration) * 100}%`,
+              width: `${((section.end - section.start) / duration) * 100}%`,
+            }"
           ></div>
-          <!-- 添加时间提示 -->
           <div
-            v-if="hoverTime !== null"
-            class="time-tooltip"
-            :style="tooltipStyle"
-          >
-            {{ formatTime(hoverTime) }}
-          </div>
+            v-if="tempSection"
+            class="recording-segment"
+            :style="{
+              left: `${(tempSection.start / duration) * 100}%`,
+              width: `${((tempSection.end - tempSection.start) / duration) * 100}%`,
+            }"
+          ></div>
         </div>
+        <div
+          class="current-time-marker"
+          :style="{ left: `${(currentTime / duration) * 100}%` }"
+        ></div>
+        <!-- 添加时间提示 -->
+        <div v-if="hoverTime !== null" class="time-tooltip" :style="tooltipStyle">
+          {{ formatTime(hoverTime) }}
+        </div>
+      </div>
 
-        <!-- 删除片段列表 -->
-        <a-list :max-height="200">
-          <a-list-item v-for="section in deletedSections" :key="section.id">
-            <span style="margin-right: 10px">
-              <a @click="seekTo(section.start)"
-                >{{ section.start.toFixed(2) }}s</a
-              >
-              -
-              <a @click="seekTo(section.end)">{{ section.end.toFixed(2) }}s</a>
-            </span>
-            <a-button status="danger" @click="removeSection(section.id)">
-              <template #icon> <icon-close /> </template
-            ></a-button>
-          </a-list-item>
-        </a-list>
-      </a-spin>
-      <Btn :prevLabel="!isAuditioning ? '试听' : '暂停'" @next="next" @prev="startAudition" />
-    </div>
-
+      <!-- 删除片段列表 -->
+      <a-list :max-height="200">
+        <a-list-item v-for="section in deletedSections" :key="section.id">
+          <span style="margin-right: 10px">
+            <a @click="seekTo(section.start)">{{ section.start.toFixed(2) }}s</a>
+            -
+            <a @click="seekTo(section.end)">{{ section.end.toFixed(2) }}s</a>
+          </span>
+          <a-button status="danger" @click="removeSection(section.id)">
+            <template #icon> <icon-close /> </template
+          ></a-button>
+        </a-list-item>
+      </a-list>
+    </a-spin>
+    <Btn :prevLabel="!isAuditioning ? '试听' : '暂停'" @next="next" @prev="startAudition" />
+  </div>
 </template>
 
 <style scoped>

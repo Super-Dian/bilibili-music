@@ -15,12 +15,11 @@ const elProto = win.Element.prototype;
 
 const matches =
   elProto.matches ||
-  elProto.matchesSelector ||
   elProto.webkitMatchesSelector ||
   elProto.mozMatchesSelector ||
-  elProto.oMatchesSelector;
-const MutationObs =
-  win.MutationObserver || win.WebkitMutationObserver || win.MozMutationObserver;
+  elProto.msMatchesSelector;
+
+const MutationObs = win.MutationObserver || win.WebkitMutationObserver || win.MozMutationObserver;
 function addObserver(target, callback) {
   const observer = new MutationObs((mutations) => {
     for (const mutation of mutations) {
@@ -50,9 +49,7 @@ function addFilter(target, filter) {
   if (!listener) {
     listener = {
       filters: new Set(),
-      remove: addObserver(target, (el) =>
-        listener.filters.forEach((f) => f(el))
-      ),
+      remove: addObserver(target, (el) => listener.filters.forEach((f) => f(el))),
     };
     listeners.set(target, listener);
   }
@@ -85,7 +82,7 @@ function getOne(selector, parent, timeout) {
       const node = query(false, selector, el, true);
       if (node) {
         removeFilter(parent, filter);
-        timer && clearTimeout(timer);
+        if (timer) clearTimeout(timer);
         resolve(node);
       }
     };
@@ -114,9 +111,7 @@ function get<E extends Element = Element>(
   let parent = (typeof args[0] !== "number" && args.shift()) || doc;
   const timeout = args[0] || 0;
   if (Array.isArray(selector)) {
-    return Promise.all(
-      selector.map((s) => getOne(s, parent, timeout))
-    ) as Promise<E[]>;
+    return Promise.all(selector.map((s) => getOne(s, parent, timeout))) as Promise<E[]>;
   }
   return getOne(selector, parent, timeout) as Promise<E>;
 }
@@ -154,15 +149,12 @@ async function rm(
   ...args: [Element, number] | [number] | [Element] | []
 ) {
   if (Array.isArray(selector)) {
-    await Promise.all(
-      selector.map((s) => {
-        get(s, ...args).then((e) => e.remove());
-      })
-    );
+    await Promise.all(selector.map((s) => get(s, ...args).then((e) => e.remove())));
   } else {
     await get(selector, ...args).then((e) => e.remove());
   }
 }
+
 export default {
   get,
   each,

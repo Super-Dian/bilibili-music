@@ -11,4 +11,4 @@ build: pkg
 
 pkg:
 	wasm-pack build
-	sed -i 's/"name": "bilibili-music-backend"/"name": "@ocyss\/bilibili-music-backend"/g' pkg/package.json
+	sed -i 's/"name": "wasm-music-backend"/"name": "@ocyss\/wasm-music-backend"/g' pkg/package.json

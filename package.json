@@ -1,17 +1,24 @@
 {
-  "name": "bilibili-music",
+  "name": "wasm-music",
+  "displayName": "Wasm🎶音乐姬",
+  "version": "0.3.0",
   "private": true,
-  "version": "0.0.0",
+  "description": "仅帮助用户从视频页下载音乐(封面,Tags,歌词,字幕 写入支持)的油猴脚本",
+  "author": "Ocyss <git@ocyss.icu> (https://github.com/Ocyss)",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "build:tsc": "vue-tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "lint": "oxlint --type-aware",
+    "lint:fix": "oxlint --type-aware --fix"
   },
   "dependencies": {
-    "@ocyss/bilibili-music-backend": "0.2.0",
-    "audiobuffer-to-blob": "^1.0.2",
+    "@ffmpeg/ffmpeg": "^0.12.15",
+    "@ffmpeg/util": "^0.12.2",
     "diff": "^7.0.0",
     "file-saver": "^2.0.5",
     "js-base64": "^3.7.7",
@@ -24,6 +31,10 @@
     "@types/file-saver": "^2.0.7",
     "@types/node": "^20.14.2",
     "@vitejs/plugin-vue": "^5.0.4",
+    "lint-staged": "^16.2.7",
+    "oxfmt": "^0.27.0",
+    "oxlint": "^1.42.0",
+    "oxlint-tsgolint": "^0.11.2",
     "typescript": "^5.4.5",
     "unplugin-auto-import": "^0.17.6",
     "unplugin-vue-components": "^0.27.0",
@@ -32,5 +43,8 @@
     "vite-plugin-wasm": "^3.3.0",
     "vue-tsc": "^2.0.19"
   },
-  "packageManager": "pnpm@9.12.3+sha512.cce0f9de9c5a7c95bef944169cc5dfe8741abfb145078c0d508b868056848a87c81e626246cb60967cbd7fd29a6c062ef73ff840d96b3c86c40ac92cf4a813ee"
+  "lint-staged": {
+    "*": "oxfmt --no-error-on-unmatched-pattern",
+    "*.{js,jsx,ts,tsx,mjs,cjs}": "oxlint --fix"
+  }
 }

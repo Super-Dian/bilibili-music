@@ -1,3 +1,5 @@
+import { logger } from "./logger";
+
 export async function drop(droppedFiles?: FileList) {
   if (!droppedFiles?.length) {
     showError("没有检测到文件");
@@ -130,11 +132,11 @@ function findAudioSourceWebpage(buffer: Uint8Array): string | null {
           return urlData;
         }
       } catch (e) {
-        console.warn("URL解码失败");
+        console.warn("URL解码失败", e);
       }
     }
 
-    console.log("bilibili_drop", frameId, frameSize);
+    logger.debug("bilibili_drop", frameId, frameSize);
     pos += frameSize;
   }
 

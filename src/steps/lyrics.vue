@@ -1,12 +1,12 @@
 <script lang="ts" setup>
-import { fromData, userConfig } from "@/data";
+import { fromData, Lyrics, RecordData, userConfig } from "@/data";
 import { onMounted, ref, computed, reactive } from "vue";
 import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
-import { Lyrics, lyrics_clip } from "@ocyss/bilibili-music-backend";
+import { logger } from "@/utils/logger";
 import { GM_getValue } from "$";
 const emits = defineEmits(["next", "prev"]);
 
@@ -48,34 +48,22 @@ function next() {
   let lyricsData: Lyrics = [];
   if (noSubtitle.value) {
     Message.info("跳过歌词嵌入");
-  }else if (
-    subtitleEdit.value &&
-    subtitleEdit.value.data &&
-    lyricsBodyContent.value
-  ) {
+  } else if (subtitleEdit.value && subtitleEdit.value.data && lyricsBodyContent.value) {
     // 打开工作台就剪辑
     lyricsData = lyricsBodyContent.value
       .split("\n")
-      .map((item, index) => [
-        Math.round(subtitleEdit.value!.data!.body[index].from * 1000),
-        item,
-      ]);
+      .map((item, index) => [Math.round(subtitleEdit.value!.data!.body[index].from * 1000), item]);
   } else {
     {
-      const s = subtitles.value.find(
-        (item) => item.id_str === subtitle.value[0]
-      );
+      const s = subtitles.value.find((item) => item.id_str === subtitle.value[0]);
       if (!s || !s.data) {
         Message.error("歌词数据错误");
         return;
       }
-      lyricsData = s.data.body.map((item) => [
-        Math.round(item.from * 1000),
-        item.content,
-      ]);
+      lyricsData = s.data.body.map((item) => [Math.round(item.from * 1000), item.content]);
       // 直接下一页的时候在剪辑歌词
       if (fromData.clipRanges && fromData.clipRanges.length > 0) {
-        lyricsData = lyrics_clip(fromData.clipRanges, lyricsData);
+        // lyricsData = lyrics_clip(fromData.clipRanges, lyricsData);
       }
     }
   }
@@ -89,11 +77,11 @@ onMounted(() => {
   const cid = fromData.videoData.cid.toString();
   const bvid = fromData.videoData.bvid;
   const aid = fromData.videoData.aid.toString();
-  console.log({ cid, bvid, aid });
+  logger.debug({ cid, bvid, aid });
   // if (fromData.data) {
   //   request.get({ url: fromData.data.mv_lyric }).then((res) => {
   //     if (!fromData.data) return;
-  //     console.log(fromData.data.mv_lyric, res);
+  //     logger.debug(fromData.data.mv_lyric, res);
   //     fromData.data.mv_lyric_data = res;
   //   });
   // }
@@ -108,7 +96,7 @@ onMounted(() => {
         }),
     })
     .then(async (res: any) => {
-      console.log("playerData", res);
+      logger.debug("playerData", res);
       if (!res.data) return;
       fromData.playerData = res.data as PlayerData;
       if (fromData.playerData.subtitle.subtitles.length === 0) {
@@ -120,44 +108,45 @@ onMounted(() => {
         fromData.playerData.subtitle.subtitles.map(async (item) => {
           item.data = await request.get({ url: `http:${item.subtitle_url}` });
           return item;
-        })
+        }),
       );
       subtitles.value = _subtitles;
-      if (fromData.playerData)
-        fromData.playerData.subtitle.subtitles = _subtitles;
+      if (fromData.playerData) fromData.playerData.subtitle.subtitles = _subtitles;
 
-    // 新增：尝试使用本地默认语言配置（lan_doc），否则回退到第一个
-    if (_subtitles.length > 0) {
-      if (fromData.usedefaultconfig) {
-        const defaultLan = GM_getValue("default_rule");
-        const default_lyrics_lan = defaultLan?.lyrics;
-        console.log(default_lyrics_lan);
-        const matched = default_lyrics_lan
-          ? _subtitles.find((s) => s.lan_doc === default_lyrics_lan)
-          : undefined;
-        if (matched) {
-          subtitle.value = [matched.id_str];
-          lyricsRecord.label = matched.lan_doc;
-          let lyricsData = matched.data?.body.map((item) => [
-          Math.round(item.from * 1000),
-          item.content,
-          ]);
-          fromData.lyricsData = lyricsData;
+      // 新增：尝试使用本地默认语言配置（lan_doc），否则回退到第一个
+      if (_subtitles.length > 0) {
+        if (fromData.usedefaultconfig) {
+          const defaultLan = GM_getValue<RecordData | null>("default_rule");
+          const default_lyrics_lan = defaultLan?.lyrics;
+          console.log(default_lyrics_lan);
+          const matched = default_lyrics_lan
+            ? _subtitles.find((s) => s.lan_doc === default_lyrics_lan)
+            : undefined;
+          if (matched) {
+            subtitle.value = [matched.id_str];
+            lyricsRecord.label = matched.lan_doc;
+            let lyricsData: Lyrics | undefined = matched.data?.body.map((item) => [
+              Math.round(item.from * 1000),
+              item.content,
+            ]);
+            if (lyricsData) {
+              fromData.lyricsData = lyricsData;
+            }
+          }
+          if (fromData.lyricsData) {
+            const val = _subtitles[0].id_str;
+            subtitle.value = [val];
+            lyricsRecord.label = _subtitles[0].lan_doc;
+          }
+
+          emits("next");
         } else {
           const val = _subtitles[0].id_str;
           subtitle.value = [val];
           lyricsRecord.label = _subtitles[0].lan_doc;
         }
-        
-        emits("next");
-      } else {
-        const val = _subtitles[0].id_str;
-        subtitle.value = [val];
-        lyricsRecord.label = _subtitles[0].lan_doc;
       }
-    }
-  console.log(_subtitles);
-
+      console.log(_subtitles);
     })
     .catch((err) => {
       error.value = err.message;
@@ -171,10 +160,7 @@ const editLyricsData = ref<SubTitle | null>(null);
 const onlineLyrics = ref<string>("");
 
 const diffFunc = {
-  no: [
-    "不显示差异",
-    (oldStr: string, newStr: string) => [{ value: newStr }] as Change[],
-  ] as const,
+  no: ["不显示差异", (oldStr: string, newStr: string) => [{ value: newStr }] as Change[]] as const,
   Chars: ["字符差异", diffChars] as const,
   Words: ["单词差异", diffWords] as const,
   Lines: ["行差异", diffLines] as const,
@@ -197,7 +183,7 @@ const onlineLyricsDiff = computed(() => {
   if (!editLyricsData.value?.data) return [];
   return diffFunc[lyricsBodySwitch.onlineDiff][1](
     editLyricsData.value.data._editBody,
-    onlineLyricsContent.value
+    onlineLyricsContent.value,
   );
 });
 
@@ -205,7 +191,7 @@ const lyricsBodyLine = computed(() => {
   // 原长度，剪辑长度，AI改写长度
   if (!editLyricsData.value?.data) return [0, 0, 0];
   return [
-    !!editLyricsData.value.data._lyricsBody
+    editLyricsData.value.data._lyricsBody
       ? editLyricsData.value.data._lyricsBody.length
       : editLyricsData.value.data.body.length,
     editLyricsData.value.data._editBody.split("\n").length,
@@ -267,7 +253,7 @@ const aiLyricsDiff = computed(() => {
   if (!editLyricsData.value?.data) return [];
   return diffFunc[lyricsBodySwitch.aiDiff][1](
     editLyricsData.value.data._editBody,
-    aiRewriteContent.value
+    aiRewriteContent.value,
   );
 });
 
@@ -329,12 +315,10 @@ ${table}
     const res = await callOpenAI(prompt);
     if (res && editLyricsData.value?.data?._editBody) {
       const match = res.match(/\|(.+)\|(.+)\|/g);
-      const contentMap = editBody
-        .split("\n")
-        .reduce<Record<string, true>>((pre, cur) => {
-          pre[cur] = true;
-          return pre;
-        }, {});
+      const contentMap = editBody.split("\n").reduce<Record<string, true>>((pre, cur) => {
+        pre[cur] = true;
+        return pre;
+      }, {});
       let result = "";
       for (const item of match) {
         const l = item.split("|");
@@ -342,7 +326,7 @@ ${table}
           result += l[2] + "\n";
         }
       }
-      console.log("AI 改写结果", { res, result, match, contentMap });
+      logger.debug("AI 改写结果", { res, result, match, contentMap });
       aiRewriteContent.value = result;
       // const match = res.match(/```[\s\S]*?\n([\s\S]*?)\n```/);
       // aiRewriteContent.value = match ? match[1].trim() : res;
@@ -362,7 +346,7 @@ const onlineLyricsOptions = ref<SelectOptionGroup[]>([]);
 const onlineLyricsIndex = ref<string>("");
 
 watch(onlineLyricsIndex, (value) => {
-  console.log("watch onlineLyricsIndex", value);
+  logger.debug("watch onlineLyricsIndex", value);
   if (value) {
     onlineLyricsLoading2.value = true;
     try {
@@ -371,9 +355,7 @@ watch(onlineLyricsIndex, (value) => {
       if (api) {
         request
           .get<string, "text">({
-            url:
-              api[1] +
-              new URLSearchParams({ msg: onlineSearch.value, n: index }),
+            url: api[1] + new URLSearchParams({ msg: onlineSearch.value, n: index }),
             cookie: false,
             responseType: "text",
           })
@@ -444,7 +426,7 @@ async function searchOnlineLyrics() {
             });
             onlineLyricsOptions.value.push(opt);
           });
-      })
+      }),
     );
   } catch (err) {
     Message.error("搜索歌词失败" + (err as Error).message);
@@ -457,17 +439,16 @@ function editLyrics(item: SubTitle) {
   editLyricsData.value = JSON.parse(JSON.stringify(item)) as Subtitle2;
   if (editLyricsData.value.data) {
     if (fromData.clipRanges && fromData.clipRanges.length > 0) {
-      editLyricsData.value.data._lyricsBody = lyrics_clip(
-        fromData.clipRanges,
-        editLyricsData.value.data.body.map((item) => [
-          Math.round(item.from * 1000),
-          item.content,
-        ])
-      );
-      editLyricsData.value.data._editBody =
-        editLyricsData.value.data._lyricsBody
-          .map((item) => item[1].replaceAll(/(^♪ )|( ♪$)/g, ""))
-          .join("\n");
+      // editLyricsData.value.data._lyricsBody = lyrics_clip(
+      //   fromData.clipRanges,
+      //   editLyricsData.value.data.body.map((item) => [
+      //     Math.round(item.from * 1000),
+      //     item.content,
+      //   ])
+      // );
+      editLyricsData.value.data._editBody = editLyricsData.value.data._lyricsBody
+        .map((item) => item[1].replaceAll(/(^♪ )|( ♪$)/g, ""))
+        .join("\n");
     } else {
       editLyricsData.value.data._editBody = editLyricsData.value.data.body
         .map((item) => item.content.replaceAll(/(^♪ )|( ♪$)/g, ""))
@@ -482,7 +463,7 @@ function editLyrics(item: SubTitle) {
 </script>
 
 <template>
-  <a-spin :loading="(!fromData.playerData && !error)">
+  <a-spin :loading="!fromData.playerData && !error">
     <a-form auto-label-width :model="{}">
       <a-result
         v-if="error"
@@ -496,11 +477,7 @@ function editLyrics(item: SubTitle) {
           </a-space>
         </template>
       </a-result>
-      <a-checkbox-group
-        v-model="subtitle"
-        @change="onChange"
-        v-else-if="fromData.playerData"
-      >
+      <a-checkbox-group v-model="subtitle" @change="onChange" v-else-if="fromData.playerData">
         <template v-for="item in subtitles" :key="item.id">
           <a-checkbox :value="item.id_str">
             <template #checkbox="{ checked }">
@@ -516,11 +493,7 @@ function editLyrics(item: SubTitle) {
                 <div>
                   <div className="custom-checkbox-card-title">
                     {{ item.lan_doc }}
-                    <a-button
-                      type="primary"
-                      size="small"
-                      @click="editLyrics(item)"
-                    >
+                    <a-button type="primary" size="small" @click="editLyrics(item)">
                       <template #icon>
                         <icon-settings />
                       </template>
@@ -532,7 +505,7 @@ function editLyrics(item: SubTitle) {
                     style="
                       width: 100%;
                       height: 280px;
-                      white-space: pre;
+                      white-space: break-spaces;
                       overflow-y: scroll;
                       color: #4f4d4d;
                     "
@@ -555,11 +528,7 @@ function editLyrics(item: SubTitle) {
       <Btn @next="next" @prev="$emit('prev')" />
     </a-form>
   </a-spin>
-  <a-modal
-    v-model:visible="visible"
-    fullscreen
-    :body-style="{ height: '100%' }"
-  >
+  <a-modal v-model:visible="visible" fullscreen :body-style="{ height: '100%' }">
     <template #title> 歌词工作台 </template>
     <template #footer>
       <a-button @click="handleCancel"> 取消 </a-button>
@@ -581,7 +550,7 @@ function editLyrics(item: SubTitle) {
           v-model="editLyricsData.data._editBody"
           show-word-limit
           :max-length="{ length: lyricsBodyLine[0], errorOnly: true }"
-          :word-length="(v:string)=>v.split('\n').length"
+          :word-length="(v: string) => v.split('\n').length"
         />
         格式化：
         <a-input-group>
@@ -596,11 +565,7 @@ function editLyrics(item: SubTitle) {
             tip="正在搜索在线歌词"
           >
             <a-input-group>
-              <a-input
-                :style="{ width: '160px' }"
-                placeholder="歌名"
-                v-model="onlineSearch"
-              />
+              <a-input :style="{ width: '160px' }" placeholder="歌名" v-model="onlineSearch" />
               <a-button @click="searchOnlineLyrics">
                 <template #icon>
                   <icon-search />
@@ -612,21 +577,12 @@ function editLyrics(item: SubTitle) {
                 placeholder="在线歌词"
                 v-model="onlineLyricsIndex"
               />
-              <a-checkbox v-model="lyricsBodySwitch.timeAxis"
-                >时间轴</a-checkbox
-              >
-              <a-checkbox v-model="lyricsBodySwitch.blankChar"
-                >空白字符</a-checkbox
-              >
-              <a-checkbox v-model="lyricsBodySwitch.metaInfo"
-                >元信息</a-checkbox
-              >
+              <a-checkbox v-model="lyricsBodySwitch.timeAxis">时间轴</a-checkbox>
+              <a-checkbox v-model="lyricsBodySwitch.blankChar">空白字符</a-checkbox>
+              <a-checkbox v-model="lyricsBodySwitch.metaInfo">元信息</a-checkbox>
             </a-input-group>
             <div style="margin-top: 10px; flex: 1; overflow: auto">
-              <a-select
-                v-model="lyricsBodySwitch.onlineDiff"
-                style="margin-bottom: 10px"
-              >
+              <a-select v-model="lyricsBodySwitch.onlineDiff" style="margin-bottom: 10px">
                 <a-option
                   v-for="[key, [label]] in Object.entries(diffFunc)"
                   :key="key"
@@ -644,8 +600,8 @@ function editLyrics(item: SubTitle) {
                     backgroundColor: part.added
                       ? '#e6ffe6'
                       : part.removed
-                      ? '#ffe6e6'
-                      : 'transparent',
+                        ? '#ffe6e6'
+                        : 'transparent',
                   }"
                   >{{ part.value }}</span
                 >
@@ -653,11 +609,7 @@ function editLyrics(item: SubTitle) {
             </div>
           </a-spin>
         </a-tab-pane>
-        <a-tab-pane
-          key="2"
-          title="AI 改写"
-          style="display: flex; flex-direction: column"
-        >
+        <a-tab-pane key="2" title="AI 改写" style="display: flex; flex-direction: column">
           <a-button-group>
             <a-alert type="info">将网络歌词给AI进行纠正</a-alert>
 
@@ -676,15 +628,9 @@ function editLyrics(item: SubTitle) {
                     box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
                   "
                 >
-                  <a-input
-                    placeholder="Host"
-                    v-model="userConfig.openai.host"
-                  />
+                  <a-input placeholder="Host" v-model="userConfig.openai.host" />
                   <a-input placeholder="Key" v-model="userConfig.openai.key" />
-                  <a-input
-                    placeholder="Modal"
-                    v-model="userConfig.openai.modal"
-                  />
+                  <a-input placeholder="Modal" v-model="userConfig.openai.modal" />
                 </div>
               </template>
             </a-trigger>
@@ -696,10 +642,7 @@ function editLyrics(item: SubTitle) {
             <a-collapse style="margin-bottom: 10px">
               <a-collapse-item header="自定义 Prompt" key="1">
                 <a-space style="margin-bottom: 10px">
-                  <a-button
-                    type="primary"
-                    @click="aiRewritePrompt += ' {{onlineLyrics}}'"
-                  >
+                  <a-button type="primary" @click="aiRewritePrompt += ' {{onlineLyrics}}'">
                     在线歌词
                   </a-button>
 
@@ -733,12 +676,8 @@ function editLyrics(item: SubTitle) {
                   {{ label }}
                 </a-option>
               </a-select>
-              <a-alert
-                :type="
-                  lyricsBodyLine[0] === lyricsBodyLine[2] ? 'success' : 'error'
-                "
-                ><span style="margin-right: 20px"
-                  >原行数：{{ lyricsBodyLine[0] }}</span
+              <a-alert :type="lyricsBodyLine[0] === lyricsBodyLine[2] ? 'success' : 'error'"
+                ><span style="margin-right: 20px">原行数：{{ lyricsBodyLine[0] }}</span
                 ><span>AI行数：{{ lyricsBodyLine[2] }}</span>
               </a-alert>
             </div>
@@ -750,8 +689,8 @@ function editLyrics(item: SubTitle) {
                   backgroundColor: part.added
                     ? '#e6ffe6'
                     : part.removed
-                    ? '#ffe6e6'
-                    : 'transparent',
+                      ? '#ffe6e6'
+                      : 'transparent',
                 }"
                 >{{ part.value }}</span
               >
