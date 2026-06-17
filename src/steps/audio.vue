@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { ClipRanges, fromData, Lyrics } from "@/data";
 import { request } from "@/utils/requests";
+import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
 import FileSaver from "file-saver";
 import { GM_setValue } from "$";
@@ -91,18 +92,30 @@ function main() {
   const cid = fromData.playerData?.cid;
   error.value = null;
   fileBlob.value = undefined;
+  logger.info("[audio] main() 开始, avid=%s, cid=%s", avid, cid);
   request
     .get({
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
     })
     .then(async (res: any) => {
+      logger.info("[audio] playurl 响应已收到, status=%s", res.status);
+      logger.debug("[audio] playurl 响应 data:", JSON.stringify(res.data).slice(0, 500));
       await ffmpegLoad();
+      logger.info("[audio] ffmpegLoad 完成");
+      logger.info("[audio] 线程模式: %s", window.crossOriginIsolated ? "多线程" : "单线程 (性能受限)");
+      logger.info("[audio] 当前处理参数: clipRanges=%s 段, speed=%s, cover=%s, lyrics=%s",
+        (fromData.clipRanges || []).length, fromData.speed || 1,
+        fromData.coverUrl ? "有" : "无",
+        fromData.lyricsData?.length ? `${fromData.lyricsData.length}行` : "无");
       let audioUrl = undefined;
       let dash = res.data.dash;
       if (!dash) {
+        logger.error("[audio] dash 为空, 无法找到音频流");
         error.value = "未找到音频";
         return;
       }
+      logger.info("[audio] dash 结构: flac=%s, dolby=%s, audio数组长度=%s",
+        !!dash.flac, !!dash.dolby, dash.audio?.length ?? 0);
       /*
       优先检测 flac：如果存在 Hi-Res 无损，取其 baseUrl。
       其次检测 dolby：如果是杜比全景声，取其 base_url。
@@ -119,9 +132,15 @@ function main() {
           prev.bandwidth > current.bandwidth ? prev : current,
         );
         audioUrl = bestAudio.base_url || bestAudio.baseUrl;
+        logger.debug("[audio] 选择 audio 数组最大带宽: %s, codec=%s", bestAudio.bandwidth, bestAudio.codecs);
       }
+      logger.info("[audio] 选定音频URL: %s", audioUrl ? audioUrl.slice(0, 120) + "..." : "undefined");
       stepIndex.value++;
-      await ffmpeg.writeFile("input.m4s", await fetchFile(audioUrl));
+      logger.info("[audio] 开始下载音频流 (fetchFile)...");
+      const audioData = await fetchFile(audioUrl);
+      logger.info("[audio] 音频下载完成, 大小=%s bytes", (audioData as Uint8Array).byteLength);
+      await ffmpeg.writeFile("input.m4s", audioData);
+      logger.info("[audio] input.m4s 写入 ffmpeg 虚拟文件系统完成");
       // https://wiki.multimedia.cx/index.php/FFmpeg_Metadata
       const inputArgs = ["-i", "input.m4s"];
       const processArgs = [];
@@ -178,10 +197,11 @@ function main() {
         `comment=Wasm🎶音乐姬下载,仅供个人学习使用,严谨售卖和其他侵权行为`,
       ];
       if (fromData.coverUrl) {
-        await ffmpeg.writeFile(
-          "cover.jpg",
-          await fetchFile(fromData.coverUrl!.replace("http://", "https://")),
-        );
+        logger.info("[audio] 开始下载封面: %s", fromData.coverUrl!.slice(0, 100));
+        const coverData = await fetchFile(fromData.coverUrl!.replace("http://", "https://"));
+        logger.info("[audio] 封面下载完成");
+        await ffmpeg.writeFile("cover.jpg", coverData);
+        logger.info("[audio] cover.jpg 写入完成");
         inputArgs.push("-i", "cover.jpg");
         processArgs.push("-map", "1:0");
         processArgs.push("-c:v", "mjpeg");
@@ -216,14 +236,58 @@ function main() {
       if (fromData.data?.music_publish) {
         metadataArgs.push("-metadata", `date=${fromData.data.music_publish}`);
       }
-      await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"]);
+      // 探测输入文件 (会触发 ffmpeg:raw 输出到主控制台, 可看到 codec/duration)
+      /*try {
+        console.log("%c[audio] ffprobe: 检测输入文件...", "color:#37C5D6");
+        await ffmpeg.exec(["-i", "input.m4s", "-f", "null", "-"]);
+      } catch {
+        // -i 输出到 stderr 然后退出, 预期行为; 信息已通过 log 事件打印
+      }*/
+
+      const execArgs = [...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"];
+      const hasFilters = filterChains.length > 0;
+      const codecIdx = processArgs.indexOf("-c:a");
+      const codecMode = codecIdx !== -1 ? processArgs[codecIdx + 1] : "copy";
+
+      // 关键信息同步输出到主控制台
+      console.log("%c[audio] === FFmpeg exec 开始 ===", "color:#EFC441;font-weight:bold");
+      console.log("%c[audio] 编码模式:", "color:#EFC441", `-c:a ${codecMode}, filterComplex=${hasFilters ? "有" : "无"}, 保留段数=${keepRanges.length}`);
+      console.log("%c[audio] 完整命令:", "color:#EFC441", execArgs.join(" "));
+
+      const execStartTime = Date.now();
+      // 看门狗: 每 5 秒打印到主控制台
+      let watchdogCount = 0;
+      const watchdog = setInterval(() => {
+        watchdogCount++;
+        const elapsed = ((Date.now() - execStartTime) / 1000).toFixed(1);
+        const mem = (performance as any).memory;
+        const memInfo = mem
+          ? `JS堆=${(mem.usedJSHeapSize / 1048576).toFixed(0)}MB/${(mem.jsHeapSizeLimit / 1048576).toFixed(0)}MB`
+          : "N/A";
+        console.warn(`%c[audio] ⏳ exec 仍在运行... 已等待 ${elapsed}s (第 ${watchdogCount} 次) | ${memInfo}`, "color:#FF6257");
+      }, 5000);
+      try {
+        await ffmpeg.exec(execArgs);
+      } finally {
+        clearInterval(watchdog);
+      }
+      const execElapsed = Date.now() - execStartTime;
+      console.log(`%c[audio] === FFmpeg exec 完成 === 耗时 ${(execElapsed / 1000).toFixed(1)}s`, "color:#42CA8C;font-weight:bold");
+      logger.info("[audio] 开始读取 output.m4a...");
       const fileData = await ffmpeg.readFile("output.m4a");
+      logger.info("[audio] output.m4a 读取完成, 大小=%s bytes", (fileData as Uint8Array).byteLength);
 
       fileBlob.value =
         typeof fileData === "string"
           ? fileData
           : new Blob([fileData as Uint8Array<ArrayBuffer>], { type: "audio/m4a" });
       stepIndex.value = steps.length - 1;
+      logger.info("[audio] 全部完成 ✓");
+    })
+    .catch((e: any) => {
+      logger.error("[audio] 处理过程出错:", e?.message ?? e);
+      logger.error("[audio] 错误堆栈:", e?.stack);
+      error.value = e?.message ?? String(e);
     });
 }
 
