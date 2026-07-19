@@ -65,7 +65,7 @@ export default defineConfig({
               .join("\n");
             return (
               uOptions.userscript +
-              `\n// 更新日志[只显示最新的10条,🌟🤡 分别代表新功能和bug修复]\n${log}`
+              `\n\n// 更新日志[只显示最新的10条,🌟🤡 分别代表新功能和bug修复]\n${log}`
             );
           } else {
             return uOptions.userscript;
@@ -79,7 +79,7 @@ export default defineConfig({
         author,
         grant: ["unsafeWindow"],
         "run-at": "document-start",
-        icon: " https://static.hdslb.com/images/favicon.ico",
+        icon: "https://static.hdslb.com/images/favicon.ico",
         namespace: "https://github.com/Ocyss/wasm-music",
         homepage: "https://github.com/Ocyss/wasm-music",
         match: [

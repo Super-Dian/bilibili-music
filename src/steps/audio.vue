@@ -4,7 +4,7 @@ import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
 import FileSaver from "file-saver";
-import { GM_setValue } from "$";
+import { GM_download, GM_setValue, GmDownloadRequest } from "$";
 import { fetchFile } from "@ffmpeg/util";
 import { ffmpeg, ffmpegLoad } from "@/utils/ffmpeg";
 import { Message } from "@arco-design/web-vue";
@@ -99,7 +99,9 @@ function main() {
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
     })
     .then(async (res: any) => {
-      await ffmpegLoad((msg) => { loadMsg.value = msg; });
+      await ffmpegLoad((msg) => {
+        loadMsg.value = msg;
+      });
       loadMsg.value = "";
       let audioUrl = undefined;
       let dash = res.data.dash;
@@ -233,9 +235,9 @@ function main() {
       logger.error("[audio]", e);
       error.value = e?.message ?? String(e);
     });
-    if(fromData.usedefaultconfig){
-      fromData.usedefaultconfig = false;
-    }
+  if (fromData.usedefaultconfig) {
+    fromData.usedefaultconfig = false;
+  }
 }
 
 const download = () => {
@@ -243,7 +245,21 @@ const download = () => {
     error.value = "文件为空";
     return;
   }
-  FileSaver.saveAs(fileBlob.value, fromData.file ?? "bilibili_music.m4a");
+  const url =
+    typeof fileBlob.value === "string" ? fileBlob.value : URL.createObjectURL(fileBlob.value);
+
+  // GM_download({
+  //   url,
+  //   name: fromData.file ?? "bilibili_music.m4a",
+  //   downloadMode: "browser",
+  // } as GmDownloadRequest & { [key: string]: any });
+
+  const link = document.createElement("a");
+  link.download = fromData.file ?? "bilibili_music.m4a";
+  link.href = url;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 };
 
 onMounted(() => {
@@ -281,12 +297,7 @@ const saveDefault = () => {
       </template>
       <template #extra>
         <a-space v-if="stepIndex === steps.length - 1">
-          <a-tooltip
-            content="点击无反应/卡死/闪退,可去油猴配置(初学,高级)下更换下载模式尝试"
-            position="top"
-          >
-            <a-button @click="download">开始下载</a-button>
-          </a-tooltip>
+          <a-button @click="download">开始下载</a-button>
         </a-space>
       </template>
     </a-result>
