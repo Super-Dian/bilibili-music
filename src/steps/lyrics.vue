@@ -102,6 +102,7 @@ onMounted(() => {
       if (fromData.playerData.subtitle.subtitles.length === 0) {
         error.value = "当前视频没有字幕";
         noSubtitle.value = true;
+        if (fromData.usedefaultconfig) emits("next");
         return;
       }
       const _subtitles = await Promise.all(

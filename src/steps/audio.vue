@@ -1,11 +1,13 @@
 <script lang="ts" setup>
 import { ClipRanges, fromData, Lyrics } from "@/data";
 import { request } from "@/utils/requests";
+import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
 import FileSaver from "file-saver";
 import { GM_setValue } from "$";
 import { fetchFile } from "@ffmpeg/util";
 import { ffmpeg, ffmpegLoad } from "@/utils/ffmpeg";
+import { Message } from "@arco-design/web-vue";
 
 const steps = [
   "获取音频",
@@ -19,6 +21,7 @@ const stepIndex = ref(0);
 const error = ref<string | null>();
 
 const fileBlob = ref<string | Blob>();
+const loadMsg = ref("");
 const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
 
 function formatLrc(ms: number) {
@@ -96,7 +99,8 @@ function main() {
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
     })
     .then(async (res: any) => {
-      await ffmpegLoad();
+      await ffmpegLoad((msg) => { loadMsg.value = msg; });
+      loadMsg.value = "";
       let audioUrl = undefined;
       let dash = res.data.dash;
       if (!dash) {
@@ -184,7 +188,7 @@ function main() {
         );
         inputArgs.push("-i", "cover.jpg");
         processArgs.push("-map", "1:0");
-        processArgs.push("-c:v", "mjpeg");
+        processArgs.push("-c:v", "copy");
         processArgs.push("-disposition:v", "attached_pic");
       }
 
@@ -224,7 +228,14 @@ function main() {
           ? fileData
           : new Blob([fileData as Uint8Array<ArrayBuffer>], { type: "audio/m4a" });
       stepIndex.value = steps.length - 1;
+    })
+    .catch((e: any) => {
+      logger.error("[audio]", e);
+      error.value = e?.message ?? String(e);
     });
+    if(fromData.usedefaultconfig){
+      fromData.usedefaultconfig = false;
+    }
 }
 
 const download = () => {
@@ -241,6 +252,7 @@ onMounted(() => {
 
 const saveDefault = () => {
   GM_setValue("default_rule", JSON.parse(JSON.stringify(fromData.record)));
+  Message.success("已保存为默认规则");
 };
 </script>
 
@@ -278,6 +290,7 @@ const saveDefault = () => {
         </a-space>
       </template>
     </a-result>
+    <div v-if="loadMsg" class="load-msg">{{ loadMsg }}</div>
     <a-button @click="saveDefault">保存为默认规则</a-button>
     <Btn @prev="$emit('prev')" @next="main" :next="{ disabled: !fileBlob }" nextLabel="重试" />
   </div>
@@ -291,6 +304,12 @@ const saveDefault = () => {
   display: flex;
   align-items: center;
   flex-direction: column;
+}
+.load-msg {
+  font-size: 12px;
+  color: #999;
+  margin-top: -8px;
+  margin-bottom: 8px;
 }
 
 .loader {
