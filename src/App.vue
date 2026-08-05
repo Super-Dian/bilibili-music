@@ -1,21 +1,27 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, ref } from "vue";
 import StepAudio from "@/steps/audio.vue";
 import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
-import { fromData, RecordData, reset } from "./data";
+import { fromData, reset } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
 import { Message } from "@arco-design/web-vue";
 import { logger } from "./utils/logger";
+import {
+  episodeSession,
+  getActiveDefaultRule,
+  stopEpisodeSession,
+  type EpisodeVideoData,
+} from "./episode";
 const visible = ref(true);
 const current = ref(1);
 const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
 
 const handleOk = () => {
-  const defaultRule = GM_getValue<RecordData | null>("default_rule");
+  const defaultRule = getActiveDefaultRule();
   console.log("默认规则:", defaultRule);
   //return false;
   if (!defaultRule) {
@@ -30,6 +36,7 @@ const handleOk = () => {
 
 const handleCancel = () => {
   visible.value = false;
+  setTimeout(() => stopEpisodeSession(true), 0);
 };
 
 function setCurrent(v: number) {
@@ -52,15 +59,18 @@ function checkSide() {
   GM_setValue("sideShow", sideShow.value);
 }
 
-onMounted(() => {
-  sideShow.value = GM_getValue("sideShow") || true;
+onMounted(async () => {
+  sideShow.value = GM_getValue("sideShow") !== false;
   //每次运行都重置数据
   reset();
-  const bgmTag = document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
+  const activeEpisode = episodeSession.activeVideoData;
+  const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
+    ? null
+    : document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
+  const playerWrap = document.querySelector<HTMLDivElement & { __vue__: any }>("#playerWrap");
+  const playerVideoData = playerWrap?.__vue__?.videoData as EpisodeVideoData | undefined;
 
-  fromData.videoData = clone(
-    document.querySelector<HTMLDivElement & { __vue__: any }>("#playerWrap")?.__vue__?.videoData,
-  );
+  fromData.videoData = clone(activeEpisode || playerVideoData || null);
   if (!fromData.videoData) {
     fromData.err = "未找到视频数据，后续操作无法继续";
     return;
@@ -69,21 +79,29 @@ onMounted(() => {
   const music_id = bgmTag?.__vue__?.$props?.info?.music_id;
   if (music_id) {
     logger.debug("获取到的Music ID:", music_id, bgmTag?.__vue__);
-    fetch(
-      "https://api.bilibili.com/x/copyright-music-publicity/bgm/detail?" +
-        new URLSearchParams({
-          music_id,
-        }),
-    )
-      .then((res) => {
-        return res.json();
-      })
-      .then((data) => {
-        fromData.data = data.data;
-      })
-      .catch((e) => {
-        fromData.err = e;
-      });
+    try {
+      const res = await fetch(
+        "https://api.bilibili.com/x/copyright-music-publicity/bgm/detail?" +
+          new URLSearchParams({
+            music_id,
+          }),
+      );
+      const data = await res.json();
+      fromData.data = data.data;
+    } catch (error) {
+      logger.warn("获取音乐信息失败，将按无音乐信息继续", error);
+    }
+  }
+
+  if (episodeSession.auto) {
+    fromData.usedefaultconfig = true;
+    current.value = 2;
+    Message.info(
+      `正在自动处理 ${episodeSession.completed + 1}/${episodeSession.total}：${episodeSession.activeVideoData?.part}`,
+    );
+  } else if (activeEpisode?._wasmMusicSkipMontage) {
+    current.value = 2;
+    Message.info("所选视频不是当前正在播放的视频，已跳过音频剪辑步骤");
   }
 });
 

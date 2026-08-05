@@ -3,11 +3,12 @@ import { ClipRanges, fromData, Lyrics } from "@/data";
 import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
-import FileSaver from "file-saver";
-import { GM_download, GM_setValue, GmDownloadRequest } from "$";
+import { GM_setValue } from "$";
 import { fetchFile } from "@ffmpeg/util";
 import { ffmpeg, ffmpegLoad } from "@/utils/ffmpeg";
 import { Message } from "@arco-design/web-vue";
+import { episodeSession, finishEpisodeDownload, getEpisodeSourceUrl } from "@/episode";
+import { clone } from "@/utils/deepmerge";
 
 const steps = [
   "获取音频",
@@ -23,6 +24,7 @@ const error = ref<string | null>();
 const fileBlob = ref<string | Blob>();
 const loadMsg = ref("");
 const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
+let downloadTriggered = false;
 
 function formatLrc(ms: number) {
   const m = Math.floor(ms / 60000)
@@ -90,10 +92,14 @@ function processLyrics(lyrics: Lyrics, deleteRanges: ClipRanges, speed: number) 
 
 function main() {
   stepIndex.value = 0;
-  const avid = fromData.playerData?.aid;
-  const cid = fromData.playerData?.cid;
+  const avid = fromData.playerData?.aid || fromData.videoData?.aid;
+  const cid = fromData.playerData?.cid || fromData.videoData?.cid;
   error.value = null;
   fileBlob.value = undefined;
+  if (!avid || !cid) {
+    error.value = "未找到当前分集的 aid/cid";
+    return;
+  }
   request
     .get({
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
@@ -169,15 +175,16 @@ function main() {
         processArgs.push("-filter_complex", filterChains.join(";"));
       }
       processArgs.push("-map", lastStreamLabel === "[0:a]" ? "0:a" : lastStreamLabel);
+      const episodeSourceUrl = getEpisodeSourceUrl();
       const metadataArgs = [
         "-metadata",
         `title=${fromData.title}`,
         "-metadata",
         `artist=${fromData.author}`,
         "-metadata",
-        `source_url=${location.href.split("?")[0]}`,
+        `source_url=${episodeSourceUrl}`,
         "-metadata",
-        `publisher=${location.href.split("?")[0]}`,
+        `publisher=${episodeSourceUrl}`,
         "-metadata",
         `encoded_by=ocyss/wasm-music`,
         "-metadata",
@@ -206,7 +213,7 @@ function main() {
           `[al:${fromData.data?.album || ""}]`, // 专辑
           `[re:ocyss/wasm-music]`, // 制作工具
           `[ve:1.0.0]`, // 版本
-          `[url: ${location.href.split("?")[0]}]`,
+          `[url: ${episodeSourceUrl}]`,
         ].filter((line) => !line.includes(": ]"));
 
         const lrcString = [
@@ -228,8 +235,11 @@ function main() {
       fileBlob.value =
         typeof fileData === "string"
           ? fileData
-          : new Blob([fileData as Uint8Array<ArrayBuffer>], { type: "audio/m4a" });
+          : new Blob([fileData as Uint8Array], { type: "audio/m4a" });
       stepIndex.value = steps.length - 1;
+      if (episodeSession.isBatch && episodeSession.auto) {
+        setTimeout(() => download(), 300);
+      }
     })
     .catch((e: any) => {
       logger.error("[audio]", e);
@@ -245,6 +255,10 @@ const download = () => {
     error.value = "文件为空";
     return;
   }
+  if (episodeSession.isBatch && downloadTriggered) {
+    return;
+  }
+  downloadTriggered = true;
   const url =
     typeof fileBlob.value === "string" ? fileBlob.value : URL.createObjectURL(fileBlob.value);
 
@@ -255,11 +269,25 @@ const download = () => {
   // } as GmDownloadRequest & { [key: string]: any });
 
   const link = document.createElement("a");
-  link.download = fromData.file ?? "bilibili_music.m4a";
+  const baseFileName = fromData.file || "bilibili_music.m4a";
+  const pagePrefix =
+    episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
+    `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
+  link.download = episodeSession.isBatch ? `${pagePrefix}_${baseFileName}` : baseFileName;
   link.href = url;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+  if (typeof fileBlob.value !== "string") {
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+  }
+  if (episodeSession.isBatch) {
+    if (!episodeSession.rule) {
+      episodeSession.rule = clone(fromData.record);
+    }
+    episodeSession.auto = true;
+    finishEpisodeDownload();
+  }
 };
 
 onMounted(() => {

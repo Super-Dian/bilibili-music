@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { fromData, Lyrics, RecordData, userConfig } from "@/data";
+import { fromData, Lyrics, userConfig } from "@/data";
 import { onMounted, ref, computed, reactive } from "vue";
 import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
@@ -7,7 +7,7 @@ import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
 import { logger } from "@/utils/logger";
-import { GM_getValue } from "$";
+import { getActiveDefaultRule } from "@/episode";
 const emits = defineEmits(["next", "prev"]);
 
 type SubTitle = PlayerData["subtitle"]["subtitles"][number];
@@ -99,6 +99,12 @@ onMounted(() => {
       logger.debug("playerData", res);
       if (!res.data) return;
       fromData.playerData = res.data as PlayerData;
+      fromData.playerData.aid = fromData.playerData.aid || fromData.videoData!.aid;
+      fromData.playerData.cid = fromData.videoData!.cid;
+      fromData.playerData.bvid = fromData.playerData.bvid || fromData.videoData!.bvid;
+      fromData.playerData.subtitle =
+        fromData.playerData.subtitle || ({ subtitles: [] } as unknown as PlayerData["subtitle"]);
+      fromData.playerData.subtitle.subtitles = fromData.playerData.subtitle.subtitles || [];
       if (fromData.playerData.subtitle.subtitles.length === 0) {
         error.value = "当前视频没有字幕";
         noSubtitle.value = true;
@@ -117,7 +123,7 @@ onMounted(() => {
       // 新增：尝试使用本地默认语言配置（lan_doc），否则回退到第一个
       if (_subtitles.length > 0) {
         if (fromData.usedefaultconfig) {
-          const defaultLan = GM_getValue<RecordData | null>("default_rule");
+          const defaultLan = getActiveDefaultRule();
           const default_lyrics_lan = defaultLan?.lyrics;
           console.log(default_lyrics_lan);
           const matched = default_lyrics_lan
@@ -150,7 +156,21 @@ onMounted(() => {
       console.log(_subtitles);
     })
     .catch((err) => {
-      error.value = err.message;
+      if (fromData.usedefaultconfig) {
+        fromData.playerData = {
+          aid: fromData.videoData!.aid,
+          cid: fromData.videoData!.cid,
+          bvid: fromData.videoData!.bvid,
+          subtitle: {
+            subtitles: [],
+          },
+        } as unknown as PlayerData;
+        fromData.lyricsData = null;
+        logger.warn("字幕信息获取失败，自动下载将跳过字幕", err);
+        emits("next");
+      } else {
+        error.value = err.message;
+      }
     });
 });
 

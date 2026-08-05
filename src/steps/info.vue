@@ -1,7 +1,8 @@
 <script lang="ts" setup>
-import { fromData, RecordData } from "@/data";
+import { fromData } from "@/data";
 import Btn from "@/components/btn.vue";
 import { GM_getValue, GM_setValue } from "$";
+import { getActiveDefaultRule } from "@/episode";
 
 const emits = defineEmits(["next", "prev"]);
 
@@ -61,12 +62,12 @@ const handleFileSelect = (value: any) => {
 onMounted(() => {
   const noMusic = !fromData.data ? "_no_music" : "";
   if (fromData.usedefaultconfig) {
-    const defaultRule = GM_getValue<RecordData | null>("default_rule");
+    const defaultRule = getActiveDefaultRule();
     const format = defaultRule?.format;
     if (format) {
-      handleTitleSelect(format.title in titleSelects ? format.title : titleSelects[0]);
-      handleAuthorSelect(format.author in authorSelects ? format.author : authorSelects[0]);
-      handleFileSelect(format.file in fileSelects ? format.file : fileSelects[0]);
+      handleTitleSelect(titleSelects.includes(format.title) ? format.title : titleSelects[0]);
+      handleAuthorSelect(authorSelects.includes(format.author) ? format.author : authorSelects[0]);
+      handleFileSelect(fileSelects.includes(format.file) ? format.file : fileSelects[0]);
       next();
       return;
     }

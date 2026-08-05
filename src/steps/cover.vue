@@ -1,8 +1,8 @@
 <script lang="ts" setup>
-import { fromData, RecordData } from "@/data";
+import { fromData } from "@/data";
 import { onMounted, reactive } from "vue";
 import Btn from "@/components/btn.vue";
-import { GM_getValue } from "$";
+import { getActiveDefaultRule } from "@/episode";
 
 const emits = defineEmits(["next", "prev"]);
 const covers = reactive<{ label: string; url?: string }[]>([]);
@@ -27,7 +27,7 @@ onMounted(() => {
   });
   const url = covers?.[0]?.url;
   if (fromData.usedefaultconfig) {
-    const defaultRule = GM_getValue<RecordData | null>("default_rule");
+    const defaultRule = getActiveDefaultRule();
     const coverLabel = defaultRule?.cover;
     const coverItem = covers.find((item) => item.label === coverLabel);
     if (coverItem && coverItem.url) {
@@ -37,6 +37,16 @@ onMounted(() => {
       next();
       return;
     }
+    if (url) {
+      fromData.coverUrl = url.toString();
+      cover.value = [url];
+      coverRecord.label = covers?.[0]?.label;
+    } else {
+      fromData.coverUrl = null;
+      coverRecord.label = undefined;
+    }
+    next();
+    return;
   }
   if (url) {
     fromData.coverUrl = url.toString();
