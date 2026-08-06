@@ -212,7 +212,14 @@ function main() {
           ...finalLyrics.map((item) => `${formatLrc(item[0])} ${item[1]}`),
         ].join("\n");
 
-        metadataArgs.push("-metadata", `lyrics=${lrcString}`);
+        if (fromData.externalLyrics) {
+          // 外置歌词：单独下载 .lrc 文件，不嵌入音频
+          const lrcBlob = new Blob([lrcString], { type: "text/lrc;charset=utf-8" });
+          const lrcFileName = (fromData.file ?? "bilibili_music").replace(/\.\w+$/, "") + ".lrc";
+          FileSaver.saveAs(lrcBlob, lrcFileName);
+        } else {
+          metadataArgs.push("-metadata", `lyrics=${lrcString}`);
+        }
       }
       if (fromData.data?.album) {
         metadataArgs.push("-metadata", `album=${fromData.data.album}`);
