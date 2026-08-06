@@ -330,6 +330,11 @@ function next() {
   ]);
   // 将当前倍速写入 fromData，供后续下载使用
   fromData.speed = selectedSpeed.value;
+  fromData.record.clipRanges =
+    fromData.clipRanges.length > 0
+      ? fromData.clipRanges.map(([start, end]) => [start, end] as [number, number])
+      : null;
+  fromData.record.speed = fromData.speed;
   emits("next");
 }
 </script>

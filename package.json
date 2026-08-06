@@ -10,6 +10,7 @@
     "dev": "vite",
     "build": "vite build",
     "build:tsc": "vue-tsc --noEmit && vite build",
+    "test": "bun test",
     "preview": "vite preview",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",

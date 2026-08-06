@@ -5,7 +5,7 @@ import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
-import { fromData, reset } from "./data";
+import { fromData, normalizeRecordProcessingRule, reset, type RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
 import { Message } from "@arco-design/web-vue";
@@ -20,6 +20,14 @@ const visible = ref(true);
 const current = ref(1);
 const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
 
+function applyProcessingRule(rule: RecordData) {
+  const processing = normalizeRecordProcessingRule(rule);
+  fromData.clipRanges = clone(processing.clipRanges);
+  fromData.speed = processing.speed;
+  fromData.record.clipRanges = clone(processing.clipRanges);
+  fromData.record.speed = processing.speed;
+}
+
 const handleOk = () => {
   const defaultRule = getActiveDefaultRule();
   console.log("默认规则:", defaultRule);
@@ -28,6 +36,7 @@ const handleOk = () => {
     Message.error("未找到默认规则");
     return false;
   }
+  applyProcessingRule(defaultRule);
   fromData.usedefaultconfig = true;
   onNext();
   // visible.value = false;
@@ -94,6 +103,10 @@ onMounted(async () => {
   }
 
   if (episodeSession.auto) {
+    const defaultRule = getActiveDefaultRule();
+    if (defaultRule) {
+      applyProcessingRule(defaultRule);
+    }
     fromData.usedefaultconfig = true;
     current.value = 2;
     Message.info(

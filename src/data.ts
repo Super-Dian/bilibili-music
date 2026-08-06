@@ -36,7 +36,40 @@ export const defaultRecordData = {
   },
   cover: undefined as string | undefined,
   lyrics: undefined as string | undefined,
+  clipRanges: null as ClipRanges | null,
+  speed: 1,
 };
+
+export function normalizeRecordProcessingRule(
+  rule: Partial<RecordData> | null | undefined,
+): Pick<RecordData, "clipRanges" | "speed"> {
+  const clipRanges = Array.isArray(rule?.clipRanges)
+    ? rule.clipRanges
+        .filter(
+          (range): range is [number, number] =>
+            Array.isArray(range) &&
+            range.length >= 2 &&
+            Number.isFinite(Number(range[0])) &&
+            Number.isFinite(Number(range[1])),
+        )
+        .map(
+          ([start, end]) =>
+            [Math.max(0, Math.round(Number(start))), Math.max(0, Math.round(Number(end)))] as [
+              number,
+              number,
+            ],
+        )
+        .filter(([start, end]) => end > start)
+    : null;
+  const storedSpeed = Number(rule?.speed);
+  const speed =
+    Number.isFinite(storedSpeed) && storedSpeed >= 0.5 && storedSpeed <= 2 ? storedSpeed : 1;
+
+  return {
+    clipRanges: clipRanges && clipRanges.length > 0 ? clipRanges : null,
+    speed,
+  };
+}
 
 export const defaultData = {
   data: null as MusicData | null,

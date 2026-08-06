@@ -26,6 +26,14 @@ interface MountedApp {
   root: HTMLElement;
 }
 
+export interface EpisodeDownloadResult {
+  bvid: string;
+  page: number;
+  label: string;
+  status: "success" | "failed";
+  error?: string;
+}
+
 interface EpisodeSession {
   activeVideoData: EpisodeVideoData | null;
   queue: EpisodeVideoData[];
@@ -39,6 +47,10 @@ interface EpisodeSession {
   advanceTimer: ReturnType<typeof setTimeout> | null;
   total: number;
   completed: number;
+  succeeded: number;
+  failed: number;
+  results: EpisodeDownloadResult[];
+  settling: boolean;
 }
 
 interface BilibiliResponse<T> {
@@ -99,6 +111,10 @@ export const episodeSession: EpisodeSession = {
   advanceTimer: null,
   total: 0,
   completed: 0,
+  succeeded: 0,
+  failed: 0,
+  results: [],
+  settling: false,
 };
 
 let appLauncher: (() => MountedApp) | null = null;
@@ -111,17 +127,33 @@ export function getActiveDefaultRule() {
   return episodeSession.rule || GM_getValue<RecordData | null>("default_rule");
 }
 
-export function getEpisodeSourceUrl() {
-  const videoData = episodeSession.activeVideoData || fromData.videoData;
+export function buildEpisodeSourceUrl(
+  videoData: EpisodeVideoData | VideoData | null,
+  currentUrl = location.href,
+) {
   if (!videoData?.bvid) {
-    return location.href;
+    return currentUrl.split("?")[0];
   }
 
-  const url = new URL(`/video/${videoData.bvid}/`, location.origin);
-  if ("page" in videoData && videoData.page) {
-    url.searchParams.set("p", videoData.page.toString());
+  const current = new URL(currentUrl);
+  const currentBvid = current.pathname.match(/\/video\/(BV[\w]+)/i)?.[1];
+  const page = "page" in videoData ? Number(videoData.page) : 0;
+  const pageCount = Array.isArray(videoData.pages) ? videoData.pages.length : 0;
+  const isOrdinaryCurrentVideo =
+    currentBvid?.toLowerCase() === videoData.bvid.toLowerCase() && page <= 1 && pageCount <= 1;
+  if (isOrdinaryCurrentVideo) {
+    return currentUrl.split("?")[0];
+  }
+
+  const url = new URL(`/video/${videoData.bvid}/`, current.origin);
+  if (page > 1 || (page === 1 && pageCount > 1)) {
+    url.searchParams.set("p", page.toString());
   }
   return url.href;
+}
+
+export function getEpisodeSourceUrl() {
+  return buildEpisodeSourceUrl(episodeSession.activeVideoData || fromData.videoData);
 }
 
 function getPlayerVideoData() {
@@ -222,7 +254,7 @@ function buildUgcEpisodeVideoData(
   return videoData;
 }
 
-async function hydrateEpisodeData(episode: EpisodeVideoData) {
+export async function hydrateEpisodeData(episode: EpisodeVideoData) {
   if (episode._wasmMusicHydrated) {
     return episode;
   }
@@ -231,12 +263,12 @@ async function hydrateEpisodeData(episode: EpisodeVideoData) {
     const apiVideoData = await fetchVideoViewData(episode.bvid);
     const pages = Array.isArray(apiVideoData.pages) ? apiVideoData.pages : [];
     const targetPage =
-      pages.find((page) => Number(page.cid) === Number(episode.cid)) ||
       pages.find((page) => Number(page.page) === Number(episode.page)) ||
+      pages.find((page) => Number(page.cid) === Number(episode.cid)) ||
       pages[0] ||
       ({} as Page);
     const hydrated = Object.assign({}, clone(apiVideoData), {
-      cid: episode.cid || targetPage.cid || apiVideoData.cid,
+      cid: targetPage.cid || episode.cid || apiVideoData.cid,
       page: Number(targetPage.page) || Number(episode.page) || 1,
       part: episode.part || targetPage.part || apiVideoData.title,
       duration: targetPage.duration || episode.duration || apiVideoData.duration,
@@ -514,12 +546,13 @@ function showEpisodePicker(
     autoInput.disabled = !savedRule;
     const autoText = document.createElement("span");
     autoText.textContent = savedRule
-      ? "多选时使用已保存的默认规则，自动完成全部下载"
-      : "尚未保存默认规则：多选后先手动设置第一项，其余项目自动复用该设置";
+      ? "使用已保存规则（命名、封面、字幕、剪辑范围与倍速）自动完成全部下载"
+      : "尚未保存默认规则：先手动设置第一项，其余项目复用命名、封面、字幕、剪辑范围与倍速";
     autoLabel.append(autoInput, autoText);
     const hint = document.createElement("p");
     hint.className = "wasm-music-episode-hint";
-    hint.textContent = "浏览器第一次批量下载时，可能会询问是否允许此网站下载多个文件。";
+    hint.textContent =
+      "剪辑范围会按每个视频的实际时长处理。浏览器第一次批量下载时，可能会询问是否允许此网站下载多个文件。";
     options.append(autoLabel, hint);
 
     const footer = document.createElement("div");
@@ -727,15 +760,54 @@ function launchNextEpisode() {
   }
 
   episodeSession.activeVideoData = nextVideoData;
-  const { app, root } = appLauncher();
-  episodeSession.root = root;
-  episodeSession.app = app;
+  episodeSession.settling = false;
+  try {
+    const { app, root } = appLauncher();
+    episodeSession.root = root;
+    episodeSession.app = app;
+  } catch (error) {
+    logger.error("打开当前分集下载窗口失败", error);
+    if (!failEpisodeDownload(error)) {
+      throw error;
+    }
+  }
 }
 
-export function finishEpisodeDownload() {
+function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unknown) {
+  const activeVideoData = episodeSession.activeVideoData;
+  if (!episodeSession.isBatch || !activeVideoData || episodeSession.settling) {
+    return false;
+  }
+
+  episodeSession.settling = true;
   episodeSession.completed++;
-  const completed = episodeSession.completed;
-  const total = episodeSession.total;
+  if (status === "success") {
+    episodeSession.succeeded++;
+  } else {
+    episodeSession.failed++;
+  }
+  const errorMessage =
+    status === "failed"
+      ? error instanceof Error
+        ? error.message
+        : String(error || "未知错误")
+      : undefined;
+  const label =
+    activeVideoData._wasmMusicPickerTitle ||
+    activeVideoData.part ||
+    activeVideoData.title ||
+    activeVideoData.bvid;
+  episodeSession.results.push({
+    bvid: activeVideoData.bvid,
+    page: Number(activeVideoData.page) || 1,
+    label,
+    status,
+    error: errorMessage,
+  });
+  if (status === "failed") {
+    Message.error(`已跳过 ${label}：${errorMessage}`);
+  }
+
   episodeSession.advanceTimer = setTimeout(() => {
     episodeSession.advanceTimer = null;
     cleanupMountedApp();
@@ -744,14 +816,37 @@ export function finishEpisodeDownload() {
       return;
     }
 
+    const total = episodeSession.total;
+    const succeeded = episodeSession.succeeded;
+    const failed = episodeSession.failed;
+    const results = clone(episodeSession.results);
+    logger.info("批量下载任务结束", { total, succeeded, failed, results });
     episodeSession.activeVideoData = null;
     episodeSession.isBatch = false;
     episodeSession.auto = false;
     episodeSession.rule = null;
     episodeSession.total = 0;
     episodeSession.completed = 0;
-    Message.success(`批量下载任务已完成：${completed}/${total}`);
+    episodeSession.succeeded = 0;
+    episodeSession.failed = 0;
+    episodeSession.results = [];
+    episodeSession.settling = false;
+    const summary = `批量下载任务已完成：成功 ${succeeded}，失败 ${failed}，共 ${total} 项`;
+    if (failed > 0) {
+      Message.warning(summary);
+    } else {
+      Message.success(summary);
+    }
   }, 800);
+  return true;
+}
+
+export function finishEpisodeDownload() {
+  return finishEpisodeItem("success");
+}
+
+export function failEpisodeDownload(error: unknown) {
+  return finishEpisodeItem("failed", error);
 }
 
 export function stopEpisodeSession(showMessage = false) {
@@ -775,6 +870,10 @@ export function stopEpisodeSession(showMessage = false) {
   episodeSession.rule = null;
   episodeSession.total = 0;
   episodeSession.completed = 0;
+  episodeSession.succeeded = 0;
+  episodeSession.failed = 0;
+  episodeSession.results = [];
+  episodeSession.settling = false;
   episodeSession.opening = false;
   if (showMessage && hadTask) {
     Message.info("下载任务已取消");
@@ -826,6 +925,10 @@ export async function openMusicApp() {
     episodeSession.rule = episodeSession.auto ? clone(savedRule) : null;
     episodeSession.total = selectedEpisodes.length;
     episodeSession.completed = 0;
+    episodeSession.succeeded = 0;
+    episodeSession.failed = 0;
+    episodeSession.results = [];
+    episodeSession.settling = false;
     launchNextEpisode();
   } catch (error) {
     logger.error("打开视频选择器失败", error);

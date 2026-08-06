@@ -7,7 +7,12 @@ import { GM_setValue } from "$";
 import { fetchFile } from "@ffmpeg/util";
 import { ffmpeg, ffmpegLoad } from "@/utils/ffmpeg";
 import { Message } from "@arco-design/web-vue";
-import { episodeSession, finishEpisodeDownload, getEpisodeSourceUrl } from "@/episode";
+import {
+  episodeSession,
+  failEpisodeDownload,
+  finishEpisodeDownload,
+  getEpisodeSourceUrl,
+} from "@/episode";
 import { clone } from "@/utils/deepmerge";
 
 const steps = [
@@ -26,6 +31,16 @@ const loadMsg = ref("");
 const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
 let downloadTriggered = false;
 
+function handleAudioFailure(reason: unknown) {
+  const message = reason instanceof Error ? reason.message : String(reason || "未知错误");
+  logger.error("[audio]", reason);
+  error.value = message;
+  loadMsg.value = "";
+  if (episodeSession.isBatch) {
+    failEpisodeDownload(message);
+  }
+}
+
 function formatLrc(ms: number) {
   const m = Math.floor(ms / 60000)
     .toString()
@@ -34,8 +49,19 @@ function formatLrc(ms: number) {
   return `[${m}:${s}]`;
 }
 function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infinity) {
-  // 1. 合并 & 排序删除区间 (复用你的 Rust 逻辑思想)
-  const sorted = [...deleteRanges].sort((a, b) => a[0] - b[0]);
+  const durationLimit =
+    Number.isFinite(totalDurationMs) && totalDurationMs > 0 ? totalDurationMs : Infinity;
+  // 1. 根据当前分集时长裁剪、合并并排序删除区间
+  const sorted = deleteRanges
+    .map(
+      ([start, end]) =>
+        [
+          Math.max(0, Math.min(durationLimit, Number(start))),
+          Math.max(0, Math.min(durationLimit, Number(end))),
+        ] as [number, number],
+    )
+    .filter(([start, end]) => Number.isFinite(start) && Number.isFinite(end) && end > start)
+    .sort((a, b) => a[0] - b[0]);
   const merged: ClipRanges = [];
   if (sorted.length > 0) {
     let curr = sorted[0];
@@ -49,6 +75,10 @@ function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infin
     merged.push(curr);
   }
 
+  if (merged.length === 0) {
+    return { keepRanges: [], mergedDeleteRanges: merged };
+  }
+
   // 2. 反转逻辑：生成保留区间
   const keep: Array<{ start: number; end?: number }> = [];
   let lastPos = 0;
@@ -60,7 +90,9 @@ function getKeepRanges(deleteRanges: ClipRanges, totalDurationMs: number = Infin
     lastPos = dEnd;
   }
   // 添加最后一段 (到文件结束)
-  keep.push({ start: lastPos / 1000 });
+  if (!Number.isFinite(durationLimit) || lastPos < durationLimit) {
+    keep.push({ start: lastPos / 1000 });
+  }
 
   return { keepRanges: keep, mergedDeleteRanges: merged };
 }
@@ -97,7 +129,7 @@ function main() {
   error.value = null;
   fileBlob.value = undefined;
   if (!avid || !cid) {
-    error.value = "未找到当前分集的 aid/cid";
+    handleAudioFailure("未找到当前分集的 aid/cid");
     return;
   }
   request
@@ -105,15 +137,10 @@ function main() {
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
     })
     .then(async (res: any) => {
-      await ffmpegLoad((msg) => {
-        loadMsg.value = msg;
-      });
-      loadMsg.value = "";
       let audioUrl = undefined;
-      let dash = res.data.dash;
+      const dash = res?.data?.dash;
       if (!dash) {
-        error.value = "未找到音频";
-        return;
+        throw new Error("playurl 未返回可用音轨");
       }
       /*
       优先检测 flac：如果存在 Hi-Res 无损，取其 baseUrl。
@@ -126,12 +153,19 @@ function main() {
       if (!audioUrl && dash.dolby && dash.dolby.audio) {
         audioUrl = dash.dolby.audio[0].base_url;
       }
-      if (!audioUrl && dash.audio) {
+      if (!audioUrl && Array.isArray(dash.audio) && dash.audio.length > 0) {
         const bestAudio = dash.audio.reduce((prev: any, current: any) =>
           prev.bandwidth > current.bandwidth ? prev : current,
         );
         audioUrl = bestAudio.base_url || bestAudio.baseUrl;
       }
+      if (!audioUrl) {
+        throw new Error("playurl 音轨缺少下载地址");
+      }
+      await ffmpegLoad((msg) => {
+        loadMsg.value = msg;
+      });
+      loadMsg.value = "";
       stepIndex.value++;
       await ffmpeg.writeFile("input.m4s", await fetchFile(audioUrl));
       // https://wiki.multimedia.cx/index.php/FFmpeg_Metadata
@@ -139,7 +173,14 @@ function main() {
       const processArgs = [];
       let filterChains: string[] = [];
       let lastStreamLabel = "[0:a]";
-      const { keepRanges } = getKeepRanges(fromData.clipRanges || []);
+      const totalDurationMs = Math.max(0, Number(fromData.videoData?.duration) || 0) * 1000;
+      const { keepRanges, mergedDeleteRanges } = getKeepRanges(
+        fromData.clipRanges || [],
+        totalDurationMs,
+      );
+      if (mergedDeleteRanges.length > 0 && keepRanges.length === 0) {
+        throw new Error("剪辑范围覆盖了当前分集的全部音频");
+      }
       if (keepRanges.length > 0) {
         const segmentLabels: string[] = [];
         keepRanges.forEach((r, i) => {
@@ -229,8 +270,22 @@ function main() {
       if (fromData.data?.music_publish) {
         metadataArgs.push("-metadata", `date=${fromData.data.music_publish}`);
       }
-      await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"]);
+      const exitCode = await ffmpeg.exec([
+        ...inputArgs,
+        ...processArgs,
+        ...metadataArgs,
+        "output.m4a",
+      ]);
+      if (exitCode !== 0) {
+        throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}`);
+      }
       const fileData = await ffmpeg.readFile("output.m4a");
+      if (
+        (typeof fileData === "string" && fileData.length === 0) ||
+        (typeof fileData !== "string" && fileData.byteLength === 0)
+      ) {
+        throw new Error("FFmpeg 未生成有效的音频文件");
+      }
 
       fileBlob.value =
         typeof fileData === "string"
@@ -238,13 +293,19 @@ function main() {
           : new Blob([fileData as Uint8Array], { type: "audio/m4a" });
       stepIndex.value = steps.length - 1;
       if (episodeSession.isBatch && episodeSession.auto) {
-        setTimeout(() => download(), 300);
+        const activeVideoData = episodeSession.activeVideoData;
+        setTimeout(() => {
+          if (
+            episodeSession.isBatch &&
+            episodeSession.auto &&
+            episodeSession.activeVideoData === activeVideoData
+          ) {
+            download();
+          }
+        }, 300);
       }
     })
-    .catch((e: any) => {
-      logger.error("[audio]", e);
-      error.value = e?.message ?? String(e);
-    });
+    .catch(handleAudioFailure);
   if (fromData.usedefaultconfig) {
     fromData.usedefaultconfig = false;
   }
@@ -252,7 +313,7 @@ function main() {
 
 const download = () => {
   if (!fileBlob.value) {
-    error.value = "文件为空";
+    handleAudioFailure("文件为空");
     return;
   }
   if (episodeSession.isBatch && downloadTriggered) {
@@ -268,16 +329,24 @@ const download = () => {
   //   downloadMode: "browser",
   // } as GmDownloadRequest & { [key: string]: any });
 
-  const link = document.createElement("a");
-  const baseFileName = fromData.file || "bilibili_music.m4a";
-  const pagePrefix =
-    episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
-    `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
-  link.download = episodeSession.isBatch ? `${pagePrefix}_${baseFileName}` : baseFileName;
-  link.href = url;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  try {
+    const link = document.createElement("a");
+    const baseFileName = fromData.file || "bilibili_music.m4a";
+    const pagePrefix =
+      episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
+      `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
+    link.download = episodeSession.isBatch ? `${pagePrefix}_${baseFileName}` : baseFileName;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (downloadError) {
+    if (typeof fileBlob.value !== "string") {
+      URL.revokeObjectURL(url);
+    }
+    handleAudioFailure(downloadError);
+    return;
+  }
   if (typeof fileBlob.value !== "string") {
     setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
