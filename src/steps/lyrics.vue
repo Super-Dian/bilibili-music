@@ -8,6 +8,7 @@ import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
 import { logger } from "@/utils/logger";
 import { GM_getValue } from "$";
+import { correctLyrics, cleanOriginalLyrics } from "@/utils/lyricsCorrector";
 const emits = defineEmits(["next", "prev"]);
 
 type SubTitle = PlayerData["subtitle"]["subtitles"][number];
@@ -49,10 +50,15 @@ function next() {
   if (noSubtitle.value) {
     Message.info("跳过歌词嵌入");
   } else if (subtitleEdit.value && subtitleEdit.value.data && lyricsBodyContent.value) {
-    // 打开工作台就剪辑
-    lyricsData = lyricsBodyContent.value
-      .split("\n")
-      .map((item, index) => [Math.round(subtitleEdit.value!.data!.body[index].from * 1000), item]);
+    // 优先使用 _lyricsBody 中的时间轴（来自在线歌词或智能纠错）
+    if (subtitleEdit.value.data._lyricsBody && subtitleEdit.value.data._lyricsBody.length > 0) {
+      lyricsData = subtitleEdit.value.data._lyricsBody;
+    } else {
+      // 回退到使用原始 body 的时间轴
+      lyricsData = lyricsBodyContent.value
+        .split("\n")
+        .map((item, index) => [Math.round(subtitleEdit.value!.data!.body[index].from * 1000), item]);
+    }
   } else {
     {
       const s = subtitles.value.find((item) => item.id_str === subtitle.value[0]);
@@ -160,6 +166,99 @@ const editLyricsData = ref<SubTitle | null>(null);
 
 const onlineLyrics = ref<string>("");
 
+/** 第一句歌词开始时间（mm:ss格式） */
+const lyricsStartTime = ref("");
+const lyricsStartTimeError = ref(false);
+
+/** 是否使用在线歌词 */
+const useOnlineLyrics = ref(false);
+
+/**
+ * 当"使用在线歌词"开关变化时，自动替换或撤销歌词
+ */
+function onUseOnlineLyricsChange(value: boolean | Array<string | number | boolean>) {
+  if (value) {
+    replaceWithOnlineLyrics();
+  } else {
+    undoReplaceLyrics();
+  }
+}
+
+/**
+ * 验证并调整歌词时间轴
+ * @returns 调整后的毫秒数，如果无效返回null
+ */
+function parseLyricsStartTime(timeStr: string): number | null {
+  const match = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const minutes = parseInt(match[1], 10);
+  const seconds = parseInt(match[2], 10);
+
+  if (seconds >= 60) return null;
+
+  return minutes * 60 * 1000 + seconds * 1000;
+}
+
+/**
+ * 当开始时间输入变化时，实时调整歌词时间轴
+ */
+function onLyricsStartTimeChange(value: string) {
+  if (!value) {
+    lyricsStartTimeError.value = false;
+    return;
+  }
+
+  const startTimeMs = parseLyricsStartTime(value);
+  if (startTimeMs === null) {
+    lyricsStartTimeError.value = true;
+    return;
+  }
+
+  lyricsStartTimeError.value = false;
+
+  // 如果有在线歌词且已替换，实时调整时间轴
+  if (editLyricsData.value?.data?._lyricsBody && editLyricsData.value.data._lyricsBody.length > 0) {
+    const firstLyricTime = editLyricsData.value.data._lyricsBody[0][0];
+    const offset = startTimeMs - firstLyricTime;
+
+    // 调整所有歌词的时间戳
+    editLyricsData.value.data._lyricsBody = editLyricsData.value.data._lyricsBody.map(([time, text]) => [
+      Math.max(0, time + offset),
+      text
+    ]);
+  }
+}
+
+/**
+ * 解析 LRC 格式的歌词，提取时间轴和歌词文本
+ * @param lrcText LRC 格式的歌词文本
+ * @returns Array<[毫秒, 歌词文本]>
+ */
+function parseLrcToLyrics(lrcText: string): Array<[number, string]> {
+  const result: Array<[number, string]> = [];
+  const lines = lrcText.split("\n");
+
+  for (const line of lines) {
+    // 匹配 [MM:SS.mm] 或 [MM:SS:mm] 格式的时间戳
+    const match = line.match(/^\[(\d{2}):(\d{2})[.:](\d{2,3})\](.*)/);
+    if (match) {
+      const minutes = parseInt(match[1], 10);
+      const seconds = parseInt(match[2], 10);
+      const milliseconds = parseInt(match[3].padEnd(3, "0"), 10);
+      const content = match[4].trim();
+
+      // 只添加有内容的歌词行
+      if (content) {
+        const totalMs = minutes * 60 * 1000 + seconds * 1000 + milliseconds;
+        result.push([totalMs, content]);
+      }
+    }
+  }
+
+  return result;
+}
+
 const diffFunc = {
   no: ["不显示差异", (oldStr: string, newStr: string) => [{ value: newStr }] as Change[]] as const,
   Chars: ["字符差异", diffChars] as const,
@@ -173,6 +272,7 @@ const lyricsBodySwitch = reactive({
   timeAxis: false,
   blankChar: true,
   metaInfo: false,
+  stripMeta: false,
 
   note: true,
 
@@ -184,17 +284,21 @@ const onlineLyricsDiff = computed(() => {
   if (!editLyricsData.value?.data) return [];
   return diffFunc[lyricsBodySwitch.onlineDiff][1](
     editLyricsData.value.data._editBody,
-    onlineLyricsContent.value,
+    editableOnlineLyrics.value,
   );
 });
 
 const lyricsBodyLine = computed(() => {
   // 原长度，剪辑长度，AI改写长度
   if (!editLyricsData.value?.data) return [0, 0, 0];
+
+  // 当使用在线歌词时，原行数使用在线歌词的行数
+  const originalLineCount = editLyricsData.value.data._lyricsBody && editLyricsData.value.data._lyricsBody.length > 0
+    ? editLyricsData.value.data._lyricsBody.length
+    : editLyricsData.value.data.body.length;
+
   return [
-    editLyricsData.value.data._lyricsBody
-      ? editLyricsData.value.data._lyricsBody.length
-      : editLyricsData.value.data.body.length,
+    originalLineCount,
     editLyricsData.value.data._editBody.split("\n").length,
     aiRewriteContent.value.trim().split("\n").length,
   ];
@@ -227,8 +331,8 @@ function onlineLyricsContentFormat({
     content = content.replace(/^\[(ti|ar|al|by|offset):.*?\]\n?/gm, "");
   }
 
-  // 移除空歌词行: [00:08.00] 后面没有文字内容的行（段落分隔符）
-  content = content.replace(/^\[\d{2}:\d{2}[\.:]\d{2,3}]\s*$/gm, "");
+  // 移除空歌词行: 匹配 [xx:xx.xx]\n 并整行去除（含换行符）
+  content = content.replace(/\[\d{2}:\d{2}[\.:]\d{2,3}]\n/g, "");
 
   // 如果不显示时间轴，移除所有时间标记 [00:00.00] 格式
   if (!timeAxis) {
@@ -247,8 +351,18 @@ function onlineLyricsContentFormat({
 }
 
 const onlineLyricsContent = computed(() => {
+  if (lyricsBodySwitch.stripMeta) {
+    return cleanOriginalLyrics(onlineLyrics.value);
+  }
   return onlineLyricsContentFormat(lyricsBodySwitch);
 });
+
+/** 可编辑的在线歌词副本，用户可手动修改后用于纠错 */
+const editableOnlineLyrics = ref("");
+const onlineLyricsViewMode = ref<"edit" | "diff">("edit");
+watch(onlineLyricsContent, (val) => {
+  editableOnlineLyrics.value = val;
+}, { immediate: true });
 
 const aiRewriteLoading = ref(false);
 const aiRewriteContent = ref("");
@@ -400,22 +514,72 @@ const originalEditBody = ref("");
 
 /** 用在线歌词替换当前编辑区的歌词 */
 function replaceWithOnlineLyrics() {
-  if (!onlineLyrics.value) {
+  if (!editableOnlineLyrics.value) {
     Message.warning("没有可用的在线歌词");
     return;
   }
   if (!editLyricsData.value?.data) return;
   originalEditBody.value = editLyricsData.value.data._editBody;
-  editLyricsData.value.data._editBody = onlineLyricsContent.value;
-  Message.success("已替换为在线歌词");
+
+  // 解析在线歌词编辑框的内容（已去除元信息）的时间轴并保存到 _lyricsBody
+  const parsedLyrics = parseLrcToLyrics(editableOnlineLyrics.value);
+  if (parsedLyrics.length > 0) {
+    editLyricsData.value.data._lyricsBody = parsedLyrics;
+    // 使用解析后的纯文本作为编辑区内容
+    editLyricsData.value.data._editBody = parsedLyrics.map((item) => item[1]).join("\n");
+
+    // 自动填充第一句歌词的开始时间
+    const firstTimeMs = parsedLyrics[0][0];
+    const minutes = Math.floor(firstTimeMs / 60000);
+    const seconds = Math.floor((firstTimeMs % 60000) / 1000);
+    lyricsStartTime.value = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
+    lyricsStartTimeError.value = false;
+  } else {
+    // 如果解析失败，使用编辑框中的纯文本
+    editLyricsData.value.data._editBody = editableOnlineLyrics.value;
+  }
+  Message.success("已替换为在线歌词（含时间轴）");
 }
 
 /** 撤销：恢复为原始歌词 */
 function undoReplaceLyrics() {
   if (!editLyricsData.value?.data || !originalEditBody.value) return;
   editLyricsData.value.data._editBody = originalEditBody.value;
+  // 清空 _lyricsBody，恢复使用原始时间轴
+  editLyricsData.value.data._lyricsBody = [];
   originalEditBody.value = "";
-  Message.success("已恢复原始歌词");
+  // 清空开始时间输入框
+  lyricsStartTime.value = "";
+  lyricsStartTimeError.value = false;
+  Message.success("已恢复原始歌词（使用原始时间轴）");
+}
+
+/** 智能纠错：用在线歌词纠正 AI 字幕的错别字 */
+function smartCorrectLyrics() {
+  if (!onlineLyrics.value) {
+    Message.warning("请先搜索并加载在线歌词");
+    return;
+  }
+  if (!editLyricsData.value?.data?.body) {
+    Message.warning("没有可用的 AI 字幕数据");
+    return;
+  }
+  const aiBody = editLyricsData.value.data.body;
+  const onlineText = editableOnlineLyrics.value;
+
+  const corrected = correctLyrics(aiBody, onlineText);
+  if (!corrected) {
+    Message.warning("未找到匹配的原曲歌词，跳过纠错");
+    return;
+  }
+
+  // 保存原始歌词用于撤销
+  originalEditBody.value = editLyricsData.value.data._editBody;
+  // 将纠正后的 [ms, text][] 保存到 _lyricsBody（使用原AI识别的时间轴）
+  editLyricsData.value.data._lyricsBody = corrected;
+  // 将纠正后的纯文本写入编辑区
+  editLyricsData.value.data._editBody = corrected.map((item) => item[1]).join("\n");
+  Message.success("智能纠错完成，共修正 " + corrected.length + " 行");
 }
 
 function handleOk() {
@@ -589,7 +753,7 @@ function editLyrics(item: SubTitle) {
       <a-button @click="handleCancel"> 取消 </a-button>
       <a-button
         type="primary"
-        :disabled="lyricsBodyLine[0] !== lyricsBodyLine[1]"
+        :disabled="!useOnlineLyrics && lyricsBodyLine[0] !== lyricsBodyLine[1]"
         @click="handleOk"
       >
         确定
@@ -604,7 +768,7 @@ function editLyrics(item: SubTitle) {
           style="flex: 1; margin-right: 10px"
           v-model="editLyricsData.data._editBody"
           show-word-limit
-          :max-length="{ length: lyricsBodyLine[0], errorOnly: true }"
+          :max-length="useOnlineLyrics ? undefined : { length: lyricsBodyLine[0], errorOnly: true }"
           :word-length="(v: string) => v.split('\n').length"
         />
         格式化：
@@ -635,34 +799,60 @@ function editLyrics(item: SubTitle) {
               <a-checkbox v-model="lyricsBodySwitch.timeAxis">时间轴</a-checkbox>
               <a-checkbox v-model="lyricsBodySwitch.blankChar">空白字符</a-checkbox>
               <a-checkbox v-model="lyricsBodySwitch.metaInfo">元信息</a-checkbox>
+              <a-checkbox v-model="lyricsBodySwitch.stripMeta">去除元信息</a-checkbox>
             </a-input-group>
-            <a-button-group style="margin: 10px 0">
-              <a-button
-                type="primary"
-                :disabled="!onlineLyrics"
-                @click="replaceWithOnlineLyrics"
-              >
-                🥇 替换为在线歌词
-              </a-button>
+            <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px">
+              <a-checkbox v-model="useOnlineLyrics" :disabled="!onlineLyrics" @change="onUseOnlineLyricsChange">
+                使用在线歌词
+              </a-checkbox>
+              <span>开始时间：</span>
+              <a-input
+                v-model="lyricsStartTime"
+                style="width: 80px"
+                placeholder="mm:ss"
+                :error="lyricsStartTimeError"
+                :disabled="!useOnlineLyrics"
+                @change="onLyricsStartTimeChange"
+              />
               <a-button
                 :disabled="!originalEditBody"
                 @click="undoReplaceLyrics"
               >
                 ↩ 撤销
               </a-button>
+            </div>
+            <a-alert type="info" style="margin-bottom: 10px">
+              💡 使用在线歌词：勾选后会自动替换歌词并使用在线歌词的时间轴。请先勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文，然后输入第一句歌词在视频中的开始时间
+            </a-alert>
+            <a-button-group style="margin: 10px 0">
+              <a-button
+                type="outline"
+                :disabled="!onlineLyrics || useOnlineLyrics"
+                @click="smartCorrectLyrics"
+              >
+                🧠 智能纠错
+              </a-button>
             </a-button-group>
-            <div style="flex: 1; overflow: auto">
-              <a-select v-model="lyricsBodySwitch.onlineDiff" style="margin-bottom: 10px">
-                <a-option
-                  v-for="[key, [label]] in Object.entries(diffFunc)"
-                  :key="key"
-                  :value="key"
-                >
-                  {{ label }}
-                </a-option>
-              </a-select>
+            <a-alert type="info" style="margin-bottom: 10px">
+              💡 使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文
+            </a-alert>
+            <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
+              <a-input-group style="margin-bottom: 10px">
+                <a-select v-model="lyricsBodySwitch.onlineDiff" style="width: 140px">
+                  <a-option
+                    v-for="[key, [label]] in Object.entries(diffFunc)"
+                    :key="key"
+                    :value="key"
+                  >
+                    {{ label }}
+                  </a-option>
+                </a-select>
+                <a-button @click="onlineLyricsViewMode = onlineLyricsViewMode === 'edit' ? 'diff' : 'edit'">
+                  {{ onlineLyricsViewMode === 'edit' ? '查看差异' : '编辑歌词' }}
+                </a-button>
+              </a-input-group>
 
-              <div class="diff-container-textarea">
+              <div v-if="onlineLyricsViewMode === 'diff'" class="diff-container-textarea">
                 <span
                   v-for="(part, index) in onlineLyricsDiff"
                   :key="index"
@@ -676,6 +866,12 @@ function editLyrics(item: SubTitle) {
                   >{{ part.value }}</span
                 >
               </div>
+              <a-textarea
+                v-else
+                v-model="editableOnlineLyrics"
+                style="flex: 1"
+                placeholder="在线歌词（可编辑，修改后用于智能纠错）"
+              />
             </div>
           </a-spin>
         </a-tab-pane>
