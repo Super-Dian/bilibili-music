@@ -770,7 +770,9 @@ function editLyrics(item: SubTitle) {
   });
   if (editLyricsData.value.data) {
     originalAiBody.value = editLyricsData.value.data.body.map((item) => ({ ...item }));
-    originalAiText.value = originalAiBody.value.map((item) => item.content).join("\n");
+    originalAiText.value = originalAiBody.value
+      .map((item) => item.content.replaceAll(/(^♪ )|( ♪$)/g, ""))
+      .join("\n");
     lyricsMode.value = "ai";
     subtitleEditMode.value = "ai";
     originalEditBody.value = "";
@@ -779,6 +781,8 @@ function editLyrics(item: SubTitle) {
     lyricsStartTime.value = "";
     lyricsStartTimeError.value = false;
     useOnlineLyrics.value = false;
+    // 将 ♪ 复选框默认设为勾选（预览时显示 ♪）
+    lyricsBodySwitch.note = true;
 
     const aiText = originalAiText.value;
     if (
