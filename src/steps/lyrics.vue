@@ -176,8 +176,6 @@ type LyricsMode = "ai" | "ai-corrected" | "online";
 const lyricsMode = ref<LyricsMode>("ai");
 const originalAiBody = ref<Body[]>([]);
 const originalAiText = ref("");
-const onlineUndoMode = ref<LyricsMode>("ai");
-const onlineUndoText = ref("");
 
 const onlineLyrics = ref<string>("");
 
@@ -530,9 +528,7 @@ function replaceWithOnlineLyrics() {
     return;
   }
 
-  onlineUndoText.value = editLyricsData.value.data._editBody ?? originalAiText.value;
-  onlineUndoMode.value = lyricsMode.value;
-  originalEditBody.value = onlineUndoText.value;
+  originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
   originalParsedLyrics.value = parsedLyrics.map(([time, text]) => [time, text]);
   lyricsMode.value = "online";
   subtitleEditMode.value = "online";
@@ -549,20 +545,19 @@ function replaceWithOnlineLyrics() {
   Message.success("已替换为在线歌词（含时间轴）");
 }
 
-/** 撤销：恢复为原始歌词 */
+/** 撤销：一键恢复为原始 AI 歌词状态（不论当前处于何种中间状态） */
 function undoReplaceLyrics() {
-  if (!editLyricsData.value?.data || !onlineUndoText.value) return;
-  editLyricsData.value.data._editBody = onlineUndoText.value;
-  editLyricsData.value.data._lyricsBody =
-    onlineUndoMode.value === "ai-corrected" ? editLyricsData.value.data._lyricsBody : [];
-  lyricsMode.value = onlineUndoMode.value;
-  subtitleEditMode.value = onlineUndoMode.value;
+  if (!editLyricsData.value?.data || !originalAiText.value) return;
+  editLyricsData.value.data._editBody = originalAiText.value;
+  editLyricsData.value.data._lyricsBody = [];
+  lyricsMode.value = "ai";
+  subtitleEditMode.value = "ai";
   originalEditBody.value = "";
-  onlineUndoText.value = "";
   originalParsedLyrics.value = [];
   lyricsStartTime.value = "";
   lyricsStartTimeError.value = false;
   useOnlineLyrics.value = false;
+  aiRewriteContent.value = "";
   Message.success("已恢复原始歌词");
 }
 
@@ -776,7 +771,6 @@ function editLyrics(item: SubTitle) {
     lyricsMode.value = "ai";
     subtitleEditMode.value = "ai";
     originalEditBody.value = "";
-    onlineUndoText.value = "";
     originalParsedLyrics.value = [];
     lyricsStartTime.value = "";
     lyricsStartTimeError.value = false;
@@ -887,13 +881,11 @@ function editLyrics(item: SubTitle) {
         确定
       </a-button>
     </template>
-    <div
-      v-if="editLyricsData && editLyricsData.data"
-      style="display: flex; height: 100%; justify-content: space-around"
-    >
-      <div style="width: 48%; display: flex; flex-direction: column">
+    <div v-if="editLyricsData && editLyricsData.data" class="lyrics-workspace">
+      <div class="lyrics-left-panel">
         <a-textarea
-          style="flex: 1; margin-right: 10px"
+          class="lyrics-left-textarea"
+          style="margin-right: 10px"
           v-model="editLyricsData.data._editBody"
           show-word-limit
           :max-length="useOnlineLyrics ? undefined : { length: lyricsBodyLine[0], errorOnly: true }"
@@ -904,7 +896,7 @@ function editLyrics(item: SubTitle) {
           <a-checkbox v-model="lyricsBodySwitch.note"> ♪ </a-checkbox>
         </a-input-group>
       </div>
-      <a-tabs style="width: 48%; display: flex; flex-direction: column" justify>
+      <a-tabs class="lyrics-right-panel">
         <a-tab-pane key="1" title="在线歌词">
           <a-spin
             style="height: 100%; display: flex; flex-direction: column"
@@ -927,7 +919,7 @@ function editLyrics(item: SubTitle) {
               <a-checkbox v-model="lyricsBodySwitch.timeAxis">时间轴</a-checkbox>
               <a-checkbox v-model="lyricsBodySwitch.blankChar">空白字符</a-checkbox>
               <a-checkbox v-model="lyricsBodySwitch.metaInfo">元信息</a-checkbox>
-              <a-checkbox v-model="lyricsBodySwitch.stripMeta">去除元信息</a-checkbox>
+              <a-checkbox v-model="lyricsBodySwitch.stripMeta">智能去除元信息</a-checkbox>
             </a-input-group>
             <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px">
               <a-checkbox
@@ -940,13 +932,15 @@ function editLyrics(item: SubTitle) {
               <span>开始时间：</span>
               <a-input
                 v-model="lyricsStartTime"
-                style="width: 80px"
+                style="width: 100px"
                 placeholder="mm:ss"
                 :error="lyricsStartTimeError"
                 :disabled="!useOnlineLyrics"
                 @change="onLyricsStartTimeChange"
               />
-              <a-button :disabled="!originalEditBody" @click="undoReplaceLyrics"> ↩ 撤销 </a-button>
+              <a-button :disabled="lyricsMode === 'ai'" @click="undoReplaceLyrics">
+                ↩ 撤销
+              </a-button>
             </div>
             <a-alert type="info" style="margin-bottom: 10px">
               💡
@@ -958,12 +952,12 @@ function editLyrics(item: SubTitle) {
                 :disabled="!onlineLyrics || useOnlineLyrics"
                 @click="smartCorrectLyrics"
               >
-                🧠 智能纠错
+                智能纠错
               </a-button>
             </a-button-group>
             <a-alert type="info" style="margin-bottom: 10px">
               💡
-              使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文
+              使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文，智能纠错会保留AI字幕的时间轴
             </a-alert>
             <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
               <a-input-group style="margin-bottom: 10px">
@@ -983,7 +977,11 @@ function editLyrics(item: SubTitle) {
                 </a-button>
               </a-input-group>
 
-              <div v-if="onlineLyricsViewMode === 'diff'" class="diff-container-textarea">
+              <div
+                v-if="onlineLyricsViewMode === 'diff'"
+                class="diff-container-textarea"
+                style="min-height: 300px"
+              >
                 <span
                   v-for="(part, index) in onlineLyricsDiff"
                   :key="index"
@@ -999,8 +997,8 @@ function editLyrics(item: SubTitle) {
               </div>
               <a-textarea
                 v-else
+                class="online-lyrics-editor"
                 v-model="editableOnlineLyrics"
-                style="flex: 1"
                 placeholder="在线歌词（可编辑，修改后用于智能纠错）"
               />
             </div>
@@ -1095,7 +1093,7 @@ function editLyrics(item: SubTitle) {
           </a-spin>
         </a-tab-pane>
         <a-tab-pane key="3" title="结果预览">
-          <a-textarea style="height: 100%" :model-value="lyricsBodyContent" />
+          <a-textarea class="result-preview-editor" :model-value="lyricsBodyContent" />
         </a-tab-pane>
       </a-tabs>
     </div>
@@ -1112,13 +1110,61 @@ function editLyrics(item: SubTitle) {
   max-height: 60vh;
   overflow-y: auto;
 }
-.arco-textarea {
+.lyrics-left-textarea .arco-textarea {
   resize: none;
 }
 
-.arco-tabs-pane {
+/* 在线歌词编辑框、结果预览框高度 */
+.lyrics-right-panel .online-lyrics-editor .arco-textarea,
+.lyrics-right-panel .result-preview-editor .arco-textarea {
+  min-height: 300px;
+}
+
+/* 工作台整体布局 */
+.lyrics-workspace {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  justify-content: space-around;
+}
+
+/* 左侧：歌词编辑框 */
+.lyrics-left-panel {
+  width: 48%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+.lyrics-left-textarea {
+  flex: 1;
+  min-height: 200px;
+}
+
+/* 右侧：tab 面板整体可滚动 */
+.lyrics-right-panel {
+  width: 48%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+.lyrics-right-panel .arco-tabs-header {
+  flex-shrink: 0;
+}
+.lyrics-right-panel .arco-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow: visible !important;
+}
+.lyrics-right-panel .arco-tabs-content-list {
+  height: auto !important;
+}
+.lyrics-right-panel .arco-tabs-content-item-active,
+.lyrics-right-panel .arco-tabs-content-item {
+  height: auto !important;
+}
+.lyrics-right-panel .arco-tabs-pane {
+  height: auto !important;
 }
 
 .diff-container-textarea {
@@ -1135,10 +1181,8 @@ function editLyrics(item: SubTitle) {
   border-radius: 0;
   outline: 0;
   cursor: inherit;
-  /* -webkit-tap-highlight-color: transparent; */
   display: block;
   box-sizing: border-box;
-  min-height: 32px;
   padding: 4px 12px;
   font-size: 14px;
   line-height: 1.5715;
