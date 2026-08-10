@@ -296,7 +296,7 @@ async function hydrateSelectedEpisodes(episodes: EpisodeVideoData[]) {
     return episodes;
   }
 
-  const output = new Array<EpisodeVideoData>(episodes.length);
+  const output = Array.from<EpisodeVideoData>({ length: episodes.length });
   let cursor = 0;
   const workerCount = Math.min(4, episodes.length);
   const workers = Array.from({ length: workerCount }, async () => {
@@ -790,7 +790,7 @@ function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unkn
     status === "failed"
       ? error instanceof Error
         ? error.message
-        : String(error || "未知错误")
+        : JSON.stringify(error)
       : undefined;
   const label =
     activeVideoData._wasmMusicPickerTitle ||

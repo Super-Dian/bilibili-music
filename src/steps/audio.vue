@@ -290,7 +290,7 @@ function main() {
       fileBlob.value =
         typeof fileData === "string"
           ? fileData
-          : new Blob([fileData as Uint8Array], { type: "audio/m4a" });
+          : new Blob([fileData as BlobPart], { type: "audio/m4a" });
       stepIndex.value = steps.length - 1;
       if (episodeSession.isBatch && episodeSession.auto) {
         const activeVideoData = episodeSession.activeVideoData;

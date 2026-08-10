@@ -1,10 +1,16 @@
 {
   "biome.enabled": false,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.oxc": "always"
-  },
-  "oxc.typeAware": true,
-  "oxc.fmt.configPath": ".oxfmtrc.json",
+  "prettier.enable": false,
+
+  "editor.formatOnSaveMode": "file",
   "editor.defaultFormatter": "oxc.oxc-vscode",
-  "editor.formatOnSave": true
+  "editor.formatOnSave": false, // disable default behavior
+  "editor.codeActionsOnSave": {
+    "source.format.oxc": "always", // run formatter first
+    "source.fixAll.oxc": "always" // run lint fixes after
+  },
+
+  "files.associations": {
+    "*.css": "tailwindcss"
+  }
 }

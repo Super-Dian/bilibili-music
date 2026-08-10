@@ -14,7 +14,9 @@ const listeners = new WeakMap();
 const elProto = win.Element.prototype;
 
 const matches =
+  // oxlint-disable-next-line typescript/unbound-method
   elProto.matches ||
+  // oxlint-disable-next-line typescript/unbound-method
   elProto.webkitMatchesSelector ||
   elProto.mozMatchesSelector ||
   elProto.msMatchesSelector;
