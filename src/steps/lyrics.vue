@@ -8,6 +8,7 @@ import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
 import { logger } from "@/utils/logger";
 import { getActiveDefaultRule } from "@/episode";
+import { correctLyrics, cleanOriginalLyrics } from "@/utils/lyricsCorrector";
 const emits = defineEmits(["next", "prev"]);
 
 type SubTitle = PlayerData["subtitle"]["subtitles"][number];
@@ -17,17 +18,19 @@ const noSubtitle = ref(false);
 const subtitle = ref<string[]>([]);
 
 const subtitleEdit = ref<SubTitle | null>(null);
+const subtitleEditMode = ref<LyricsMode>("ai");
 
 const lyricsRecord = {
   label: undefined as string | undefined,
 };
 
 const onChange = (v: (string | number | boolean)[]) => {
-  const val = v.pop();
-  if (val) {
+  const val = v.at(-1);
+  if (val !== undefined && val !== false) {
     subtitle.value = [val.toString()];
     const s = subtitles.value.find((item) => item.id_str === val.toString());
     lyricsRecord.label = s?.lan_doc;
+    noSubtitle.value = false;
   } else {
     fromData.lyricsData = null;
     subtitle.value = [];
@@ -46,26 +49,37 @@ function skipLyrics() {
 function next() {
   fromData.record.lyrics = lyricsRecord.label;
   let lyricsData: Lyrics = [];
+
   if (noSubtitle.value) {
     Message.info("跳过歌词嵌入");
-  } else if (subtitleEdit.value && subtitleEdit.value.data && lyricsBodyContent.value) {
-    // 打开工作台就剪辑
-    lyricsData = lyricsBodyContent.value
-      .split("\n")
-      .map((item, index) => [Math.round(subtitleEdit.value!.data!.body[index].from * 1000), item]);
-  } else {
-    {
-      const s = subtitles.value.find((item) => item.id_str === subtitle.value[0]);
-      if (!s || !s.data) {
-        Message.error("歌词数据错误");
+  } else if (subtitleEdit.value?.data) {
+    const data = subtitleEdit.value.data;
+    const lines = (data._editBody ?? "").split("\n");
+
+    if (subtitleEditMode.value === "online") {
+      lyricsData = data._lyricsBody ?? [];
+    } else {
+      if (lines.length !== data.body.length) {
+        Message.error("歌词行数与 AI 字幕时间轴不一致");
         return;
       }
-      lyricsData = s.data.body.map((item) => [Math.round(item.from * 1000), item.content]);
-      // 直接下一页的时候在剪辑歌词
-      if (fromData.clipRanges && fromData.clipRanges.length > 0) {
-        // lyricsData = lyrics_clip(fromData.clipRanges, lyricsData);
+      lyricsData = data.body.map((item, index) => [Math.round(item.from * 1000), lines[index]]);
+      if (subtitleEditMode.value === "ai-corrected" && data._lyricsBody?.length) {
+        lyricsData = data._lyricsBody;
       }
     }
+
+    if (lyricsData.length === 0 || lyricsData.length !== lines.length) {
+      Message.error("歌词时间轴无效，请重新处理歌词");
+      return;
+    }
+  } else {
+    const s = subtitles.value.find((item) => item.id_str === subtitle.value[0]);
+    if (!s?.data) {
+      Message.error("歌词数据错误");
+      return;
+    }
+    lyricsData = s.data.body.map((item) => [Math.round(item.from * 1000), item.content]);
   }
 
   fromData.lyricsData = lyricsData;
@@ -178,7 +192,105 @@ const visible = ref(false);
 
 const editLyricsData = ref<SubTitle | null>(null);
 
+type LyricsMode = "ai" | "ai-corrected" | "online";
+const lyricsMode = ref<LyricsMode>("ai");
+const originalAiBody = ref<Body[]>([]);
+const originalAiText = ref("");
+
 const onlineLyrics = ref<string>("");
+
+/** 第一句歌词开始时间（mm:ss格式） */
+const lyricsStartTime = ref("");
+const lyricsStartTimeError = ref(false);
+
+/** 是否使用在线歌词 */
+const useOnlineLyrics = ref(false);
+
+/** 在线歌词原始解析结果（未偏移），用于 offset 计算基准 */
+const originalParsedLyrics = ref<Array<[number, string]>>([]);
+
+/**
+ * 当"使用在线歌词"开关变化时，自动替换或撤销歌词
+ */
+function onUseOnlineLyricsChange(value: boolean | Array<string | number | boolean>) {
+  const enabled = Array.isArray(value) ? value.length > 0 : value;
+  if (enabled) {
+    replaceWithOnlineLyrics();
+  } else {
+    undoReplaceLyrics();
+  }
+}
+
+/**
+ * 验证并调整歌词时间轴
+ * @returns 调整后的毫秒数，如果无效返回null
+ */
+function parseLyricsStartTime(timeStr: string): number | null {
+  const match = timeStr.match(/^(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?$/);
+  if (!match) return null;
+
+  const minutes = parseInt(match[1], 10);
+  const seconds = parseInt(match[2], 10);
+  const fraction = match[3] ?? "0";
+
+  if (seconds >= 60) return null;
+
+  return minutes * 60 * 1000 + seconds * 1000 + parseInt(fraction.padEnd(3, "0"), 10);
+}
+
+/**
+ * 当开始时间输入变化时，实时调整歌词时间轴
+ */
+function onLyricsStartTimeChange(value: string) {
+  if (!value) {
+    lyricsStartTimeError.value = true;
+    return;
+  }
+
+  const startTimeMs = parseLyricsStartTime(value);
+  if (startTimeMs === null) {
+    lyricsStartTimeError.value = true;
+    return;
+  }
+
+  lyricsStartTimeError.value = false;
+
+  // 在线模式始终从未偏移的 LRC 时间轴重新计算，避免重复修改产生累积偏移。
+  if (lyricsMode.value === "online" && originalParsedLyrics.value.length > 0) {
+    const offset = startTimeMs - originalParsedLyrics.value[0][0];
+    editLyricsData.value!.data!._lyricsBody = originalParsedLyrics.value.map(([time, text]) => [
+      Math.max(0, time + offset),
+      text,
+    ]);
+  }
+}
+
+/**
+ * 解析 LRC 格式的歌词，提取时间轴和歌词文本
+ * @param lrcText LRC 格式的歌词文本
+ * @returns Array<[毫秒, 歌词文本]>
+ */
+function parseLrcToLyrics(lrcText: string): Array<[number, string]> {
+  const result: Array<[number, string]> = [];
+  const timestamp = /\[(\d{1,3}):(\d{2})(?:[.:](\d{1,4}))?\]/g;
+
+  for (const line of lrcText.split(/\r?\n/)) {
+    const matches = [...line.matchAll(timestamp)];
+    if (matches.length === 0) continue;
+    const content = line.replace(timestamp, "").trim();
+    if (!content) continue;
+
+    for (const match of matches) {
+      const minutes = Number(match[1]);
+      const seconds = Number(match[2]);
+      if (seconds >= 60) continue;
+      const fraction = (match[3] ?? "0").slice(0, 3).padEnd(3, "0");
+      result.push([minutes * 60000 + seconds * 1000 + Number(fraction), content]);
+    }
+  }
+
+  return result.sort((a, b) => a[0] - b[0]);
+}
 
 const diffFunc = {
   no: ["不显示差异", (oldStr: string, newStr: string) => [{ value: newStr }] as Change[]] as const,
@@ -193,6 +305,7 @@ const lyricsBodySwitch = reactive({
   timeAxis: false,
   blankChar: true,
   metaInfo: false,
+  stripMeta: false,
 
   note: true,
 
@@ -203,19 +316,24 @@ const lyricsBodySwitch = reactive({
 const onlineLyricsDiff = computed(() => {
   if (!editLyricsData.value?.data) return [];
   return diffFunc[lyricsBodySwitch.onlineDiff][1](
-    editLyricsData.value.data._editBody,
-    onlineLyricsContent.value,
+    editLyricsData.value.data._editBody ?? "",
+    editableOnlineLyrics.value,
   );
 });
 
 const lyricsBodyLine = computed(() => {
   // 原长度，剪辑长度，AI改写长度
   if (!editLyricsData.value?.data) return [0, 0, 0];
-  return [
-    editLyricsData.value.data._lyricsBody
+
+  // 当使用在线歌词时，原行数使用在线歌词的行数
+  const originalLineCount =
+    editLyricsData.value.data._lyricsBody && editLyricsData.value.data._lyricsBody.length > 0
       ? editLyricsData.value.data._lyricsBody.length
-      : editLyricsData.value.data.body.length,
-    editLyricsData.value.data._editBody.split("\n").length,
+      : editLyricsData.value.data.body.length;
+
+  return [
+    originalLineCount,
+    (editLyricsData.value.data._editBody ?? "").split("\n").length,
     aiRewriteContent.value.trim().split("\n").length,
   ];
 });
@@ -223,12 +341,12 @@ const lyricsBodyLine = computed(() => {
 const lyricsBodyContent = computed(() => {
   if (!editLyricsData.value?.data) return "";
   if (lyricsBodySwitch.note) {
-    return editLyricsData.value.data._editBody
+    return (editLyricsData.value.data._editBody ?? "")
       .split("\n")
       .map((item) => `♪ ${item} ♪`)
       .join("\n");
   }
-  return editLyricsData.value.data._editBody;
+  return editLyricsData.value.data._editBody ?? "";
 });
 
 function onlineLyricsContentFormat({
@@ -247,9 +365,12 @@ function onlineLyricsContentFormat({
     content = content.replace(/^\[(ti|ar|al|by|offset):.*?\]\n?/gm, "");
   }
 
+  // 移除空歌词行: 匹配 [xx:xx.xx]\n 并整行去除（含换行符）
+  content = content.replace(/\[\d{1,3}:\d{2}[.:]\d{1,4}]\n/g, "");
+
   // 如果不显示时间轴，移除所有时间标记 [00:00.00] 格式
   if (!timeAxis) {
-    content = content.replace(/\[\d{2}:\d{2}\.\d{2}\]/g, "");
+    content = content.replace(/\[\d{1,3}:\d{2}[.:]\d{1,4}]/g, "");
   }
 
   // 如果不显示空白字符，移除空行
@@ -264,8 +385,22 @@ function onlineLyricsContentFormat({
 }
 
 const onlineLyricsContent = computed(() => {
+  if (lyricsBodySwitch.stripMeta) {
+    return cleanOriginalLyrics(onlineLyrics.value);
+  }
   return onlineLyricsContentFormat(lyricsBodySwitch);
 });
+
+/** 可编辑的在线歌词副本，用户可手动修改后用于纠错 */
+const editableOnlineLyrics = ref("");
+const onlineLyricsViewMode = ref<"edit" | "diff">("edit");
+watch(
+  onlineLyricsContent,
+  (val) => {
+    editableOnlineLyrics.value = val;
+  },
+  { immediate: true },
+);
 
 const aiRewriteLoading = ref(false);
 const aiRewriteContent = ref("");
@@ -273,7 +408,7 @@ const aiRewriteContent = ref("");
 const aiLyricsDiff = computed(() => {
   if (!editLyricsData.value?.data) return [];
   return diffFunc[lyricsBodySwitch.aiDiff][1](
-    editLyricsData.value.data._editBody,
+    editLyricsData.value.data._editBody ?? "",
     aiRewriteContent.value,
   );
 });
@@ -366,33 +501,139 @@ const onlineLyricsOptions = ref<SelectOptionGroup[]>([]);
 
 const onlineLyricsIndex = ref<string>("");
 
-watch(onlineLyricsIndex, (value) => {
+watch(onlineLyricsIndex, async (value) => {
   logger.debug("watch onlineLyricsIndex", value);
-  if (value) {
-    onlineLyricsLoading2.value = true;
-    try {
-      const [label, index] = value.split(".");
-      const api = onlineLyricsApis.find((item) => item[0] === label);
-      if (api) {
-        request
-          .get<string, "text">({
-            url: api[1] + new URLSearchParams({ msg: onlineSearch.value, n: index }),
-            cookie: false,
-            responseType: "text",
-          })
-          .then((res) => {
-            onlineLyrics.value = res;
-          });
-      }
-    } catch (err) {
-      Message.error("获取歌词失败" + (err as Error).message);
-    } finally {
-      onlineLyricsLoading2.value = false;
-    }
+  console.log("[lyrics] 选择在线歌词:", value);
+  if (!value) return;
+
+  const [label] = value.split(".");
+  const api = onlineLyricsApis.find((item) => item.label === label);
+  const songId = lyricsIdMap.value[value];
+  if (!api || !songId) {
+    console.warn("[lyrics] 在线歌词详情参数无效:", { value, label, songId });
+    return;
+  }
+
+  onlineLyricsLoading2.value = true;
+  try {
+    const lrc = await fetchOnlineLyrics(api, songId);
+    if (onlineLyricsIndex.value !== value) return;
+    console.log("[lyrics] 歌词详情加载成功:", { value, length: lrc.length });
+    onlineLyrics.value = lrc;
+  } catch (err) {
+    if (onlineLyricsIndex.value !== value) return;
+    console.error("[lyrics] 歌词详情请求失败:", err);
+    Message.error("获取歌词失败");
+  } finally {
+    if (onlineLyricsIndex.value === value) onlineLyricsLoading2.value = false;
   }
 });
 
+/** 缓存原始歌词，用于撤销替换 */
+const originalEditBody = ref("");
+
+/** 用在线歌词替换当前编辑区的歌词 */
+function replaceWithOnlineLyrics() {
+  if (!editableOnlineLyrics.value || !editLyricsData.value?.data) {
+    Message.warning("没有可用的在线歌词");
+    return;
+  }
+
+  const parsedLyrics = parseLrcToLyrics(editableOnlineLyrics.value);
+  if (parsedLyrics.length === 0) {
+    Message.warning("在线歌词中没有有效时间轴，请开启时间轴后再使用");
+    useOnlineLyrics.value = false;
+    editLyricsData.value.data._lyricsBody = [];
+    originalParsedLyrics.value = [];
+    return;
+  }
+
+  originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
+  originalParsedLyrics.value = parsedLyrics.map(([time, text]) => [time, text]);
+  lyricsMode.value = "online";
+  subtitleEditMode.value = "online";
+
+  editLyricsData.value.data._lyricsBody = parsedLyrics;
+  editLyricsData.value.data._editBody = parsedLyrics.map(([, text]) => text).join("\n");
+
+  const firstTimeMs = parsedLyrics[0][0];
+  const minutes = Math.floor(firstTimeMs / 60000);
+  const seconds = Math.floor((firstTimeMs % 60000) / 1000);
+  const milliseconds = firstTimeMs % 1000;
+  lyricsStartTime.value = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
+  lyricsStartTimeError.value = false;
+  Message.success("已替换为在线歌词（含时间轴）");
+}
+
+/** 撤销：一键恢复为原始 AI 歌词状态（不论当前处于何种中间状态） */
+function undoReplaceLyrics() {
+  if (!editLyricsData.value?.data || !originalAiText.value) return;
+  editLyricsData.value.data._editBody = originalAiText.value;
+  editLyricsData.value.data._lyricsBody = [];
+  lyricsMode.value = "ai";
+  subtitleEditMode.value = "ai";
+  originalEditBody.value = "";
+  originalParsedLyrics.value = [];
+  lyricsStartTime.value = "";
+  lyricsStartTimeError.value = false;
+  useOnlineLyrics.value = false;
+  aiRewriteContent.value = "";
+  Message.success("已恢复原始歌词");
+}
+
+/** 智能纠错：用在线歌词纠正 AI 字幕的错别字 */
+function smartCorrectLyrics() {
+  if (!onlineLyrics.value) {
+    Message.warning("请先搜索并加载在线歌词");
+    return;
+  }
+  if (!editLyricsData.value?.data?.body) {
+    Message.warning("没有可用的 AI 字幕数据");
+    return;
+  }
+  const aiBody = editLyricsData.value.data.body;
+  const onlineText = editableOnlineLyrics.value;
+
+  const corrected = correctLyrics(aiBody, onlineText);
+  if (!corrected) {
+    Message.warning("未找到匹配的原曲歌词，跳过纠错");
+    return;
+  }
+
+  originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
+  editLyricsData.value.data._lyricsBody = corrected;
+  editLyricsData.value.data._editBody = corrected.map((item) => item[1]).join("\n");
+  lyricsMode.value = "ai-corrected";
+  subtitleEditMode.value = "ai-corrected";
+  originalParsedLyrics.value = [];
+  lyricsStartTime.value = "";
+  useOnlineLyrics.value = false;
+  Message.success("智能纠错完成，共修正 " + corrected.length + " 行");
+}
+
 function handleOk() {
+  if (lyricsMode.value === "online") {
+    const parsedLyrics = parseLrcToLyrics(editableOnlineLyrics.value);
+    if (parsedLyrics.length === 0) {
+      Message.error("在线歌词时间轴无效，请开启时间轴后再使用");
+      return;
+    }
+    originalParsedLyrics.value = parsedLyrics;
+    const startTimeMs = parseLyricsStartTime(lyricsStartTime.value);
+    if (startTimeMs === null) {
+      Message.error("在线歌词开始时间无效");
+      lyricsStartTimeError.value = true;
+      return;
+    }
+    const offset = startTimeMs - parsedLyrics[0][0];
+    editLyricsData.value!.data!._lyricsBody = parsedLyrics.map(([time, text]) => [
+      Math.max(0, time + offset),
+      text,
+    ]);
+    editLyricsData.value!.data!._editBody = parsedLyrics.map(([, text]) => text).join("\n");
+  }
+
+  subtitleEditMode.value = lyricsMode.value;
   subtitleEdit.value = JSON.parse(JSON.stringify(editLyricsData.value));
   visible.value = false;
 }
@@ -401,52 +642,130 @@ function handleCancel() {
   visible.value = false;
 }
 
-const onlineLyricsApis = [
-  ["hhlqilongzhu", "https://www.hhlqilongzhu.cn/api/dg_geci.php?type=2&", "."],
-  ["52vmy", "https://api.52vmy.cn/api/music/lrc?type=text&", "、"],
+const onlineLyricsApis: { label: string; url: string; detailUrl: string }[] = [
+  {
+    label: "LuoXueAPI",
+    url: "https://api.vkeys.cn/v2/music/tencent/search/song?",
+    detailUrl: "https://api.vkeys.cn/v2/music/tencent/lyric?",
+  },
 ];
 
+type CachedSearch = {
+  songs: Array<{ id: string; name: string }>;
+  expiresAt: number;
+};
+
+const SEARCH_CACHE_TTL = 15 * 60 * 1000;
+const DETAIL_CACHE_TTL = 24 * 60 * 60 * 1000;
+const onlineSearchCache = new Map<string, CachedSearch>();
+const onlineSearchPending = new Map<string, Promise<CachedSearch>>();
+const onlineLyricsCache = new Map<string, { lrc: string; expiresAt: number }>();
+const onlineLyricsPending = new Map<string, Promise<string>>();
+
+function cacheKey(value: string) {
+  return value.trim().toLocaleLowerCase();
+}
+
+async function fetchOnlineSearch(api: (typeof onlineLyricsApis)[number], word: string) {
+  const key = `${api.label}:${cacheKey(word)}`;
+  const cached = onlineSearchCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached;
+  if (cached) onlineSearchCache.delete(key);
+
+  const pending = onlineSearchPending.get(key);
+  if (pending) return pending;
+
+  const url = api.url + new URLSearchParams({ word: word.trim() });
+  console.log("[lyrics] 请求搜索接口:", url);
+  const task = Promise.race([
+    request.get<any>({ url, cookie: false, timeout: 5 }),
+    new Promise<never>((_, reject) => setTimeout(() => reject(new Error("搜索请求超时")), 8000)),
+  ])
+    .then((res: any) => {
+      console.log("[lyrics] 搜索接口响应:", res);
+      const list = Array.isArray(res?.data)
+        ? res.data
+            .filter((song: any) => song?.id != null && (song?.name || song?.song))
+            .map((song: any) => ({
+              id: String(song.id),
+              name: String(song.name || song.song),
+            }))
+        : [];
+      const result = { songs: list, expiresAt: Date.now() + SEARCH_CACHE_TTL };
+      onlineSearchCache.set(key, result);
+      return result;
+    })
+    .finally(() => onlineSearchPending.delete(key));
+
+  onlineSearchPending.set(key, task);
+  return task;
+}
+
+async function fetchOnlineLyrics(api: (typeof onlineLyricsApis)[number], songId: string) {
+  const key = `${api.label}:${songId}`;
+  const cached = onlineLyricsCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.lrc;
+  if (cached) onlineLyricsCache.delete(key);
+
+  const pending = onlineLyricsPending.get(key);
+  if (pending) return pending;
+
+  const task = request
+    .get<any>({
+      url: api.detailUrl + new URLSearchParams({ id: songId }),
+      cookie: false,
+    })
+    .then((res) => {
+      const lrc = res?.data?.lrc;
+      if (typeof lrc !== "string" || !lrc) throw new Error("响应中未找到歌词");
+      onlineLyricsCache.set(key, { lrc, expiresAt: Date.now() + DETAIL_CACHE_TTL });
+      return lrc;
+    })
+    .finally(() => onlineLyricsPending.delete(key));
+
+  onlineLyricsPending.set(key, task);
+  return task;
+}
+
+/** 搜索结果 id 映射，供选中后获取歌词使用 */
+const lyricsIdMap = ref<Record<string, string>>({});
+
 async function searchOnlineLyrics() {
-  if (!onlineSearch.value) return;
+  const word = onlineSearch.value.trim();
+  console.log("[lyrics] 开始搜索在线歌词:", word);
+  if (!word) {
+    Message.warning("请输入歌名");
+    return;
+  }
   onlineLyricsLoading.value = true;
   onlineLyricsOptions.value = [];
   onlineLyricsIndex.value = "";
   onlineLyrics.value = "";
+  editableOnlineLyrics.value = "";
+  lyricsIdMap.value = {};
 
   try {
     await Promise.all(
-      onlineLyricsApis.map((item) => {
-        return request
-          .get<string, "text">({
-            url:
-              item[1] +
-              new URLSearchParams({
-                msg: onlineSearch.value,
-              }),
-            cookie: false,
-            responseType: "text",
-          })
-          .then((res) => {
-            const opt: SelectOptionGroup = {
-              isGroup: true,
-              label: item[0],
-              options: [],
-            };
-            res.split("\n").forEach((lyrics) => {
-              const [index, ...content] = lyrics.split(item[2]);
-              if (index && content.length > 0) {
-                const value = `${item[0]}.${index}`;
-                opt.options.push({
-                  label: content.join(item[2]),
-                  value,
-                });
-                if (!onlineLyricsIndex.value) {
-                  onlineLyricsIndex.value = value;
-                }
-              }
-            });
-            onlineLyricsOptions.value.push(opt);
-          });
+      onlineLyricsApis.map(async (item): Promise<void> => {
+        try {
+          const result = await fetchOnlineSearch(item, word);
+          const opt: SelectOptionGroup = { isGroup: true, label: item.label, options: [] };
+          for (const song of result.songs) {
+            const value = item.label + "." + song.id;
+            opt.options.push({ label: song.name, value });
+            lyricsIdMap.value[value] = song.id;
+          }
+          console.log("[lyrics] 搜索结果:", item.label, result.songs.length);
+          onlineLyricsOptions.value.push(opt);
+          if (!onlineLyricsIndex.value && result.songs.length > 0) {
+            const firstValue = `${item.label}.${result.songs[0].id}`;
+            console.log("[lyrics] 自动选择搜索结果:", firstValue);
+            onlineLyricsIndex.value = firstValue;
+          }
+        } catch (err) {
+          console.error("[lyrics] 搜索请求失败 [" + item.label + "]:", err);
+          throw err;
+        }
       }),
     );
   } catch (err) {
@@ -458,22 +777,38 @@ async function searchOnlineLyrics() {
 
 function editLyrics(item: SubTitle) {
   editLyricsData.value = JSON.parse(JSON.stringify(item)) as Subtitle2;
+  // [DEBUG] 打开工作台时的初始状态
+  console.log("[lyrics-debug] editLyrics() 打开工作台", {
+    _lyricsBody: editLyricsData.value?.data?._lyricsBody,
+    _editBody: editLyricsData.value?.data?._editBody,
+    hasClipRanges: !!(fromData.clipRanges && fromData.clipRanges.length > 0),
+  });
   if (editLyricsData.value.data) {
-    if (fromData.clipRanges && fromData.clipRanges.length > 0) {
-      // editLyricsData.value.data._lyricsBody = lyrics_clip(
-      //   fromData.clipRanges,
-      //   editLyricsData.value.data.body.map((item) => [
-      //     Math.round(item.from * 1000),
-      //     item.content,
-      //   ])
-      // );
+    originalAiBody.value = editLyricsData.value.data.body.map((item) => ({ ...item }));
+    originalAiText.value = originalAiBody.value
+      .map((item) => item.content.replaceAll(/(^♪ )|( ♪$)/g, ""))
+      .join("\n");
+    lyricsMode.value = "ai";
+    subtitleEditMode.value = "ai";
+    originalEditBody.value = "";
+    originalParsedLyrics.value = [];
+    lyricsStartTime.value = "";
+    lyricsStartTimeError.value = false;
+    useOnlineLyrics.value = false;
+    // 将 ♪ 复选框默认设为勾选（预览时显示 ♪）
+    lyricsBodySwitch.note = true;
+
+    const aiText = originalAiText.value;
+    if (
+      fromData.clipRanges &&
+      fromData.clipRanges.length > 0 &&
+      editLyricsData.value.data._lyricsBody?.length
+    ) {
       editLyricsData.value.data._editBody = editLyricsData.value.data._lyricsBody
         .map((item) => item[1].replaceAll(/(^♪ )|( ♪$)/g, ""))
         .join("\n");
     } else {
-      editLyricsData.value.data._editBody = editLyricsData.value.data.body
-        .map((item) => item.content.replaceAll(/(^♪ )|( ♪$)/g, ""))
-        .join("\n");
+      editLyricsData.value.data._editBody = aiText;
     }
   }
   onlineSearch.value = fromData.data?.music_title || "";
@@ -498,54 +833,59 @@ function editLyrics(item: SubTitle) {
           </a-space>
         </template>
       </a-result>
-      <a-checkbox-group v-model="subtitle" @change="onChange" v-else-if="fromData.playerData">
-        <template v-for="item in subtitles" :key="item.id">
-          <a-checkbox :value="item.id_str">
-            <template #checkbox="{ checked }">
-              <a-space
-                align="start"
-                class="custom-checkbox-card"
-                :class="{ 'custom-checkbox-card-checked': checked }"
-                style="width: 100%"
-              >
-                <div className="custom-checkbox-card-mask">
-                  <div className="custom-checkbox-card-mask-dot" />
-                </div>
-                <div>
-                  <div className="custom-checkbox-card-title">
-                    {{ item.lan_doc }}
-                    <a-button type="primary" size="small" @click="editLyrics(item)">
-                      <template #icon>
-                        <icon-settings />
-                      </template>
-                    </a-button>
+      <div class="lyrics-list-scroll" v-else-if="fromData.playerData">
+        <a-checkbox-group v-model="subtitle" @change="onChange">
+          <template v-for="item in subtitles" :key="item.id">
+            <a-checkbox :value="item.id_str">
+              <template #checkbox="{ checked }">
+                <a-space
+                  align="start"
+                  class="custom-checkbox-card"
+                  :class="{ 'custom-checkbox-card-checked': checked }"
+                  style="width: 100%"
+                >
+                  <div className="custom-checkbox-card-mask">
+                    <div className="custom-checkbox-card-mask-dot" />
                   </div>
+                  <div>
+                    <div className="custom-checkbox-card-title">
+                      {{ item.lan_doc }}
+                      <a-button type="primary" size="small" @click="editLyrics(item)">
+                        <template #icon>
+                          <icon-settings />
+                        </template>
+                      </a-button>
+                    </div>
 
-                  <div
-                    v-if="item.data"
-                    style="
-                      width: 100%;
-                      height: 280px;
-                      white-space: break-spaces;
-                      overflow-y: scroll;
-                      color: #4f4d4d;
-                    "
-                  >
-                    {{
-                      subtitleEdit &&
-                      subtitleEdit.data &&
-                      item.id_str === subtitleEdit.id_str &&
-                      lyricsBodyContent
-                        ? lyricsBodyContent
-                        : item.data.body.map((item) => item.content).join("\n")
-                    }}
+                    <div
+                      v-if="item.data"
+                      style="
+                        width: 100%;
+                        height: 280px;
+                        white-space: break-spaces;
+                        overflow-y: scroll;
+                        color: #4f4d4d;
+                      "
+                    >
+                      {{
+                        subtitleEdit &&
+                        subtitleEdit.data &&
+                        item.id_str === subtitleEdit.id_str &&
+                        lyricsBodyContent
+                          ? lyricsBodyContent
+                          : item.data.body.map((item) => item.content).join("\n")
+                      }}
+                    </div>
                   </div>
-                </div>
-              </a-space>
-            </template>
-          </a-checkbox>
-        </template>
-      </a-checkbox-group>
+                </a-space>
+              </template>
+            </a-checkbox>
+          </template>
+        </a-checkbox-group>
+      </div>
+      <a-checkbox v-model="fromData.externalLyrics" style="margin-top: 8px">
+        外置歌词（保存为独立 .lrc 文件，不嵌入音频）
+      </a-checkbox>
       <Btn @next="next" @prev="$emit('prev')" />
     </a-form>
   </a-spin>
@@ -555,22 +895,20 @@ function editLyrics(item: SubTitle) {
       <a-button @click="handleCancel"> 取消 </a-button>
       <a-button
         type="primary"
-        :disabled="lyricsBodyLine[0] !== lyricsBodyLine[1]"
+        :disabled="!useOnlineLyrics && lyricsBodyLine[0] !== lyricsBodyLine[1]"
         @click="handleOk"
       >
         确定
       </a-button>
     </template>
-    <div
-      v-if="editLyricsData && editLyricsData.data"
-      style="display: flex; height: 100%; justify-content: space-around"
-    >
-      <div style="width: 48%; display: flex; flex-direction: column">
+    <div v-if="editLyricsData && editLyricsData.data" class="lyrics-workspace">
+      <div class="lyrics-left-panel">
         <a-textarea
-          style="flex: 1; margin-right: 10px"
+          class="lyrics-left-textarea"
+          style="margin-right: 10px"
           v-model="editLyricsData.data._editBody"
           show-word-limit
-          :max-length="{ length: lyricsBodyLine[0], errorOnly: true }"
+          :max-length="useOnlineLyrics ? undefined : { length: lyricsBodyLine[0], errorOnly: true }"
           :word-length="(v: string) => v.split('\n').length"
         />
         格式化：
@@ -578,7 +916,7 @@ function editLyrics(item: SubTitle) {
           <a-checkbox v-model="lyricsBodySwitch.note"> ♪ </a-checkbox>
         </a-input-group>
       </div>
-      <a-tabs style="width: 48%; display: flex; flex-direction: column" justify>
+      <a-tabs class="lyrics-right-panel">
         <a-tab-pane key="1" title="在线歌词">
           <a-spin
             style="height: 100%; display: flex; flex-direction: column"
@@ -601,19 +939,69 @@ function editLyrics(item: SubTitle) {
               <a-checkbox v-model="lyricsBodySwitch.timeAxis">时间轴</a-checkbox>
               <a-checkbox v-model="lyricsBodySwitch.blankChar">空白字符</a-checkbox>
               <a-checkbox v-model="lyricsBodySwitch.metaInfo">元信息</a-checkbox>
+              <a-checkbox v-model="lyricsBodySwitch.stripMeta">智能去除元信息</a-checkbox>
             </a-input-group>
-            <div style="margin-top: 10px; flex: 1; overflow: auto">
-              <a-select v-model="lyricsBodySwitch.onlineDiff" style="margin-bottom: 10px">
-                <a-option
-                  v-for="[key, [label]] in Object.entries(diffFunc)"
-                  :key="key"
-                  :value="key"
+            <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px">
+              <a-checkbox
+                v-model="useOnlineLyrics"
+                :disabled="!onlineLyrics"
+                @change="onUseOnlineLyricsChange"
+              >
+                使用在线歌词
+              </a-checkbox>
+              <span>开始时间：</span>
+              <a-input
+                v-model="lyricsStartTime"
+                style="width: 100px"
+                placeholder="mm:ss"
+                :error="lyricsStartTimeError"
+                :disabled="!useOnlineLyrics"
+                @change="onLyricsStartTimeChange"
+              />
+              <a-button :disabled="lyricsMode === 'ai'" @click="undoReplaceLyrics">
+                ↩ 撤销
+              </a-button>
+            </div>
+            <a-alert type="info" style="margin-bottom: 10px">
+              💡
+              使用在线歌词：勾选后会自动替换歌词并使用在线歌词的时间轴。开始时间指的是在线字幕在视频中应当开始的时间，为了方便对齐可以删掉在线歌词中的非正文部分（如标题，歌手），可以使用去除元数据快速删除。
+            </a-alert>
+            <a-button-group style="margin: 10px 0">
+              <a-button
+                type="outline"
+                :disabled="!onlineLyrics || useOnlineLyrics"
+                @click="smartCorrectLyrics"
+              >
+                智能纠错
+              </a-button>
+            </a-button-group>
+            <a-alert type="info" style="margin-bottom: 10px">
+              💡
+              使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文，智能纠错会保留AI字幕的时间轴
+            </a-alert>
+            <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
+              <a-input-group style="margin-bottom: 10px">
+                <a-select v-model="lyricsBodySwitch.onlineDiff" style="width: 140px">
+                  <a-option
+                    v-for="[key, [label]] in Object.entries(diffFunc)"
+                    :key="key"
+                    :value="key"
+                  >
+                    {{ label }}
+                  </a-option>
+                </a-select>
+                <a-button
+                  @click="onlineLyricsViewMode = onlineLyricsViewMode === 'edit' ? 'diff' : 'edit'"
                 >
-                  {{ label }}
-                </a-option>
-              </a-select>
+                  {{ onlineLyricsViewMode === "edit" ? "查看差异" : "编辑歌词" }}
+                </a-button>
+              </a-input-group>
 
-              <div class="diff-container-textarea">
+              <div
+                v-if="onlineLyricsViewMode === 'diff'"
+                class="diff-container-textarea"
+                style="min-height: 300px"
+              >
                 <span
                   v-for="(part, index) in onlineLyricsDiff"
                   :key="index"
@@ -627,12 +1015,18 @@ function editLyrics(item: SubTitle) {
                   >{{ part.value }}</span
                 >
               </div>
+              <a-textarea
+                v-else
+                class="online-lyrics-editor"
+                v-model="editableOnlineLyrics"
+                placeholder="在线歌词（可编辑，修改后用于智能纠错）"
+              />
             </div>
           </a-spin>
         </a-tab-pane>
         <a-tab-pane key="2" title="AI 改写" style="display: flex; flex-direction: column">
           <a-button-group>
-            <a-alert type="info">将网络歌词给AI进行纠正</a-alert>
+            <a-alert type="info">将网络歌词给AI进行纠正（此部分未进行维护，可用性未知）</a-alert>
 
             <a-button type="primary" @click="aiRewrite">AI 改写</a-button>
             <a-trigger trigger="click" :unmount-on-close="false">
@@ -719,7 +1113,7 @@ function editLyrics(item: SubTitle) {
           </a-spin>
         </a-tab-pane>
         <a-tab-pane key="3" title="结果预览">
-          <a-textarea style="height: 100%" :model-value="lyricsBodyContent" />
+          <a-textarea class="result-preview-editor" :model-value="lyricsBodyContent" />
         </a-tab-pane>
       </a-tabs>
     </div>
@@ -732,13 +1126,65 @@ function editLyrics(item: SubTitle) {
   justify-content: space-between;
   align-items: center;
 }
-.arco-textarea {
+.lyrics-list-scroll {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.lyrics-left-textarea .arco-textarea {
   resize: none;
 }
 
-.arco-tabs-pane {
+/* 在线歌词编辑框、结果预览框高度 */
+.lyrics-right-panel .online-lyrics-editor .arco-textarea,
+.lyrics-right-panel .result-preview-editor .arco-textarea {
+  min-height: 300px;
+}
+
+/* 工作台整体布局 */
+.lyrics-workspace {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  justify-content: space-around;
+}
+
+/* 左侧：歌词编辑框 */
+.lyrics-left-panel {
+  width: 48%;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+}
+.lyrics-left-textarea {
+  flex: 1;
+  min-height: 200px;
+}
+
+/* 右侧：tab 面板整体可滚动 */
+.lyrics-right-panel {
+  width: 48%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+.lyrics-right-panel .arco-tabs-header {
+  flex-shrink: 0;
+}
+.lyrics-right-panel .arco-tabs-content {
+  flex: 1;
+  min-height: 0;
+  overflow: visible !important;
+}
+.lyrics-right-panel .arco-tabs-content-list {
+  height: auto !important;
+}
+.lyrics-right-panel .arco-tabs-content-item-active,
+.lyrics-right-panel .arco-tabs-content-item {
+  height: auto !important;
+}
+.lyrics-right-panel .arco-tabs-pane {
+  height: auto !important;
 }
 
 .diff-container-textarea {
@@ -755,10 +1201,8 @@ function editLyrics(item: SubTitle) {
   border-radius: 0;
   outline: 0;
   cursor: inherit;
-  /* -webkit-tap-highlight-color: transparent; */
   display: block;
   box-sizing: border-box;
-  min-height: 32px;
   padding: 4px 12px;
   font-size: 14px;
   line-height: 1.5715;

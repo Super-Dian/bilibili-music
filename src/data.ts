@@ -88,6 +88,8 @@ export const defaultData = {
   speed: 1,
   record: defaultRecordData,
   usedefaultconfig: false,
+  // 外置歌词：不嵌入音频，单独保存为 .lrc 文件
+  externalLyrics: false,
 };
 
 export const fromData = reactive(clone(defaultData));
