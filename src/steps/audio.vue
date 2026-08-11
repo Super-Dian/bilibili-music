@@ -42,10 +42,13 @@ const error = ref<string | null>();
 const fileBlob = ref<string | Blob>();
 const loadMsg = ref("");
 const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
-let downloadTriggered = false;
+const downloadTriggered = ref(false);
+const processing = ref(false);
+const settled = ref(false);
 let operationController: AbortController | null = null;
 let downloadController: AbortController | null = null;
 let externalLyricsDownload: { blob: Blob; fileName: string } | null = null;
+let unregisterActiveOperationCanceller: (() => void) | null = null;
 const saving = ref(false);
 
 function activeTaskId() {
@@ -54,6 +57,17 @@ function activeTaskId() {
 
 function reportTask(stage: string, progress?: number | null) {
   updateDownloadTask(activeTaskId(), { stage, progress });
+}
+
+function releaseActiveOperationCanceller() {
+  unregisterActiveOperationCanceller?.();
+  unregisterActiveOperationCanceller = null;
+}
+
+function claimActiveOperationCanceller() {
+  releaseActiveOperationCanceller();
+  unregisterActiveOperationCanceller =
+    registerActiveEpisodeOperationCanceller(cancelCurrentOperation);
 }
 
 function cancelCurrentOperation() {
@@ -71,7 +85,10 @@ function handleAudioFailure(reason: unknown) {
   logger.error("[audio]", reason);
   error.value = message;
   loadMsg.value = "";
-  failEpisodeDownload(message);
+  const didSettle = failEpisodeDownload(message);
+  if (episodeSession.isBatch && didSettle) {
+    settled.value = true;
+  }
 }
 
 function formatLrc(ms: number) {
@@ -156,12 +173,22 @@ function processLyrics(lyrics: Lyrics, deleteRanges: ClipRanges, speed: number) 
 }
 
 async function main() {
+  if (
+    processing.value ||
+    saving.value ||
+    downloadTriggered.value ||
+    (episodeSession.isBatch && episodeSession.settling)
+  ) {
+    return;
+  }
+  processing.value = true;
+  settled.value = false;
   stepIndex.value = 0;
   const avid = fromData.playerData?.aid || fromData.videoData?.aid;
   const cid = fromData.playerData?.cid || fromData.videoData?.cid;
   error.value = null;
   fileBlob.value = undefined;
-  downloadTriggered = false;
+  downloadTriggered.value = false;
   saving.value = false;
   externalLyricsDownload = null;
   operationController?.abort();
@@ -170,13 +197,14 @@ async function main() {
   const controller = new AbortController();
   let operationFFmpeg: Awaited<ReturnType<typeof ffmpegLoad>> | null = null;
   operationController = controller;
-  registerActiveEpisodeOperationCanceller(cancelCurrentOperation);
+  claimActiveOperationCanceller();
   beginDownloadTask(activeTaskId(), "获取音轨信息");
   reportTask("获取音轨信息", 2);
   if (!avid || !cid) {
     handleAudioFailure("未找到当前分集的 aid/cid");
     operationController = null;
-    registerActiveEpisodeOperationCanceller(null);
+    releaseActiveOperationCanceller();
+    processing.value = false;
     return;
   }
   try {
@@ -416,13 +444,14 @@ async function main() {
     }
     handleAudioFailure(reason);
   } finally {
-    if (operationController === controller) {
-      operationController = null;
-      registerActiveEpisodeOperationCanceller(null);
-    }
     if (operationFFmpeg) {
       await cleanupFFmpegFiles(operationFFmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
     }
+    if (operationController === controller) {
+      operationController = null;
+      releaseActiveOperationCanceller();
+    }
+    processing.value = false;
   }
   if (fromData.usedefaultconfig) {
     fromData.usedefaultconfig = false;
@@ -435,10 +464,10 @@ const download = async () => {
     handleAudioFailure("文件为空");
     return;
   }
-  if (saving.value || downloadTriggered) {
+  if (processing.value || saving.value || downloadTriggered.value || settled.value) {
     return;
   }
-  downloadTriggered = true;
+  downloadTriggered.value = true;
   saving.value = true;
   if (!episodeSession.isBatch) {
     error.value = null;
@@ -446,7 +475,7 @@ const download = async () => {
   beginDownloadTask(activeTaskId(), "正在保存音频文件");
   const controller = new AbortController();
   downloadController = controller;
-  registerActiveEpisodeOperationCanceller(cancelCurrentOperation);
+  claimActiveOperationCanceller();
   const baseFileName = fromData.file || "bilibili_music.m4a";
   const pagePrefix =
     episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
@@ -478,7 +507,7 @@ const download = async () => {
     }
   } catch (downloadError) {
     if (!episodeSession.isBatch) {
-      downloadTriggered = false;
+      downloadTriggered.value = false;
     }
     if (controller.signal.aborted || isAbortError(downloadError)) {
       error.value = "任务已取消";
@@ -491,7 +520,7 @@ const download = async () => {
     saving.value = false;
     if (downloadController === controller) {
       downloadController = null;
-      registerActiveEpisodeOperationCanceller(null);
+      releaseActiveOperationCanceller();
     }
   }
   loadMsg.value = "";
@@ -502,11 +531,21 @@ const download = async () => {
     }
     episodeSession.auto = true;
   }
-  finishEpisodeDownload(finalFileName);
+  const didSettle = finishEpisodeDownload(finalFileName);
+  if (episodeSession.isBatch && didSettle) {
+    settled.value = true;
+  }
 };
 
 onMounted(() => {
   main();
+});
+
+onUnmounted(() => {
+  if (operationController || downloadController || processing.value || saving.value) {
+    cancelCurrentOperation();
+  }
+  releaseActiveOperationCanceller();
 });
 
 const saveDefault = () => {
@@ -540,7 +579,10 @@ const saveDefault = () => {
       </template>
       <template #extra>
         <a-space v-if="stepIndex === steps.length - 1">
-          <a-button @click="download" :disabled="saving">
+          <a-button
+            @click="download"
+            :disabled="processing || saving || downloadTriggered || settled"
+          >
             {{ saving ? "正在保存…" : "开始下载" }}
           </a-button>
         </a-space>
@@ -551,7 +593,10 @@ const saveDefault = () => {
     <Btn
       @prev="$emit('prev')"
       @next="main"
-      :next="{ disabled: !fileBlob && !error }"
+      :prev="{ disabled: processing || saving || settled }"
+      :next="{
+        disabled: processing || saving || settled || downloadTriggered || (!fileBlob && !error),
+      }"
       nextLabel="重试"
     />
   </div>

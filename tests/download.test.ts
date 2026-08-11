@@ -74,4 +74,54 @@ describe("streaming binary downloader", () => {
     expect(isAbortError(caught)).toBe(true);
     expect(cancelCount).toBe(1);
   });
+
+  test("keeps a long transfer alive while chunks continue to arrive", async () => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+    globalThis.fetch = (async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            let chunk = 0;
+            timer = setInterval(() => {
+              controller.enqueue(new Uint8Array([++chunk]));
+              if (chunk === 5) {
+                clearInterval(timer);
+                controller.close();
+              }
+            }, 20);
+          },
+          cancel() {
+            if (timer) clearInterval(timer);
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch;
+
+    const bytes = await downloadBinary("https://example.test/long-but-active", {
+      timeoutMs: 50,
+    });
+
+    expect(Array.from(bytes)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test("times out only after the stream stops making progress", async () => {
+    let cancelCount = 0;
+    globalThis.fetch = (async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new Uint8Array([1]));
+          },
+          cancel() {
+            cancelCount++;
+          },
+        }),
+        { status: 200 },
+      )) as typeof fetch;
+
+    const pending = downloadBinary("https://example.test/stalled", { timeoutMs: 30 });
+
+    await expect(pending).rejects.toThrow("下载长时间无进度");
+    expect(cancelCount).toBe(1);
+  });
 });

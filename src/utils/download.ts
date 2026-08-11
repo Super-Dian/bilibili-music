@@ -34,10 +34,15 @@ export async function downloadBinary(
   const controller = new AbortController();
   const abort = () => controller.abort(signal?.reason || createAbortError());
   signal?.addEventListener("abort", abort, { once: true });
-  const timer = setTimeout(
-    () => controller.abort(new Error(`下载超时（${Math.round(timeoutMs / 1000)} 秒）`)),
-    timeoutMs,
-  );
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+  const refreshInactivityTimeout = () => {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(
+      () => controller.abort(new Error(`下载长时间无进度（${Math.round(timeoutMs / 1000)} 秒）`)),
+      timeoutMs,
+    );
+  };
+  refreshInactivityTimeout();
 
   const throwIfAborted = () => {
     if (!controller.signal.aborted) return;
@@ -53,6 +58,7 @@ export async function downloadBinary(
       credentials,
     });
     throwIfAborted();
+    refreshInactivityTimeout();
     if (!response.ok) {
       throw new Error(`下载失败：HTTP ${response.status} ${response.statusText}`);
     }
@@ -77,6 +83,7 @@ export async function downloadBinary(
         const { done, value } = await reader.read();
         throwIfAborted();
         if (done) break;
+        refreshInactivityTimeout();
         if (!value) continue;
         chunks.push(value);
         loaded += value.byteLength;
@@ -106,7 +113,7 @@ export async function downloadBinary(
     }
     throw error;
   } finally {
-    clearTimeout(timer);
+    if (inactivityTimer) clearTimeout(inactivityTimer);
     signal?.removeEventListener("abort", abort);
   }
 }

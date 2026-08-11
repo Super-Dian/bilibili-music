@@ -247,7 +247,7 @@ export function setDownloadTaskRule(rule: unknown, automatic = true) {
 
 export function beginDownloadTask(id: string | null | undefined, stage = "准备下载") {
   const task = findTask(id);
-  if (!task) return false;
+  if (!task || ["success", "cancelled"].includes(task.status)) return false;
   task.status = "running";
   task.stage = stage;
   task.progress = Math.max(0, task.progress || 0);

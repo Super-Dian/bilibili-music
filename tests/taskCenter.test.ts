@@ -103,6 +103,7 @@ describe("download task state machine", () => {
     taskCenter.beginDownloadTask(id);
     taskCenter.completeDownloadTask(id, "done.m4a");
 
+    expect(taskCenter.beginDownloadTask(id, "late restart")).toBe(false);
     expect(taskCenter.failDownloadTask(id, "late failure")).toBe(false);
     expect(taskCenter.cancelDownloadTask(id, "late cancellation")).toBe(false);
     expect(taskCenter.getTaskCenterState().tasks[0]).toMatchObject({

@@ -234,6 +234,20 @@ describe("batch queue settlement", () => {
     expect(aborts).toBe(1);
   });
 
+  test("a stale operation disposer cannot clear a newer registration of the same hook", () => {
+    let aborts = 0;
+    const abort = () => aborts++;
+    episodeSession.activeVideoData = makeEpisode("BVCANCEL", 1, "取消项");
+    episodeSession.isBatch = true;
+    const disposeFirst = registerActiveEpisodeOperationCanceller(abort);
+    registerActiveEpisodeOperationCanceller(abort);
+
+    disposeFirst();
+    stopEpisodeSession(false);
+
+    expect(aborts).toBe(1);
+  });
+
   test("playurl, cover, and FFmpeg failures all advance and aggregate", async () => {
     episodeSession.activeVideoData = makeEpisode("BVPLAYURL", 1, "playurl 项");
     episodeSession.queue = [

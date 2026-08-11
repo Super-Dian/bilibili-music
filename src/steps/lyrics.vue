@@ -10,6 +10,7 @@ import { logger } from "@/utils/logger";
 import { getActiveDefaultRule } from "@/episode";
 import { correctLyrics, cleanOriginalLyrics } from "@/utils/lyricsCorrector";
 import { selectSubtitleForAuto, subtitleToLyrics } from "@/utils/lyrics";
+
 const emits = defineEmits(["next", "prev"]);
 
 type SubTitle = PlayerData["subtitle"]["subtitles"][number];

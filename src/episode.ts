@@ -140,6 +140,7 @@ export const episodeSession: EpisodeSession = {
 
 let appLauncher: (() => MountedApp) | null = null;
 let activeOperationCanceller: (() => void) | null = null;
+let activeOperationCancellerGeneration = 0;
 let appTransitionHandler: ((videoData: EpisodeVideoData) => void | Promise<void>) | null = null;
 
 export function configureEpisodeAppLauncher(launcher: () => MountedApp) {
@@ -158,7 +159,13 @@ export function registerEpisodeAppTransitionHandler(
 }
 
 export function registerActiveEpisodeOperationCanceller(canceller: (() => void) | null) {
+  const generation = ++activeOperationCancellerGeneration;
   activeOperationCanceller = canceller;
+  return () => {
+    if (activeOperationCancellerGeneration === generation) {
+      activeOperationCanceller = null;
+    }
+  };
 }
 
 export function getActiveDefaultRule() {
