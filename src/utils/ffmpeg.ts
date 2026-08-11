@@ -1,90 +1,324 @@
-/**
- * FFmpeg WASM 加载器
- *
- * 负责从 unpkg CDN 下载 FFmpeg 核心文件 (JS + WASM) 并初始化 WASM 运行时。
- * 支持两种模式:
- *   - 多线程: 需要 crossOriginIsolated (COOP/COEP 头), 性能更优
- *   - 单线程: 降级方案, 无需特殊 HTTP 头, 但编码速度较慢
- *
- * 单线程模式下的已知问题:
- *   - AAC 编码较慢, 大文件处理耗时长
- *   - progressive JPEG 解码可能卡死 (已通过 -c:v copy 绕过)
- *   -https://ffmpegwasm.netlify.app/docs/getting-started/usage/
- */
+/** FFmpeg WASM 单例加载器：缓存核心文件、CDN 降级、超时和可取消初始化。 */
 
 import { FFmpeg } from "@ffmpeg/ffmpeg";
-import { toBlobURL } from "@ffmpeg/util";
 
 import { logger } from "./logger";
 
-/** FFmpeg 实例, 全局单例, 在 exec/writeFile/readFile 等操作中使用 */
-export const ffmpeg = new FFmpeg();
+const CORE_VERSION = "0.12.10";
+const CACHE_NAME = `wasm-music-ffmpeg-core-${CORE_VERSION}`;
+const ASSET_TIMEOUT_MS = 45_000;
 
-/**
- * 加载 FFmpeg WASM 运行时
- *
- * 依次下载 core.js → core.wasm → (worker.js) 并初始化。
- * 每个阶段通过 onProgress 回调报告进度, 用于前端 UI 显示。
- *
- * @param onProgress - 可选的进度回调, 参数为当前阶段的中文描述文本
- */
-export const ffmpegLoad = async (onProgress?: (msg: string) => void) => {
-  let tryMultiThread = true;
+export interface FFmpegProvider {
+  name: string;
+  singleThreadBase: string;
+  multiThreadBase: string;
+}
 
-  // --- CDN 地址 ---
-  // const baseURL = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/umd'
-  // const baseFFmpegUrl = "https://unpkg.com/@ffmpeg/ffmpeg@0.12.15/dist/esm";
-  /** 单线程版 core 文件 CDN 基础路径 */
-  const baseCoreUrl = "https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm";
-  /** 多线程版 core 文件 CDN 基础路径 (含 worker) */
-  const baseCoreMTUrl = "https://unpkg.com/@ffmpeg/core-mt@0.12.10/dist/esm";
+export interface FFmpegPreflightResult {
+  supported: boolean;
+  webAssembly: boolean;
+  worker: boolean;
+  blobUrl: boolean;
+  cacheAvailable: boolean;
+  crossOriginIsolated: boolean;
+  mode: "single-thread" | "multi-thread";
+  message: string;
+}
 
-  // 监听 FFmpeg 内部日志输出 (debug 级别, 默认不显示)
-  ffmpeg.on("log", ({ message }) => {
-    logger.debug("[ffmpeg]", message);
-  });
+export interface FFmpegLoadDiagnostics extends FFmpegPreflightResult {
+  loaded: boolean;
+  provider?: string;
+  loadedFromCache?: boolean;
+  lastError?: string;
+}
 
-  // 判断是否使用多线程模式
-  const isMT = tryMultiThread && window.crossOriginIsolated;
-  const mode = isMT ? "多" : "单";
-  logger.info("[ffmpeg] " + mode + "线程模式");
-  onProgress?.(`${mode}线程模式, 下载 core.js...`);
+export const FFMPEG_CDN_PROVIDERS: FFmpegProvider[] = [
+  {
+    name: "unpkg",
+    singleThreadBase: `https://unpkg.com/@ffmpeg/core@${CORE_VERSION}/dist/esm`,
+    multiThreadBase: `https://unpkg.com/@ffmpeg/core-mt@${CORE_VERSION}/dist/esm`,
+  },
+  {
+    name: "jsDelivr",
+    singleThreadBase: `https://cdn.jsdelivr.net/npm/@ffmpeg/core@${CORE_VERSION}/dist/esm`,
+    multiThreadBase: `https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@${CORE_VERSION}/dist/esm`,
+  },
+];
 
-  // --- 步骤 1: 下载 core.js (FFmpeg 主入口脚本) ---
-  const t0 = Date.now();
-  const coreURL = await toBlobURL(
-    `${isMT ? baseCoreMTUrl : baseCoreUrl}/ffmpeg-core.js`,
-    "text/javascript",
+export function preflightFFmpegEnvironment(): FFmpegPreflightResult {
+  const webAssembly = typeof WebAssembly !== "undefined";
+  const worker = typeof Worker !== "undefined";
+  const blobUrl =
+    typeof Blob !== "undefined" &&
+    typeof URL !== "undefined" &&
+    typeof URL.createObjectURL === "function";
+  const cacheAvailable = typeof caches !== "undefined";
+  const isolated = typeof window !== "undefined" && Boolean(window.crossOriginIsolated);
+  const supported = webAssembly && worker && blobUrl;
+  return {
+    supported,
+    webAssembly,
+    worker,
+    blobUrl,
+    cacheAvailable,
+    crossOriginIsolated: isolated,
+    mode: isolated ? "multi-thread" : "single-thread",
+    message: supported
+      ? `${isolated ? "多" : "单"}线程可用${cacheAvailable ? "，支持离线缓存" : "，无 Cache Storage"}`
+      : "浏览器缺少 WebAssembly、Worker 或 Blob URL 支持",
+  };
+}
+
+let diagnostics: FFmpegLoadDiagnostics = {
+  ...preflightFFmpegEnvironment(),
+  loaded: false,
+};
+
+export function getFFmpegDiagnostics() {
+  return { ...diagnostics };
+}
+
+export async function tryFFmpegProviders<T>(
+  providers: FFmpegProvider[],
+  attempt: (provider: FFmpegProvider, index: number) => Promise<T>,
+  shouldStop: () => boolean = () => false,
+) {
+  const failures: string[] = [];
+  for (let index = 0; index < providers.length; index++) {
+    const provider = providers[index];
+    try {
+      return await attempt(provider, index);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(`${provider.name}: ${message}`);
+      if (shouldStop()) throw error;
+    }
+  }
+  throw new Error(`所有 FFmpeg CDN 均不可用（${failures.join("；")}）`);
+}
+
+function createAbortError(message = "任务已取消") {
+  if (typeof DOMException !== "undefined") {
+    return new DOMException(message, "AbortError");
+  }
+  const error = new Error(message);
+  error.name = "AbortError";
+  return error;
+}
+
+async function fetchWithTimeout(url: string, signal?: AbortSignal) {
+  if (signal?.aborted) throw createAbortError();
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal?.reason || createAbortError());
+  signal?.addEventListener("abort", abort, { once: true });
+  const timer = setTimeout(
+    () => controller.abort(new Error(`下载超时（${Math.round(ASSET_TIMEOUT_MS / 1000)} 秒）`)),
+    ASSET_TIMEOUT_MS,
   );
-  const dt0 = Date.now() - t0;
-  logger.info("[ffmpeg] core.js 下载完成 " + dt0 + "ms");
-  onProgress?.(`core.js 下载完成 (${(dt0 / 1000).toFixed(1)}s), 下载 core.wasm...`);
+  try {
+    return await fetch(url, { signal: controller.signal, cache: "no-cache" });
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
+}
 
-  // --- 步骤 2: 下载 core.wasm (FFmpeg 核心 WASM 二进制, 通常最大) ---
-  const t1 = Date.now();
-  const wasmURL = await toBlobURL(
-    `${isMT ? baseCoreMTUrl : baseCoreUrl}/ffmpeg-core.wasm`,
-    "application/wasm",
-  );
-  const dt1 = Date.now() - t1;
-  logger.info("[ffmpeg] core.wasm 下载完成 " + dt1 + "ms");
-  onProgress?.(`core.wasm 下载完成 (${(dt1 / 1000).toFixed(1)}s), 初始化 WASM...`);
-
-  // --- 步骤 3: 加载到 FFmpeg 实例 (含可选的 worker.js) ---
-  const t2 = Date.now();
-  const loadOpts: any = { coreURL, wasmURL };
-  if (isMT) {
-    // 多线程模式需要额外下载 worker 脚本
-    loadOpts.workerURL = await toBlobURL(
-      `${baseCoreMTUrl}/ffmpeg-core.worker.js`,
-      "application/javascript",
-    );
-    onProgress?.(`worker.js 下载完成, 初始化 WASM...`);
+async function readAsset(
+  url: string,
+  mimeType: string,
+  signal: AbortSignal | undefined,
+  onProgress?: (message: string) => void,
+) {
+  let response: Response | undefined;
+  let fromCache = false;
+  let cache: Cache | undefined;
+  if (typeof caches !== "undefined") {
+    try {
+      cache = await caches.open(CACHE_NAME);
+      response = (await cache.match(url)) || undefined;
+      fromCache = Boolean(response);
+    } catch (error) {
+      logger.warn("FFmpeg Cache Storage 不可用，将直接联网加载", error);
+    }
   }
 
-  // 实际初始化 WASM 运行时 (编译 + 实例化)
-  await ffmpeg.load(loadOpts);
-  const dt2 = Date.now() - t2;
-  logger.info("[ffmpeg] WASM 初始化完成 " + dt2 + "ms");
-  onProgress?.(`初始化完成 (总耗时 ${((Date.now() - t0) / 1000).toFixed(1)}s)`);
-};
+  if (!response) {
+    response = await fetchWithTimeout(url, signal);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+    if (cache) {
+      try {
+        await cache.put(url, response.clone());
+      } catch (error) {
+        logger.warn("写入 FFmpeg 缓存失败", error);
+      }
+    }
+  }
+  if (signal?.aborted) throw createAbortError();
+  onProgress?.(fromCache ? "命中本地缓存" : "下载完成，写入缓存");
+  const bytes = await response.arrayBuffer();
+  const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
+  return { objectUrl, fromCache };
+}
+
+function createFFmpegInstance() {
+  const instance = new FFmpeg();
+  instance.on("log", ({ message }) => logger.debug("[ffmpeg]", message));
+  return instance;
+}
+
+let ffmpeg = createFFmpegInstance();
+let loadPromise: Promise<FFmpeg> | null = null;
+let blobUrls: string[] = [];
+let instanceGeneration = 0;
+
+export function getFFmpeg() {
+  return ffmpeg;
+}
+
+function revokeBlobUrls() {
+  blobUrls.forEach((url) => URL.revokeObjectURL(url));
+  blobUrls = [];
+}
+
+export async function ffmpegLoad(onProgress?: (message: string) => void, signal?: AbortSignal) {
+  if (diagnostics.loaded) return ffmpeg;
+  if (loadPromise) return loadPromise;
+
+  const preflight = preflightFFmpegEnvironment();
+  diagnostics = { ...preflight, loaded: false };
+  if (!preflight.supported) {
+    diagnostics.lastError = preflight.message;
+    throw new Error(preflight.message);
+  }
+
+  const loadingInstance = ffmpeg;
+  const loadingGeneration = instanceGeneration;
+  const isStale = () => loadingGeneration !== instanceGeneration || loadingInstance !== ffmpeg;
+  const ensureCurrent = () => {
+    if (signal?.aborted || isStale()) throw createAbortError();
+  };
+  const pending = (async () => {
+    const multiThread = preflight.mode === "multi-thread";
+    const modeText = multiThread ? "多线程" : "单线程";
+    onProgress?.(`${modeText}模式，检查 FFmpeg 缓存...`);
+    const result = await tryFFmpegProviders(
+      FFMPEG_CDN_PROVIDERS,
+      async (provider, index) => {
+        ensureCurrent();
+        const base = multiThread ? provider.multiThreadBase : provider.singleThreadBase;
+        onProgress?.(
+          `${index > 0 ? "自动切换备用源" : "正在连接"} ${provider.name}，加载 core.js...`,
+        );
+        const providerUrls: string[] = [];
+        try {
+          const core = await readAsset(
+            `${base}/ffmpeg-core.js`,
+            "text/javascript",
+            signal,
+            (message) => onProgress?.(`core.js：${message}`),
+          );
+          providerUrls.push(core.objectUrl);
+          ensureCurrent();
+          onProgress?.(`正在通过 ${provider.name} 加载 core.wasm...`);
+          const wasm = await readAsset(
+            `${base}/ffmpeg-core.wasm`,
+            "application/wasm",
+            signal,
+            (message) => onProgress?.(`core.wasm：${message}`),
+          );
+          providerUrls.push(wasm.objectUrl);
+          ensureCurrent();
+          const loadOptions: { coreURL: string; wasmURL: string; workerURL?: string } = {
+            coreURL: core.objectUrl,
+            wasmURL: wasm.objectUrl,
+          };
+          let workerFromCache = true;
+          if (multiThread) {
+            onProgress?.(`正在通过 ${provider.name} 加载 worker.js...`);
+            const worker = await readAsset(
+              `${base}/ffmpeg-core.worker.js`,
+              "text/javascript",
+              signal,
+              (message) => onProgress?.(`worker.js：${message}`),
+            );
+            providerUrls.push(worker.objectUrl);
+            ensureCurrent();
+            loadOptions.workerURL = worker.objectUrl;
+            workerFromCache = worker.fromCache;
+          }
+          ensureCurrent();
+          onProgress?.(`正在初始化 FFmpeg（${provider.name} / ${modeText}）...`);
+          await loadingInstance.load(loadOptions);
+          ensureCurrent();
+          blobUrls = providerUrls;
+          return {
+            provider: provider.name,
+            fromCache: core.fromCache && wasm.fromCache && workerFromCache,
+          };
+        } catch (error) {
+          providerUrls.forEach((url) => URL.revokeObjectURL(url));
+          logger.warn(`FFmpeg CDN ${provider.name} 加载失败`, error);
+          throw error;
+        }
+      },
+      () => Boolean(signal?.aborted || isStale()),
+    );
+    ensureCurrent();
+    diagnostics = {
+      ...preflight,
+      loaded: true,
+      provider: result.provider,
+      loadedFromCache: result.fromCache,
+    };
+    onProgress?.(
+      `FFmpeg 就绪（${result.provider} / ${modeText}${result.fromCache ? " / 本地缓存" : ""}）`,
+    );
+    return loadingInstance;
+  })().catch((error) => {
+    if (!isStale()) {
+      diagnostics = {
+        ...preflight,
+        loaded: false,
+        lastError: error instanceof Error ? error.message : String(error),
+      };
+    }
+    throw error;
+  });
+  let trackedPromise: Promise<FFmpeg>;
+  trackedPromise = pending.finally(() => {
+    if (loadPromise === trackedPromise) {
+      loadPromise = null;
+    }
+  });
+  loadPromise = trackedPromise;
+
+  return trackedPromise;
+}
+
+export function terminateFFmpeg() {
+  instanceGeneration++;
+  try {
+    ffmpeg.terminate();
+  } catch (error) {
+    logger.debug("FFmpeg 尚未启动或已终止", error);
+  }
+  revokeBlobUrls();
+  ffmpeg = createFFmpegInstance();
+  loadPromise = null;
+  diagnostics = { ...preflightFFmpegEnvironment(), loaded: false };
+}
+
+export async function cleanupFFmpegFiles(fileNames: string[]) {
+  const instance = getFFmpeg();
+  await Promise.all(
+    fileNames.map(async (fileName) => {
+      try {
+        await instance.deleteFile(fileName);
+      } catch {
+        // 文件可能尚未创建或已被 FFmpeg 清理。
+      }
+    }),
+  );
+}

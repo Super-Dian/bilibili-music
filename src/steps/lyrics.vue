@@ -9,6 +9,7 @@ import { diffChars, diffWords, diffLines, Change } from "diff";
 import { logger } from "@/utils/logger";
 import { getActiveDefaultRule } from "@/episode";
 import { correctLyrics, cleanOriginalLyrics } from "@/utils/lyricsCorrector";
+import { selectSubtitleForAuto, subtitleToLyrics } from "@/utils/lyrics";
 const emits = defineEmits(["next", "prev"]);
 
 type SubTitle = PlayerData["subtitle"]["subtitles"][number];
@@ -137,27 +138,12 @@ onMounted(() => {
       // 新增：尝试使用本地默认语言配置（lan_doc），否则回退到第一个
       if (_subtitles.length > 0) {
         if (fromData.usedefaultconfig) {
-          const defaultLan = getActiveDefaultRule();
-          const default_lyrics_lan = defaultLan?.lyrics;
-          console.log(default_lyrics_lan);
-          const matched = default_lyrics_lan
-            ? _subtitles.find((s) => s.lan_doc === default_lyrics_lan)
-            : undefined;
-          if (matched) {
-            subtitle.value = [matched.id_str];
-            lyricsRecord.label = matched.lan_doc;
-            let lyricsData: Lyrics | undefined = matched.data?.body.map((item) => [
-              Math.round(item.from * 1000),
-              item.content,
-            ]);
-            if (lyricsData) {
-              fromData.lyricsData = lyricsData;
-            }
-          }
-          if (fromData.lyricsData) {
-            const val = _subtitles[0].id_str;
-            subtitle.value = [val];
-            lyricsRecord.label = _subtitles[0].lan_doc;
+          const preferredLanguage = getActiveDefaultRule()?.lyrics;
+          const selected = selectSubtitleForAuto(_subtitles, preferredLanguage);
+          if (selected) {
+            subtitle.value = [selected.id_str];
+            lyricsRecord.label = selected.lan_doc;
+            fromData.lyricsData = subtitleToLyrics(selected);
           }
 
           emits("next");
