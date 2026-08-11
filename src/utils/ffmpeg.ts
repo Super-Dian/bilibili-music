@@ -116,7 +116,19 @@ async function fetchWithTimeout(url: string, signal?: AbortSignal) {
     ASSET_TIMEOUT_MS,
   );
   try {
-    return await fetch(url, { signal: controller.signal, cache: "no-cache" });
+    const response = await fetch(url, { signal: controller.signal, cache: "no-cache" });
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText}`);
+    }
+    const bytes = await response.arrayBuffer();
+    return {
+      bytes,
+      responseInit: {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      } satisfies ResponseInit,
+    };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
@@ -130,6 +142,7 @@ async function readAsset(
   onProgress?: (message: string) => void,
 ) {
   let response: Response | undefined;
+  let bytes: ArrayBuffer;
   let fromCache = false;
   let cache: Cache | undefined;
   if (typeof caches !== "undefined") {
@@ -143,21 +156,20 @@ async function readAsset(
   }
 
   if (!response) {
-    response = await fetchWithTimeout(url, signal);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} ${response.statusText}`);
-    }
+    const downloaded = await fetchWithTimeout(url, signal);
+    bytes = downloaded.bytes;
     if (cache) {
-      try {
-        await cache.put(url, response.clone());
-      } catch (error) {
-        logger.warn("写入 FFmpeg 缓存失败", error);
-      }
+      const cachedBytes = bytes.slice(0);
+      void cache
+        .put(url, new Response(cachedBytes, downloaded.responseInit))
+        .catch((error) => logger.warn("写入 FFmpeg 缓存失败", error));
     }
+  } else {
+    if (signal?.aborted) throw createAbortError();
+    bytes = await response.arrayBuffer();
   }
   if (signal?.aborted) throw createAbortError();
   onProgress?.(fromCache ? "命中本地缓存" : "下载完成，写入缓存");
-  const bytes = await response.arrayBuffer();
   const objectUrl = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
   return { objectUrl, fromCache };
 }
@@ -310,8 +322,7 @@ export function terminateFFmpeg() {
   diagnostics = { ...preflightFFmpegEnvironment(), loaded: false };
 }
 
-export async function cleanupFFmpegFiles(fileNames: string[]) {
-  const instance = getFFmpeg();
+export async function cleanupFFmpegFiles(instance: FFmpeg, fileNames: string[]) {
   await Promise.all(
     fileNames.map(async (fileName) => {
       try {

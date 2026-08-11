@@ -3,12 +3,10 @@ import { ClipRanges, fromData, Lyrics } from "@/data";
 import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
-import { GM_setValue } from "$";
-import { saveAs } from "file-saver";
+import { GM_download, GM_setValue } from "$";
 import {
   cleanupFFmpegFiles,
   ffmpegLoad,
-  getFFmpeg,
   getFFmpegDiagnostics,
   terminateFFmpeg,
 } from "@/utils/ffmpeg";
@@ -28,6 +26,7 @@ import {
   updateTaskCenterRuntime,
 } from "@/taskCenter";
 import { downloadBinary, isAbortError } from "@/utils/download";
+import { saveDownload } from "@/utils/save";
 
 const steps = [
   "获取音频",
@@ -45,6 +44,9 @@ const loadMsg = ref("");
 const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
 let downloadTriggered = false;
 let operationController: AbortController | null = null;
+let downloadController: AbortController | null = null;
+let externalLyricsDownload: { blob: Blob; fileName: string } | null = null;
+const saving = ref(false);
 
 function activeTaskId() {
   return episodeSession.activeVideoData?._wasmMusicTaskId;
@@ -56,6 +58,7 @@ function reportTask(stage: string, progress?: number | null) {
 
 function cancelCurrentOperation() {
   operationController?.abort();
+  downloadController?.abort();
   terminateFFmpeg();
   updateTaskCenterRuntime({
     ffmpegStatus: "idle",
@@ -159,8 +162,13 @@ async function main() {
   error.value = null;
   fileBlob.value = undefined;
   downloadTriggered = false;
+  saving.value = false;
+  externalLyricsDownload = null;
   operationController?.abort();
+  downloadController?.abort();
+  downloadController = null;
   const controller = new AbortController();
+  let operationFFmpeg: Awaited<ReturnType<typeof ffmpegLoad>> | null = null;
   operationController = controller;
   registerActiveEpisodeOperationCanceller(cancelCurrentOperation);
   beginDownloadTask(activeTaskId(), "获取音轨信息");
@@ -208,6 +216,7 @@ async function main() {
       reportTask(message, 8);
       updateTaskCenterRuntime({ ffmpegStatus: "loading", ffmpegMessage: message });
     }, controller.signal);
+    operationFFmpeg = ffmpeg;
     const ffmpegDiagnostics = getFFmpegDiagnostics();
     updateTaskCenterRuntime({
       ffmpegStatus: "ready",
@@ -232,7 +241,7 @@ async function main() {
       },
     });
     if (controller.signal.aborted) return;
-    await cleanupFFmpegFiles(["input.m4s", "cover.jpg", "output.m4a"]);
+    await cleanupFFmpegFiles(ffmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
     await ffmpeg.writeFile("input.m4s", audioBytes);
     stepIndex.value++;
     reportTask("分析剪辑、倍速与元数据", 58);
@@ -335,10 +344,10 @@ async function main() {
       ].join("\n");
 
       if (fromData.externalLyrics) {
-        // 外置歌词：单独下载 .lrc 文件，不嵌入音频
+        // 外置歌词延后到音频保存阶段，并与音频一起等待可观测的下载结果。
         const lrcBlob = new Blob([lrcString], { type: "text/lrc;charset=utf-8" });
         const lrcFileName = (fromData.file ?? "bilibili_music").replace(/\.\w+$/, "") + ".lrc";
-        saveAs(lrcBlob, lrcFileName);
+        externalLyricsDownload = { blob: lrcBlob, fileName: lrcFileName };
       } else {
         metadataArgs.push("-metadata", `lyrics=${lrcString}`);
       }
@@ -411,53 +420,81 @@ async function main() {
       operationController = null;
       registerActiveEpisodeOperationCanceller(null);
     }
-    await cleanupFFmpegFiles(["input.m4s", "cover.jpg", "output.m4a"]);
+    if (operationFFmpeg) {
+      await cleanupFFmpegFiles(operationFFmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
+    }
   }
   if (fromData.usedefaultconfig) {
     fromData.usedefaultconfig = false;
   }
 }
 
-const download = () => {
-  if (!fileBlob.value) {
+const download = async () => {
+  const audioSource = fileBlob.value;
+  if (!audioSource) {
     handleAudioFailure("文件为空");
     return;
   }
-  if (episodeSession.isBatch && downloadTriggered) {
+  if (saving.value || downloadTriggered) {
     return;
   }
   downloadTriggered = true;
-  const url =
-    typeof fileBlob.value === "string" ? fileBlob.value : URL.createObjectURL(fileBlob.value);
+  saving.value = true;
+  if (!episodeSession.isBatch) {
+    error.value = null;
+  }
+  beginDownloadTask(activeTaskId(), "正在保存音频文件");
+  const controller = new AbortController();
+  downloadController = controller;
+  registerActiveEpisodeOperationCanceller(cancelCurrentOperation);
   const baseFileName = fromData.file || "bilibili_music.m4a";
   const pagePrefix =
     episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
     `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
-  const finalFileName = episodeSession.isBatch ? `${pagePrefix}_${baseFileName}` : baseFileName;
-
-  // GM_download({
-  //   url,
-  //   name: fromData.file ?? "bilibili_music.m4a",
-  //   downloadMode: "browser",
-  // } as GmDownloadRequest & { [key: string]: any });
-
+  const withBatchPrefix = (fileName: string) =>
+    episodeSession.isBatch ? `${pagePrefix}_${fileName}` : fileName;
+  const finalFileName = withBatchPrefix(baseFileName);
   try {
-    const link = document.createElement("a");
-    link.download = finalFileName;
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    reportTask("正在保存音频文件", 99);
+    loadMsg.value = "正在等待浏览器确认音频文件已保存…";
+    await saveDownload(GM_download, audioSource, finalFileName, {
+      signal: controller.signal,
+      onProgress: ({ percent }) => {
+        reportTask(
+          percent === null ? "正在保存音频文件" : `正在保存音频文件（${Math.round(percent)}%）`,
+          99,
+        );
+      },
+    });
+    if (externalLyricsDownload) {
+      reportTask("正在保存外置歌词", 99);
+      loadMsg.value = "音频已保存，正在等待浏览器确认歌词文件已保存…";
+      await saveDownload(
+        GM_download,
+        externalLyricsDownload.blob,
+        withBatchPrefix(externalLyricsDownload.fileName),
+        { signal: controller.signal },
+      );
+    }
   } catch (downloadError) {
-    if (typeof fileBlob.value !== "string") {
-      URL.revokeObjectURL(url);
+    if (!episodeSession.isBatch) {
+      downloadTriggered = false;
+    }
+    if (controller.signal.aborted || isAbortError(downloadError)) {
+      error.value = "任务已取消";
+      loadMsg.value = "";
+      return;
     }
     handleAudioFailure(downloadError);
     return;
+  } finally {
+    saving.value = false;
+    if (downloadController === controller) {
+      downloadController = null;
+      registerActiveEpisodeOperationCanceller(null);
+    }
   }
-  if (typeof fileBlob.value !== "string") {
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
+  loadMsg.value = "";
   if (episodeSession.isBatch && !episodeSession.manualEach) {
     if (!episodeSession.rule) {
       episodeSession.rule = clone(fromData.record);
@@ -503,7 +540,9 @@ const saveDefault = () => {
       </template>
       <template #extra>
         <a-space v-if="stepIndex === steps.length - 1">
-          <a-button @click="download">开始下载</a-button>
+          <a-button @click="download" :disabled="saving">
+            {{ saving ? "正在保存…" : "开始下载" }}
+          </a-button>
         </a-space>
       </template>
     </a-result>

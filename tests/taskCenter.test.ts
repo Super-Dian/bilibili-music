@@ -111,6 +111,21 @@ describe("download task state machine", () => {
     });
   });
 
+  test("a failed single-file save can re-enter running state for a manual retry", () => {
+    const [id] = taskCenter.startDownloadTaskBatch(seeds.slice(0, 1));
+    taskCenter.beginDownloadTask(id, "首次保存");
+    taskCenter.failDownloadTask(id, "下载权限被拒绝");
+
+    expect(taskCenter.beginDownloadTask(id, "重新保存音频文件")).toBe(true);
+    const retried = taskCenter.getTaskCenterState().tasks[0];
+    expect(retried).toMatchObject({
+      status: "running",
+      stage: "重新保存音频文件",
+    });
+    expect(retried.error).toBeUndefined();
+    expect(retried.finishedAt).toBeUndefined();
+  });
+
   test("frequent progress updates are persisted through the throttled writer", async () => {
     const [id] = taskCenter.startDownloadTaskBatch(seeds.slice(0, 1));
     taskCenter.beginDownloadTask(id);
