@@ -2,6 +2,7 @@
 import { fromData } from "@/data";
 import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import Btn from "@/components/btn.vue";
+import { episodeSession } from "@/episode";
 
 interface DeletedSection {
   start: number;
@@ -321,7 +322,11 @@ const handleTimelineClick = (event: MouseEvent) => {
   }
 };
 
-const emits = defineEmits(["next"]);
+const emits = defineEmits(["next", "backToPicker"]);
+
+function backToPicker() {
+  emits("backToPicker");
+}
 
 function next() {
   fromData.clipRanges = deletedSections.value.map((section) => [
@@ -431,7 +436,13 @@ function next() {
         </a-list-item>
       </a-list>
     </a-spin>
-    <Btn :prevLabel="!isAuditioning ? '试听' : '暂停'" @next="next" @prev="startAudition" />
+    <div style="display: flex; justify-content: center; align-items: center; margin: 20px 0; gap: 10px">
+      <a-button v-if="episodeSession.hasMultiplePages" @click="backToPicker"> 返回选择 </a-button>
+      <a-button @click="startAudition">
+        {{ !isAuditioning ? '试听' : '暂停' }}
+      </a-button>
+      <a-button type="primary" @click="next"> 下一步 </a-button>
+    </div>
   </div>
 </template>
 
@@ -511,5 +522,17 @@ function next() {
   pointer-events: none; /* 防止提示框影响鼠标事件 */
   top: -30px; /* 调整提示框位置 */
   z-index: 1;
+}
+
+/* 深色模式：下拉框 */
+body[arco-theme="dark"] .montage-container select {
+  background: #2a2a2a;
+  color: #e0e0e0;
+  border-color: #555;
+}
+
+/* 深色模式：删除片段列表项边框 */
+body[arco-theme="dark"] .montage-container .arco-list-item {
+  border-color: #444;
 }
 </style>

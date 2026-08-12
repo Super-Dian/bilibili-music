@@ -51,6 +51,7 @@ interface EpisodeSession {
   failed: number;
   results: EpisodeDownloadResult[];
   settling: boolean;
+  hasMultiplePages: boolean;  // 视频是否有多个分P可供选择
 }
 
 interface BilibiliResponse<T> {
@@ -115,6 +116,7 @@ export const episodeSession: EpisodeSession = {
   failed: 0,
   results: [],
   settling: false,
+  hasMultiplePages: false,
 };
 
 let appLauncher: (() => MountedApp) | null = null;
@@ -866,6 +868,7 @@ export function stopEpisodeSession(showMessage = false) {
   cleanupMountedApp();
   episodeSession.activeVideoData = null;
   episodeSession.isBatch = false;
+  episodeSession.hasMultiplePages = false;
   episodeSession.auto = false;
   episodeSession.rule = null;
   episodeSession.total = 0;
@@ -921,6 +924,7 @@ export async function openMusicApp() {
     const savedRule = GM_getValue<RecordData | null>("default_rule");
     episodeSession.queue = selectedEpisodes;
     episodeSession.isBatch = selectedEpisodes.length > 1;
+    episodeSession.hasMultiplePages = episodes.length > 1;  // 视频有多个分P
     episodeSession.auto = episodeSession.isBatch && selection.useDefault && Boolean(savedRule);
     episodeSession.rule = episodeSession.auto ? clone(savedRule) : null;
     episodeSession.total = selectedEpisodes.length;

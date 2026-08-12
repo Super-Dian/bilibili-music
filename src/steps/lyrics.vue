@@ -859,13 +859,7 @@ function editLyrics(item: SubTitle) {
 
                     <div
                       v-if="item.data"
-                      style="
-                        width: 100%;
-                        height: 280px;
-                        white-space: break-spaces;
-                        overflow-y: scroll;
-                        color: #4f4d4d;
-                      "
+                      class="lyrics-preview-text"
                     >
                       {{
                         subtitleEdit &&
@@ -1005,12 +999,9 @@ function editLyrics(item: SubTitle) {
                 <span
                   v-for="(part, index) in onlineLyricsDiff"
                   :key="index"
-                  :style="{
-                    backgroundColor: part.added
-                      ? '#e6ffe6'
-                      : part.removed
-                        ? '#ffe6e6'
-                        : 'transparent',
+                  :class="{
+                    'diff-added': part.added,
+                    'diff-removed': part.removed,
                   }"
                   >{{ part.value }}</span
                 >
@@ -1100,12 +1091,9 @@ function editLyrics(item: SubTitle) {
               <span
                 v-for="(part, index) in aiLyricsDiff"
                 :key="index"
-                :style="{
-                  backgroundColor: part.added
-                    ? '#e6ffe6'
-                    : part.removed
-                      ? '#ffe6e6'
-                      : 'transparent',
+                :class="{
+                  'diff-added': part.added,
+                  'diff-removed': part.removed,
                 }"
                 >{{ part.value }}</span
               >
@@ -1130,6 +1118,19 @@ function editLyrics(item: SubTitle) {
   max-height: 60vh;
   overflow-y: auto;
 }
+.lyrics-preview-text {
+  width: 100%;
+  height: 280px;
+  white-space: break-spaces;
+  overflow-y: scroll;
+  color: #4f4d4d;
+}
+
+/* 深色模式：歌词预览文字 */
+body[arco-theme="dark"] .lyrics-preview-text {
+  color: #b0b5bb;
+}
+
 .lyrics-left-textarea .arco-textarea {
   resize: none;
 }
@@ -1207,5 +1208,33 @@ function editLyrics(item: SubTitle) {
   font-size: 14px;
   line-height: 1.5715;
   font-family: var(--bew-font-family, var(--bew-fonts-mandarin-cn));
+}
+
+/* 差异高亮样式 */
+.diff-added {
+  background-color: #e6ffe6;
+  color: #1a1a1a;
+}
+
+.diff-removed {
+  background-color: #ffe6e6;
+  color: #1a1a1a;
+}
+
+/* 深色模式：差异容器背景 */
+body[arco-theme="dark"] .diff-container-textarea {
+  background: #2a2a2a;
+  color: #e0e0e0;
+}
+
+/* 深色模式：差异高亮色 */
+body[arco-theme="dark"] .diff-added {
+  background-color: #1a3a1a;
+  color: #90ee90;
+}
+
+body[arco-theme="dark"] .diff-removed {
+  background-color: #3a1a1a;
+  color: #ff6b6b;
 }
 </style>

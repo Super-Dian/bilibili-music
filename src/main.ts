@@ -4,12 +4,26 @@ import { GM_getResourceURL, GM_registerMenuCommand, unsafeWindow } from "$";
 import { createApp } from "vue";
 
 import App from "@/App.vue";
-import { defaultData } from "@/data";
+import { defaultData, userConfig } from "@/data";
 import { configureEpisodeAppLauncher, openMusicApp } from "@/episode";
 import { drop } from "@/utils/drop";
 import { logger } from "@/utils/logger";
 
 import elmGetter from "./utils/elmGetter";
+
+/** 应用深色模式到 DOM */
+export function applyDarkMode(dark: boolean) {
+  if (document.body) {
+    document.body.setAttribute("arco-theme", dark ? "dark" : "light");
+  }
+}
+
+// DOM 就绪后应用深色模式
+if (document.body) {
+  applyDarkMode(userConfig.darkMode);
+} else {
+  document.addEventListener("DOMContentLoaded", () => applyDarkMode(userConfig.darkMode));
+}
 
 GM_getResourceURL("wasm_music_backend_bg");
 

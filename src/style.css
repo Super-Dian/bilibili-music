@@ -223,10 +223,21 @@
   border-color: #00aeec;
 }
 
-.wasm-music-episode-row input {
+.wasm-music-episode-mask .wasm-music-episode-row input[type="checkbox"] {
   width: 16px;
   height: 16px;
   accent-color: #00aeec;
+  -webkit-appearance: auto;
+  appearance: auto;
+  background-color: #fff !important;
+  border: 2px solid #c9ccd0 !important;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.wasm-music-episode-mask .wasm-music-episode-row input[type="checkbox"]:checked {
+  background-color: #00aeec !important;
+  border-color: #00aeec !important;
 }
 
 .wasm-music-episode-index {
@@ -393,4 +404,88 @@ body[arco-theme="dark"] .wasm-music-episode-filter {
 body[arco-theme="dark"] .wasm-music-episode-btn {
   color: #f1f2f3;
   border-color: #555;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-mask .wasm-music-episode-row input[type="checkbox"] {
+  background-color: #2a2a2a !important;
+  border-color: #555 !important;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-mask .wasm-music-episode-row input[type="checkbox"]:checked {
+  background-color: #00aeec !important;
+  border-color: #00aeec !important;
+}
+
+/* 多BV选择界面标题深色模式 */
+body[arco-theme="dark"] .wasm-music-episode-title {
+  color: #f1f2f3;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-subtitle {
+  color: #a0a4a8;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-name {
+  color: #e0e0e0;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-time {
+  color: #a0a4a8;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-current {
+  color: #00aeec;
+  background: #173344;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-empty {
+  color: #a0a4a8;
+}
+
+body[arco-theme="dark"] .wasm-music-episode-page-info,
+body[arco-theme="dark"] .wasm-music-episode-count {
+  color: #a0a4a8;
+}
+
+/* ========== 主弹窗深色模式 ========== */
+
+.step-content {
+  background: var(--color-bg-3);
+  color: var(--color-text-2);
+}
+
+body[arco-theme="dark"] .step-content {
+  background: var(--color-bg-3) !important;
+  color: var(--color-text-2) !important;
+}
+
+body[arco-theme="dark"] .step-content .arco-form {
+  background: transparent;
+}
+
+body[arco-theme="dark"] .arco-modal {
+  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.4);
+}
+
+body[arco-theme="dark"] .custom-checkbox-card {
+  border-color: var(--color-border-3);
+  background: var(--color-bg-2);
+}
+
+body[arco-theme="dark"] .custom-checkbox-card-checked {
+  background: var(--color-primary-light-1);
+}
+
+body[arco-theme="dark"] .custom-checkbox-card-title {
+  color: var(--color-text-1);
+}
+
+body[arco-theme="dark"] .custom-checkbox-card:hover .custom-checkbox-card-title,
+body[arco-theme="dark"] .custom-checkbox-card-checked .custom-checkbox-card-title {
+  color: rgb(var(--primary-6));
+}
+
+/* 剪辑页深色模式 */
+body[arco-theme="dark"] .montage-container a {
+  color: var(--color-text-1);
 }
