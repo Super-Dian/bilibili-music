@@ -67,6 +67,7 @@ interface EpisodeSession {
   failed: number;
   results: EpisodeDownloadResult[];
   settling: boolean;
+  hasMultiplePages: boolean; // 视频是否有多个分P可供选择
   paused: boolean;
 }
 
@@ -136,6 +137,7 @@ export const episodeSession: EpisodeSession = {
   results: [],
   settling: false,
   paused: false,
+  hasMultiplePages: false,
 };
 
 let appLauncher: (() => MountedApp) | null = null;
@@ -1203,6 +1205,7 @@ export function stopEpisodeSession(showMessage = false, cancelTasks = true) {
   cleanupMountedApp();
   episodeSession.activeVideoData = null;
   episodeSession.isBatch = false;
+  episodeSession.hasMultiplePages = false;
   episodeSession.auto = false;
   episodeSession.manualEach = false;
   episodeSession.rule = null;
@@ -1356,6 +1359,7 @@ export async function openMusicApp() {
     });
     episodeSession.queue = selectedEpisodes;
     episodeSession.isBatch = isBatch;
+    episodeSession.hasMultiplePages = episodes.length > 1; // 视频有多个分P
     episodeSession.auto = automatic;
     episodeSession.manualEach = manualEach;
     episodeSession.rule = episodeSession.auto ? clone(savedRule) : null;

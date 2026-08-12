@@ -758,4 +758,14 @@ const saveDefault = () => {
     stroke-dashoffset: 97;
   }
 }
+
+/* 深色模式：加载动画背景色 */
+body[arco-theme="dark"] .loader {
+  --back-color: #555;
+}
+
+/* 深色模式：加载提示文字 */
+body[arco-theme="dark"] .load-msg {
+  color: #aaa;
+}
 </style>
