@@ -17,31 +17,17 @@ import elmGetter from "./utils/elmGetter";
 /** 检测页面是否处于深色模式 */
 function detectDarkMode(): boolean {
   const html = document.documentElement;
-  const body = document.body;
 
-  // 检查 html 的 class
-  const htmlClasses = html.className;
-  const bodyClasses = body?.className || "";
+  // 检查 html 的 class 列表
+  const classList = html.classList;
 
-  // 检查各种可能的深色模式标识
-  const isDark =
-    htmlClasses.includes("dark") ||
-    htmlClasses.includes("night") ||
-    htmlClasses.includes("theme-dark") ||
-    bodyClasses.includes("dark") ||
-    bodyClasses.includes("night") ||
-    html.getAttribute("data-theme") === "dark" ||
-    html.getAttribute("data-color-mode") === "dark" ||
-    html.getAttribute("data-dark-mode") === "true" ||
-    body?.getAttribute("data-theme") === "dark" ||
-    body?.getAttribute("data-color-mode") === "dark";
+  // 根据开发者说明：直接监听 html 的 class 当中 night-mode, dark 属性
+  const isDark = classList.contains("dark") || classList.contains("night-mode");
 
-  // 调试信息
   logger.debug("[DarkMode] detect:", {
-    htmlClasses,
-    bodyClasses,
-    dataTheme: html.getAttribute("data-theme"),
-    dataColorMode: html.getAttribute("data-color-mode"),
+    classes: html.className,
+    hasDark: classList.contains("dark"),
+    hasNightMode: classList.contains("night-mode"),
     result: isDark,
   });
 
@@ -57,33 +43,18 @@ function syncDarkMode() {
   }
 }
 
-// 监听页面 class 变化（html 和 body）
+// 监听 html class 变化
 const darkModeObserver = new MutationObserver(syncDarkMode);
 darkModeObserver.observe(document.documentElement, {
   attributes: true,
-  attributeFilter: ["class", "data-theme", "data-color-mode", "data-dark-mode"],
+  attributeFilter: ["class"],
 });
-
-// 也监听 body 的变化
-const bodyObserver = new MutationObserver(syncDarkMode);
 
 // 初始同步（DOM 就绪后）
 if (document.body) {
   syncDarkMode();
-  bodyObserver.observe(document.body, {
-    attributes: true,
-    attributeFilter: ["class", "data-theme", "data-color-mode", "data-dark-mode"],
-  });
 } else {
-  document.addEventListener("DOMContentLoaded", () => {
-    syncDarkMode();
-    if (document.body) {
-      bodyObserver.observe(document.body, {
-        attributes: true,
-        attributeFilter: ["class", "data-theme", "data-color-mode", "data-dark-mode"],
-      });
-    }
-  });
+  document.addEventListener("DOMContentLoaded", syncDarkMode);
 }
 
 GM_getResourceURL("wasm_music_backend_bg");
