@@ -424,8 +424,13 @@ function next() {
       </div>
 
       <!-- 删除片段列表 -->
-      <a-list :max-height="200">
-        <a-list-item v-for="section in deletedSections" :key="section.id">
+      <div class="deleted-list" style="max-height: 200px; overflow-y: auto; margin-top: 16px">
+        <div
+          v-for="section in deletedSections"
+          :key="section.id"
+          class="deleted-list-item"
+          style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #e3e5e7"
+        >
           <span style="margin-right: 10px">
             <a @click="seekTo(section.start)">{{ section.start.toFixed(2) }}s</a>
             -
@@ -434,8 +439,8 @@ function next() {
           <UiButton status="danger" @click="removeSection(section.id)">
             <template #icon> <icon-close /> </template
           ></UiButton>
-        </a-list-item>
-      </a-list>
+        </div>
+      </div>
     </a-spin>
     <div style="display: flex; justify-content: center; align-items: center; margin: 20px 0; gap: 10px">
       <UiButton v-if="episodeSession.hasMultiplePages" @click="backToPicker"> 返回选择 </UiButton>

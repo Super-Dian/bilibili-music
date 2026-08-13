@@ -1032,9 +1032,9 @@ function editLyrics(item: SubTitle) {
             style="margin-top: 10px; flex: 1; overflow: auto; width: 100%"
             :loading="aiRewriteLoading"
           >
-            <a-collapse style="margin-bottom: 10px">
-              <a-collapse-item header="自定义 Prompt" key="1">
-                <a-space style="margin-bottom: 10px">
+            <details style="margin-bottom: 10px; border: 1px solid #e3e5e7; border-radius: 6px; padding: 8px">
+              <summary style="cursor: pointer; font-weight: 500; margin-bottom: 10px">自定义 Prompt</summary>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px">
                   <a-button type="primary" @click="aiRewritePrompt += ' {{onlineLyrics}}'">
                     在线歌词
                   </a-button>
@@ -1048,7 +1048,7 @@ function editLyrics(item: SubTitle) {
                       添加弹幕
                     </a-button>
                   </a-button-group>
-                </a-space>
+                </div>
                 <a-textarea
                   v-model="aiRewritePrompt"
                   :auto-size="{
@@ -1056,8 +1056,7 @@ function editLyrics(item: SubTitle) {
                     maxRows: 10,
                   }"
                 />
-              </a-collapse-item>
-            </a-collapse>
+            </details>
             <div style="margin-bottom: 10px">
               <a-select v-model="lyricsBodySwitch.aiDiff">
                 >
