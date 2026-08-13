@@ -2,6 +2,7 @@
 import { fromData } from "@/data";
 import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import Btn from "@/components/btn.vue";
+import UiButton from "@/components/UiButton.vue";
 import { episodeSession } from "@/episode";
 
 interface DeletedSection {
@@ -357,30 +358,30 @@ function next() {
       <!-- 控制按钮 -->
       <div class="control-buttons">
         <div>
-          <a-button @click="endAtCurrent">从这开头</a-button>
-          <a-button @click="startFromCurrent">从这结尾</a-button>
+          <UiButton @click="endAtCurrent">从这开头</UiButton>
+          <UiButton @click="startFromCurrent">从这结尾</UiButton>
         </div>
         <div>
-          <a-button type="primary" @click="startRecording" :disabled="isRecording">
+          <UiButton type="primary" @click="startRecording" :disabled="isRecording">
             <template #icon>
               <icon-play-circle-fill v-if="!isPlaying" />
               <icon-pause-circle-fill v-else />
             </template>
             开始记录
-          </a-button>
-          <a-button @click="togglePlay">
+          </UiButton>
+          <UiButton @click="togglePlay">
             <template #icon>
               <icon-play-circle-fill v-if="!isPlaying" />
               <icon-pause-circle-fill v-else />
             </template>
-          </a-button>
-          <a-button @click="endRecording" :disabled="!isRecording" type="primary">
+          </UiButton>
+          <UiButton @click="endRecording" :disabled="!isRecording" type="primary">
             <template #icon>
               <icon-play-circle-fill v-if="!isPlaying" />
               <icon-pause-circle-fill v-else />
             </template>
             结束记录
-          </a-button>
+          </UiButton>
         </div>
       </div>
 
@@ -430,18 +431,18 @@ function next() {
             -
             <a @click="seekTo(section.end)">{{ section.end.toFixed(2) }}s</a>
           </span>
-          <a-button status="danger" @click="removeSection(section.id)">
+          <UiButton status="danger" @click="removeSection(section.id)">
             <template #icon> <icon-close /> </template
-          ></a-button>
+          ></UiButton>
         </a-list-item>
       </a-list>
     </a-spin>
     <div style="display: flex; justify-content: center; align-items: center; margin: 20px 0; gap: 10px">
-      <a-button v-if="episodeSession.hasMultiplePages" @click="backToPicker"> 返回选择 </a-button>
-      <a-button @click="startAudition">
+      <UiButton v-if="episodeSession.hasMultiplePages" @click="backToPicker"> 返回选择 </UiButton>
+      <UiButton @click="startAudition">
         {{ !isAuditioning ? '试听' : '暂停' }}
-      </a-button>
-      <a-button type="primary" @click="next"> 下一步 </a-button>
+      </UiButton>
+      <UiButton type="primary" @click="next"> 下一步 </UiButton>
     </div>
   </div>
 </template>

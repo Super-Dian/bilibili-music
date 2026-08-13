@@ -5,6 +5,7 @@ import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
+import UiButton from "@/components/UiButton.vue";
 import { fromData, normalizeRecordProcessingRule, reset, type RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
@@ -146,7 +147,7 @@ function onOpen() {
   >
     <template #title
       >音乐姬{{ ">_<" }}下载服务🎶
-      <a-button
+      <UiButton
         style="position: absolute; right: 20px"
         @click="fullscreen = !fullscreen"
         size="small"
@@ -155,16 +156,16 @@ function onOpen() {
           <icon-expand v-if="fullscreen" />
           <icon-shrink v-else />
         </template>
-      </a-button>
+      </UiButton>
     </template>
     <template #footer>
       <div style="display: flex; justify-content: space-between">
         <a-space>
-          <a-button @click="checkSide"> 侧栏 </a-button>
+          <UiButton @click="checkSide"> 侧栏 </UiButton>
         </a-space>
         <a-space>
-          <a-button @click="handleCancel"> 取消 </a-button>
-          <a-button type="primary" @click="handleOk"> 默认下载 </a-button>
+          <UiButton @click="handleCancel"> 取消 </UiButton>
+          <UiButton type="primary" @click="handleOk"> 默认下载 </UiButton>
         </a-space>
       </div>
     </template>

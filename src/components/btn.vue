@@ -1,11 +1,12 @@
 <script lang="ts" setup>
-import { Button } from "@arco-design/web-vue";
-type butProps = InstanceType<typeof Button>["$props"];
+import UiButton from "./UiButton.vue";
+
+type ButtonProps = InstanceType<typeof UiButton>["$props"];
 withDefaults(
   defineProps<{
-    prev?: butProps;
+    prev?: ButtonProps;
     prevLabel?: string;
-    next?: butProps;
+    next?: ButtonProps;
     nextLabel?: string;
   }>(),
   {
@@ -16,19 +17,19 @@ withDefaults(
 </script>
 
 <template>
-  <div
-    :style="{
-      display: 'flex',
-      justifyContent: 'center',
-      alignItems: 'center',
-      margin: '20px 0',
-    }"
-  >
-    <a-button v-bind="prev" @click="$emit('prev')" style="margin-right: 10px">
+  <div class="btn-group">
+    <UiButton v-bind="prev" @click="$emit('prev')" style="margin-right: 10px">
       {{ prevLabel }}
-    </a-button>
-    <a-button v-bind="next" @click="$emit('next')">{{ nextLabel }}</a-button>
+    </UiButton>
+    <UiButton v-bind="next" @click="$emit('next')">{{ nextLabel }}</UiButton>
   </div>
 </template>
 
-<style lang="scss" scoped></style>
+<style scoped>
+.btn-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+}
+</style>
