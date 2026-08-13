@@ -17,33 +17,73 @@ import elmGetter from "./utils/elmGetter";
 /** 检测页面是否处于深色模式 */
 function detectDarkMode(): boolean {
   const html = document.documentElement;
-  return (
-    html.classList.contains("dark") ||
-    html.classList.contains("night-mode") ||
+  const body = document.body;
+
+  // 检查 html 的 class
+  const htmlClasses = html.className;
+  const bodyClasses = body?.className || "";
+
+  // 检查各种可能的深色模式标识
+  const isDark =
+    htmlClasses.includes("dark") ||
+    htmlClasses.includes("night") ||
+    htmlClasses.includes("theme-dark") ||
+    bodyClasses.includes("dark") ||
+    bodyClasses.includes("night") ||
     html.getAttribute("data-theme") === "dark" ||
-    html.getAttribute("data-dark-mode") === "true"
-  );
+    html.getAttribute("data-color-mode") === "dark" ||
+    html.getAttribute("data-dark-mode") === "true" ||
+    body?.getAttribute("data-theme") === "dark" ||
+    body?.getAttribute("data-color-mode") === "dark";
+
+  // 调试信息
+  logger.debug("[DarkMode] detect:", {
+    htmlClasses,
+    bodyClasses,
+    dataTheme: html.getAttribute("data-theme"),
+    dataColorMode: html.getAttribute("data-color-mode"),
+    result: isDark,
+  });
+
+  return isDark;
 }
 
 /** 同步深色模式到 Arco 主题 */
 function syncDarkMode() {
   if (document.body) {
-    document.body.setAttribute("arco-theme", detectDarkMode() ? "dark" : "light");
+    const isDark = detectDarkMode();
+    document.body.setAttribute("arco-theme", isDark ? "dark" : "light");
+    logger.debug("[DarkMode] synced:", isDark ? "dark" : "light");
   }
 }
 
-// 监听页面 class 变化
+// 监听页面 class 变化（html 和 body）
 const darkModeObserver = new MutationObserver(syncDarkMode);
 darkModeObserver.observe(document.documentElement, {
   attributes: true,
-  attributeFilter: ["class", "data-theme", "data-dark-mode"],
+  attributeFilter: ["class", "data-theme", "data-color-mode", "data-dark-mode"],
 });
+
+// 也监听 body 的变化
+const bodyObserver = new MutationObserver(syncDarkMode);
 
 // 初始同步（DOM 就绪后）
 if (document.body) {
   syncDarkMode();
+  bodyObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ["class", "data-theme", "data-color-mode", "data-dark-mode"],
+  });
 } else {
-  document.addEventListener("DOMContentLoaded", syncDarkMode);
+  document.addEventListener("DOMContentLoaded", () => {
+    syncDarkMode();
+    if (document.body) {
+      bodyObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["class", "data-theme", "data-color-mode", "data-dark-mode"],
+      });
+    }
+  });
 }
 
 GM_getResourceURL("wasm_music_backend_bg");
