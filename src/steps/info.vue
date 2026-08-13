@@ -1,6 +1,9 @@
 <script lang="ts" setup>
 import { fromData } from "@/data";
 import Btn from "@/components/btn.vue";
+import UiInput from "@/components/UiInput.vue";
+import UiTextarea from "@/components/UiTextarea.vue";
+import UiFormItem from "@/components/UiFormItem.vue";
 import { GM_getValue, GM_setValue } from "$";
 import { getActiveDefaultRule, type EpisodeVideoData } from "@/episode";
 import { applyMetadataFormat } from "@/utils/format";
@@ -89,80 +92,87 @@ onMounted(() => {
 </script>
 
 <template>
-  <a-form auto-label-width :model="{}">
+  <div class="form-container">
     <template v-if="fromData.videoData">
-      <a-form-item label="标题(1)">
-        <a-input v-model="fromData.videoData.title" />
-      </a-form-item>
-      <a-form-item label="简介(2)">
-        <a-textarea
+      <UiFormItem label="标题(1)">
+        <UiInput v-model="fromData.videoData.title" />
+      </UiFormItem>
+      <UiFormItem label="简介(2)">
+        <UiTextarea
           v-model="fromData.videoData.desc"
-          :auto-size="{
-            minRows: 1,
-            maxRows: 3,
-          }"
+          :rows="3"
         />
-      </a-form-item>
-      <a-form-item label="Up主(3)">
-        <a-input v-model="fromData.videoData.owner.name" />
-      </a-form-item>
+      </UiFormItem>
+      <UiFormItem label="Up主(3)">
+        <UiInput v-model="fromData.videoData.owner.name" />
+      </UiFormItem>
     </template>
     <template v-if="fromData.data">
-      <a-form-item label="音乐名(4)">
-        <a-input v-model="fromData.data.music_title" />
-      </a-form-item>
-      <a-form-item label="原唱(5)">
-        <a-input v-model="fromData.data.origin_artist" />
-      </a-form-item>
+      <UiFormItem label="音乐名(4)">
+        <UiInput v-model="fromData.data.music_title" />
+      </UiFormItem>
+      <UiFormItem label="原唱(5)">
+        <UiInput v-model="fromData.data.origin_artist" />
+      </UiFormItem>
     </template>
 
-    <a-form-item label="内嵌标题">
-      <a-input v-model="fromData.title" />
-      <a-dropdown @select="handleTitleSelect">
-        <a-button type="primary">
-          <template #icon>
-            <icon-settings />
+    <UiFormItem label="内嵌标题">
+      <div style="display: flex; gap: 8px">
+        <UiInput v-model="fromData.title" />
+        <a-dropdown @select="handleTitleSelect">
+          <a-button type="primary">
+            <template #icon>
+              <icon-settings />
+            </template>
+          </a-button>
+          <template #content>
+            <a-doption v-for="item in titleSelects" :key="item">
+              {{ item }}
+            </a-doption>
           </template>
-        </a-button>
-        <template #content>
-          <a-doption v-for="item in titleSelects" :key="item">
-            {{ item }}
-          </a-doption>
-        </template>
-      </a-dropdown>
-    </a-form-item>
-    <a-form-item label="内嵌作者">
-      <a-input v-model="fromData.author" />
-      <a-dropdown @select="handleAuthorSelect">
-        <a-button type="primary">
-          <template #icon>
-            <icon-settings />
+        </a-dropdown>
+      </div>
+    </UiFormItem>
+    <UiFormItem label="内嵌作者">
+      <div style="display: flex; gap: 8px">
+        <UiInput v-model="fromData.author" />
+        <a-dropdown @select="handleAuthorSelect">
+          <a-button type="primary">
+            <template #icon>
+              <icon-settings />
+            </template>
+          </a-button>
+          <template #content>
+            <a-doption v-for="item in authorSelects" :key="item">
+              {{ item }}
+            </a-doption>
           </template>
-        </a-button>
-        <template #content>
-          <a-doption v-for="item in authorSelects" :key="item">
-            {{ item }}
-          </a-doption>
-        </template>
-      </a-dropdown>
-    </a-form-item>
-    <a-form-item label="下载文件名">
-      <a-input v-model="fromData.file" />
-      <a-dropdown @select="handleFileSelect">
-        <a-button type="primary">
-          <template #icon>
-            <icon-settings />
+        </a-dropdown>
+      </div>
+    </UiFormItem>
+    <UiFormItem label="下载文件名">
+      <div style="display: flex; gap: 8px">
+        <UiInput v-model="fromData.file" />
+        <a-dropdown @select="handleFileSelect">
+          <a-button type="primary">
+            <template #icon>
+              <icon-settings />
+            </template>
+          </a-button>
+          <template #content>
+            <a-doption v-for="item in fileSelects" :key="item">
+              {{ item }}
+            </a-doption>
           </template>
-        </a-button>
-        <template #content>
-          <a-doption v-for="item in fileSelects" :key="item">
-            {{ item }}
-          </a-doption>
-        </template>
-      </a-dropdown>
-    </a-form-item>
+        </a-dropdown>
+      </div>
+    </UiFormItem>
     <Btn @next="next" @prev="$emit('prev')" />
-  </a-form>
+  </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.form-container {
+  padding: 16px;
+}
+</style>

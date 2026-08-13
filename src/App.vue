@@ -207,13 +207,13 @@ function onOpen() {
     </template>
     <template #footer>
       <div style="display: flex; justify-content: space-between">
-        <a-space>
+        <div style="display: flex; gap: 8px">
           <UiButton @click="checkSide"> 侧栏 </UiButton>
-        </a-space>
-        <a-space>
+        </div>
+        <div style="display: flex; gap: 8px">
           <UiButton @click="handleCancel"> 取消 </UiButton>
           <UiButton type="primary" @click="handleOk"> 默认下载 </UiButton>
-        </a-space>
+        </div>
       </div>
     </template>
     <div
