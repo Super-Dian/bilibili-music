@@ -2,6 +2,19 @@ import { GM_getValue, unsafeWindow } from "$";
 import { Message } from "@arco-design/web-vue";
 
 import { fromData, type RecordData } from "@/data";
+import {
+  beginDownloadTask,
+  cancelDownloadTaskBatch,
+  completeDownloadTask,
+  configureTaskCenterActions,
+  failDownloadTask,
+  getInterruptedDownloadTasks,
+  getRetryableDownloadTasks,
+  getTaskCenterState,
+  prepareDownloadTaskRetry,
+  setDownloadTaskBatchPaused,
+  startDownloadTaskBatch,
+} from "@/taskCenter";
 import { clone } from "@/utils/deepmerge";
 import { logger } from "@/utils/logger";
 import { request } from "@/utils/requests";
@@ -11,6 +24,7 @@ export interface EpisodeVideoData extends VideoData {
   part?: string;
   first_frame?: string;
   _wasmMusicOriginalTitle?: string;
+  _wasmMusicCustomTitle?: string;
   _wasmMusicPickerLabel?: string;
   _wasmMusicPickerTitle?: string;
   _wasmMusicSectionTitle?: string;
@@ -19,6 +33,7 @@ export interface EpisodeVideoData extends VideoData {
   _wasmMusicHydrated?: boolean;
   _wasmMusicSkipMontage?: boolean;
   _wasmMusicSkipDomMetadata?: boolean;
+  _wasmMusicTaskId?: string;
 }
 
 interface MountedApp {
@@ -39,6 +54,7 @@ interface EpisodeSession {
   queue: EpisodeVideoData[];
   isBatch: boolean;
   auto: boolean;
+  manualEach: boolean;
   rule: RecordData | null;
   app: MountedApp["app"] | null;
   root: HTMLElement | null;
@@ -51,7 +67,8 @@ interface EpisodeSession {
   failed: number;
   results: EpisodeDownloadResult[];
   settling: boolean;
-  hasMultiplePages: boolean;  // 视频是否有多个分P可供选择
+  hasMultiplePages: boolean; // 视频是否有多个分P可供选择
+  paused: boolean;
 }
 
 interface BilibiliResponse<T> {
@@ -77,6 +94,8 @@ interface EpisodeLoadResult {
 interface EpisodeSelection {
   indexes: number[];
   useDefault: boolean;
+  manualEach: boolean;
+  titleOverrides: Record<number, string>;
 }
 
 type RawEpisode = Episode & {
@@ -104,6 +123,7 @@ export const episodeSession: EpisodeSession = {
   queue: [],
   isBatch: false,
   auto: false,
+  manualEach: false,
   rule: null,
   app: null,
   root: null,
@@ -116,13 +136,38 @@ export const episodeSession: EpisodeSession = {
   failed: 0,
   results: [],
   settling: false,
+  paused: false,
   hasMultiplePages: false,
 };
 
 let appLauncher: (() => MountedApp) | null = null;
+let activeOperationCanceller: (() => void) | null = null;
+let activeOperationCancellerGeneration = 0;
+let appTransitionHandler: ((videoData: EpisodeVideoData) => void | Promise<void>) | null = null;
 
 export function configureEpisodeAppLauncher(launcher: () => MountedApp) {
   appLauncher = launcher;
+}
+
+export function registerEpisodeAppTransitionHandler(
+  handler: (videoData: EpisodeVideoData) => void | Promise<void>,
+) {
+  appTransitionHandler = handler;
+  return () => {
+    if (appTransitionHandler === handler) {
+      appTransitionHandler = null;
+    }
+  };
+}
+
+export function registerActiveEpisodeOperationCanceller(canceller: (() => void) | null) {
+  const generation = ++activeOperationCancellerGeneration;
+  activeOperationCanceller = canceller;
+  return () => {
+    if (activeOperationCancellerGeneration === generation) {
+      activeOperationCanceller = null;
+    }
+  };
 }
 
 export function getActiveDefaultRule() {
@@ -311,6 +356,72 @@ async function hydrateSelectedEpisodes(episodes: EpisodeVideoData[]) {
   return output;
 }
 
+export function applyEpisodeTitleOverrides(
+  episodes: EpisodeVideoData[],
+  sourceIndexes: number[],
+  titleOverrides: Record<number, string>,
+) {
+  return episodes.map((episode, position) => {
+    const sourceIndex = sourceIndexes[position];
+    const customTitle = titleOverrides[sourceIndex]?.trim();
+    if (!customTitle) {
+      return episode;
+    }
+    const renamed = clone(episode);
+    renamed.title = customTitle;
+    renamed._wasmMusicCustomTitle = customTitle;
+    return renamed;
+  });
+}
+
+function createTaskEpisodePayload(episode: EpisodeVideoData) {
+  const payload = {
+    aid: episode.aid,
+    bvid: episode.bvid,
+    cid: episode.cid,
+    page: Number(episode.page) || 1,
+    part: episode.part,
+    title: episode.title,
+    desc: episode.desc || "",
+    pic: episode.pic || "",
+    owner: clone(episode.owner || { mid: 0, name: "", face: "" }),
+    stat: clone(episode.stat || ({} as Stat)),
+    pages: clone(episode.pages || []),
+    duration: episode.duration || 0,
+    dimension: clone(episode.dimension || {}),
+    first_frame: episode.first_frame,
+  } as EpisodeVideoData;
+  for (const [key, value] of Object.entries(episode)) {
+    if (key.startsWith("_wasmMusic") && key !== "_wasmMusicTaskId") {
+      (payload as unknown as Record<string, unknown>)[key] = clone(value);
+    }
+  }
+  payload._wasmMusicHydrated = true;
+  return payload as unknown as Record<string, unknown>;
+}
+
+function getEpisodeTaskLabel(episode: EpisodeVideoData) {
+  return (
+    episode._wasmMusicCustomTitle ||
+    episode._wasmMusicPickerTitle ||
+    episode.part ||
+    episode.title ||
+    episode.bvid ||
+    "未命名任务"
+  );
+}
+
+function formatEpisodeError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error === null || error === undefined) return "未知错误";
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "无法序列化的错误";
+  }
+}
+
 async function loadEpisodeData(): Promise<EpisodeLoadResult> {
   const playerVideoData = getPlayerVideoData();
   const pathBvid = location.pathname.match(/\/video\/(BV[\w]+)/i);
@@ -460,7 +571,9 @@ function showEpisodePicker(
     const selectedIndexes = new Set(
       currentIndex >= 0 && currentIndex < episodes.length ? [currentIndex] : [],
     );
+    const titleOverrides = new Map<number, string>();
     let activePage = Math.floor(Math.max(0, currentIndex) / pageSize) + 1;
+    let renameVisible = false;
 
     const mask = document.createElement("div");
     mask.className = "wasm-music-episode-mask";
@@ -495,7 +608,11 @@ function showEpisodePicker(
     clearButton.className = "wasm-music-episode-btn";
     clearButton.type = "button";
     clearButton.textContent = "清空选择";
-    tools.append(currentButton, allButton, clearButton);
+    const renameButton = document.createElement("button");
+    renameButton.className = "wasm-music-episode-btn";
+    renameButton.type = "button";
+    renameButton.textContent = "编辑所选标题";
+    tools.append(currentButton, allButton, clearButton, renameButton);
 
     const query = document.createElement("div");
     query.className = "wasm-music-episode-query";
@@ -539,8 +656,51 @@ function showEpisodePicker(
     nextButton.textContent = "下一页";
     pagination.append(previousButton, pageInfo, nextButton);
 
+    const renamePanel = document.createElement("section");
+    renamePanel.className = "wasm-music-episode-rename-panel";
+    renamePanel.hidden = true;
+    const renameHeader = document.createElement("div");
+    renameHeader.className = "wasm-music-episode-rename-header";
+    const renameHeading = document.createElement("strong");
+    renameHeading.textContent = "批量编辑下载标题";
+    const renameHint = document.createElement("span");
+    renameHint.textContent = "默认保留每个视频自己的标题，只修改你想改的项目即可。";
+    renameHeader.append(renameHeading, renameHint);
+    const renameBulk = document.createElement("div");
+    renameBulk.className = "wasm-music-episode-rename-bulk";
+    const prefixInput = document.createElement("input");
+    prefixInput.type = "text";
+    prefixInput.placeholder = "批量添加前缀";
+    prefixInput.setAttribute("aria-label", "批量标题前缀");
+    const prefixButton = document.createElement("button");
+    prefixButton.className = "wasm-music-episode-btn";
+    prefixButton.type = "button";
+    prefixButton.textContent = "添加前缀";
+    const suffixInput = document.createElement("input");
+    suffixInput.type = "text";
+    suffixInput.placeholder = "批量添加后缀";
+    suffixInput.setAttribute("aria-label", "批量标题后缀");
+    const suffixButton = document.createElement("button");
+    suffixButton.className = "wasm-music-episode-btn";
+    suffixButton.type = "button";
+    suffixButton.textContent = "添加后缀";
+    const resetTitlesButton = document.createElement("button");
+    resetTitlesButton.className = "wasm-music-episode-btn";
+    resetTitlesButton.type = "button";
+    resetTitlesButton.textContent = "全部恢复默认";
+    renameBulk.append(prefixInput, prefixButton, suffixInput, suffixButton, resetTitlesButton);
+    const renameList = document.createElement("div");
+    renameList.className = "wasm-music-episode-rename-list";
+    renamePanel.append(renameHeader, renameBulk, renameList);
+
     const options = document.createElement("div");
     options.className = "wasm-music-episode-options";
+    const manualEachLabel = document.createElement("label");
+    const manualEachInput = document.createElement("input");
+    manualEachInput.type = "checkbox";
+    const manualEachText = document.createElement("span");
+    manualEachText.textContent = "每个项目分别手动确认（可单独修改标题、作者、文件名、封面和字幕）";
+    manualEachLabel.append(manualEachInput, manualEachText);
     const autoLabel = document.createElement("label");
     const autoInput = document.createElement("input");
     autoInput.type = "checkbox";
@@ -548,14 +708,24 @@ function showEpisodePicker(
     autoInput.disabled = !savedRule;
     const autoText = document.createElement("span");
     autoText.textContent = savedRule
-      ? "使用已保存规则（命名、封面、字幕、剪辑范围与倍速）自动完成全部下载"
-      : "尚未保存默认规则：先手动设置第一项，其余项目复用命名、封面、字幕、剪辑范围与倍速";
+      ? "使用已保存规则（作者、封面、字幕、剪辑范围与倍速）自动完成；标题和文件名使用所选列表"
+      : "尚未保存默认规则：先手动设置第一项，其余项目复用作者、封面、字幕、剪辑范围与倍速";
     autoLabel.append(autoInput, autoText);
     const hint = document.createElement("p");
     hint.className = "wasm-music-episode-hint";
     hint.textContent =
-      "剪辑范围会按每个视频的实际时长处理。浏览器第一次批量下载时，可能会询问是否允许此网站下载多个文件。";
-    options.append(autoLabel, hint);
+      "每项默认使用分集列表里的自带标题；进入“编辑所选标题”可逐项修改或批量加前后缀。手动模式会在同一个窗口逐项停下来确认。";
+    options.append(manualEachLabel, autoLabel, hint);
+
+    manualEachInput.addEventListener("change", () => {
+      if (manualEachInput.checked) {
+        autoInput.checked = false;
+        autoInput.disabled = true;
+      } else {
+        autoInput.checked = Boolean(savedRule);
+        autoInput.disabled = !savedRule;
+      }
+    });
 
     const footer = document.createElement("div");
     footer.className = "wasm-music-episode-footer";
@@ -572,13 +742,33 @@ function showEpisodePicker(
     confirmButton.type = "button";
     actions.append(cancelButton, confirmButton);
     footer.append(count, actions);
-    dialog.append(header, tools, query, list, pagination, options, footer);
+    dialog.append(header, tools, query, list, pagination, renamePanel, options, footer);
     mask.appendChild(dialog);
     document.body.appendChild(mask);
     episodeSession.picker = mask;
 
     const getSelectedIndexes = () =>
       Array.from(selectedIndexes).sort((left, right) => left - right);
+    const getDefaultTitle = (index: number) => {
+      const episode = episodes[index];
+      return `${episode?._wasmMusicPickerTitle || episode?.part || episode?.title || episode?.bvid || `未命名${itemLabel}`}`;
+    };
+    const getEditedTitle = (index: number) =>
+      titleOverrides.has(index) ? titleOverrides.get(index)! : getDefaultTitle(index);
+    const setTitleOverride = (index: number, value: string) => {
+      if (value === getDefaultTitle(index)) {
+        titleOverrides.delete(index);
+      } else {
+        titleOverrides.set(index, value);
+      }
+    };
+    const getTitleOverrides = () =>
+      Object.fromEntries(
+        getSelectedIndexes().flatMap((index) => {
+          const value = getEditedTitle(index).trim();
+          return value ? [[index, value]] : [];
+        }),
+      );
     const getFilteredIndexes = () => {
       const keyword = searchInput.value.trim().toLowerCase();
       const category = filterSelect ? filterSelect.value : "";
@@ -604,16 +794,70 @@ function showEpisodePicker(
         })
         .map(({ index }) => index);
     };
+    const renderRenameList = () => {
+      renameList.replaceChildren();
+      const indexes = getSelectedIndexes();
+      if (indexes.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "wasm-music-episode-empty";
+        empty.textContent = `请先选择要下载的${itemLabel}`;
+        renameList.appendChild(empty);
+        return;
+      }
+
+      indexes.forEach((index) => {
+        const episode = episodes[index];
+        const row = document.createElement("div");
+        row.className = "wasm-music-episode-rename-row";
+        const meta = document.createElement("span");
+        meta.className = "wasm-music-episode-rename-meta";
+        meta.textContent = episode._wasmMusicPickerLabel || `P${episode.page || index + 1}`;
+        meta.title = episode.bvid || "";
+        const input = document.createElement("input");
+        input.type = "text";
+        input.value = getEditedTitle(index);
+        input.dataset.episodeIndex = `${index}`;
+        input.setAttribute("aria-label", `${meta.textContent} 下载标题`);
+        input.addEventListener("input", () => {
+          setTitleOverride(index, input.value);
+          updateCount();
+        });
+        const resetButton = document.createElement("button");
+        resetButton.className = "wasm-music-episode-btn";
+        resetButton.type = "button";
+        resetButton.textContent = "恢复";
+        resetButton.title = "恢复该项目的默认标题";
+        resetButton.addEventListener("click", () => {
+          titleOverrides.delete(index);
+          input.value = getDefaultTitle(index);
+          updateCount();
+        });
+        row.append(meta, input, resetButton);
+        renameList.appendChild(row);
+      });
+    };
     const updateCount = (resultCount = getFilteredIndexes().length) => {
       const selectedCount = selectedIndexes.size;
-      count.textContent =
+      const hasEmptyTitle = getSelectedIndexes().some((index) => !getEditedTitle(index).trim());
+      const countText =
         resultCount === episodes.length
           ? `已选择 ${selectedCount}/${episodes.length} 个${itemLabel}`
           : `已选择 ${selectedCount}/${episodes.length} 个${itemLabel} · 当前结果 ${resultCount}`;
+      count.textContent = hasEmptyTitle ? `${countText} · 请补全空标题` : countText;
       confirmButton.textContent =
         selectedCount > 1 ? `批量下载（${selectedCount}）` : `下载所选${itemLabel}`;
-      confirmButton.disabled = selectedCount === 0;
+      confirmButton.disabled = selectedCount === 0 || hasEmptyTitle;
       options.style.display = selectedCount > 1 ? "block" : "none";
+      renameButton.disabled = selectedCount === 0;
+      if (selectedCount === 0) {
+        renameVisible = false;
+      }
+      renameButton.textContent = renameVisible
+        ? "返回选择列表"
+        : `编辑所选标题${selectedCount ? `（${selectedCount}）` : ""}`;
+      query.hidden = renameVisible;
+      list.hidden = renameVisible;
+      renamePanel.hidden = !renameVisible;
     };
     const renderList = () => {
       const filteredIndexes = getFilteredIndexes();
@@ -643,6 +887,7 @@ function showEpisodePicker(
             } else {
               selectedIndexes.delete(index);
             }
+            renderRenameList();
             updateCount(filteredIndexes.length);
           });
           const pageIndex = document.createElement("span");
@@ -668,11 +913,12 @@ function showEpisodePicker(
         });
       }
 
-      pagination.style.display = totalPages > 1 ? "flex" : "none";
+      pagination.hidden = renameVisible || totalPages <= 1;
       pageInfo.textContent = `第 ${activePage}/${totalPages} 页 · 共 ${filteredIndexes.length} 项`;
       previousButton.disabled = activePage <= 1;
       nextButton.disabled = activePage >= totalPages;
       allButton.disabled = filteredIndexes.length === 0;
+      renderRenameList();
       updateCount(filteredIndexes.length);
     };
 
@@ -710,6 +956,46 @@ function showEpisodePicker(
       selectedIndexes.clear();
       renderList();
     });
+    renameButton.addEventListener("click", () => {
+      if (selectedIndexes.size === 0) {
+        return;
+      }
+      renameVisible = !renameVisible;
+      renderList();
+      if (renameVisible) {
+        renameList.querySelector<HTMLInputElement>("input")?.focus();
+      }
+    });
+    const applyAffix = (position: "prefix" | "suffix", value: string) => {
+      if (!value) {
+        return;
+      }
+      getSelectedIndexes().forEach((index) => {
+        const title = getEditedTitle(index);
+        setTitleOverride(index, position === "prefix" ? `${value}${title}` : `${title}${value}`);
+      });
+      renderRenameList();
+      updateCount();
+    };
+    prefixButton.addEventListener("click", () => applyAffix("prefix", prefixInput.value));
+    suffixButton.addEventListener("click", () => applyAffix("suffix", suffixInput.value));
+    prefixInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        applyAffix("prefix", prefixInput.value);
+      }
+    });
+    suffixInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        applyAffix("suffix", suffixInput.value);
+      }
+    });
+    resetTitlesButton.addEventListener("click", () => {
+      getSelectedIndexes().forEach((index) => titleOverrides.delete(index));
+      renderRenameList();
+      updateCount();
+    });
     searchInput.addEventListener("input", () => {
       activePage = 1;
       renderList();
@@ -730,7 +1016,9 @@ function showEpisodePicker(
     confirmButton.addEventListener("click", () =>
       close({
         indexes: getSelectedIndexes(),
-        useDefault: autoInput.checked && !autoInput.disabled,
+        useDefault: !manualEachInput.checked && autoInput.checked && !autoInput.disabled,
+        manualEach: manualEachInput.checked,
+        titleOverrides: getTitleOverrides(),
       }),
     );
     document.addEventListener("keydown", onKeyDown, true);
@@ -752,7 +1040,10 @@ function cleanupMountedApp() {
 }
 
 function launchNextEpisode() {
-  cleanupMountedApp();
+  if (episodeSession.paused) {
+    setDownloadTaskBatchPaused(true);
+    return;
+  }
   const nextVideoData = episodeSession.queue.shift();
   if (!nextVideoData) {
     return;
@@ -763,6 +1054,28 @@ function launchNextEpisode() {
 
   episodeSession.activeVideoData = nextVideoData;
   episodeSession.settling = false;
+  beginDownloadTask(
+    nextVideoData._wasmMusicTaskId,
+    episodeSession.auto ? "正在应用预设" : "等待用户确认设置",
+  );
+
+  if (episodeSession.app && episodeSession.root && appTransitionHandler) {
+    try {
+      void Promise.resolve(appTransitionHandler(nextVideoData)).catch((error) => {
+        logger.error("在现有下载窗口中切换分集失败", error);
+        failEpisodeDownload(error);
+      });
+      return;
+    } catch (error) {
+      logger.error("在现有下载窗口中切换分集失败", error);
+      if (failEpisodeDownload(error)) {
+        return;
+      }
+    }
+  }
+
+  // 首项需要创建窗口；只有窗口异常丢失或未注册切换处理器时才回退重建。
+  cleanupMountedApp();
   try {
     const { app, root } = appLauncher();
     episodeSession.root = root;
@@ -775,25 +1088,29 @@ function launchNextEpisode() {
   }
 }
 
-function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unknown) {
+function finishEpisodeItem(
+  status: EpisodeDownloadResult["status"],
+  error?: unknown,
+  outputName?: string,
+) {
   const activeVideoData = episodeSession.activeVideoData;
   if (!episodeSession.isBatch || !activeVideoData || episodeSession.settling) {
     return false;
   }
 
   episodeSession.settling = true;
+  if (status === "success") {
+    completeDownloadTask(activeVideoData._wasmMusicTaskId, outputName);
+  } else {
+    failDownloadTask(activeVideoData._wasmMusicTaskId, error);
+  }
   episodeSession.completed++;
   if (status === "success") {
     episodeSession.succeeded++;
   } else {
     episodeSession.failed++;
   }
-  const errorMessage =
-    status === "failed"
-      ? error instanceof Error
-        ? error.message
-        : JSON.stringify(error)
-      : undefined;
+  const errorMessage = status === "failed" ? formatEpisodeError(error) : undefined;
   const label =
     activeVideoData._wasmMusicPickerTitle ||
     activeVideoData.part ||
@@ -812,8 +1129,13 @@ function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unkn
 
   episodeSession.advanceTimer = setTimeout(() => {
     episodeSession.advanceTimer = null;
-    cleanupMountedApp();
     if (episodeSession.queue.length > 0) {
+      if (episodeSession.paused) {
+        episodeSession.activeVideoData = null;
+        setDownloadTaskBatchPaused(true);
+        Message.info("下载队列已暂停，可从任务中心继续");
+        return;
+      }
       launchNextEpisode();
       return;
     }
@@ -826,6 +1148,7 @@ function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unkn
     episodeSession.activeVideoData = null;
     episodeSession.isBatch = false;
     episodeSession.auto = false;
+    episodeSession.manualEach = false;
     episodeSession.rule = null;
     episodeSession.total = 0;
     episodeSession.completed = 0;
@@ -833,6 +1156,8 @@ function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unkn
     episodeSession.failed = 0;
     episodeSession.results = [];
     episodeSession.settling = false;
+    episodeSession.paused = false;
+    cleanupMountedApp();
     const summary = `批量下载任务已完成：成功 ${succeeded}，失败 ${failed}，共 ${total} 项`;
     if (failed > 0) {
       Message.warning(summary);
@@ -843,21 +1168,33 @@ function finishEpisodeItem(status: EpisodeDownloadResult["status"], error?: unkn
   return true;
 }
 
-export function finishEpisodeDownload() {
-  return finishEpisodeItem("success");
+export function finishEpisodeDownload(outputName?: string) {
+  if (!episodeSession.isBatch) {
+    return completeDownloadTask(episodeSession.activeVideoData?._wasmMusicTaskId, outputName);
+  }
+  return finishEpisodeItem("success", undefined, outputName);
 }
 
 export function failEpisodeDownload(error: unknown) {
+  if (!episodeSession.isBatch) {
+    return failDownloadTask(episodeSession.activeVideoData?._wasmMusicTaskId, error);
+  }
   return finishEpisodeItem("failed", error);
 }
 
-export function stopEpisodeSession(showMessage = false) {
+export function stopEpisodeSession(showMessage = false, cancelTasks = true) {
   const hadTask = Boolean(
     episodeSession.root ||
     episodeSession.picker ||
     episodeSession.queue.length ||
     episodeSession.activeVideoData,
   );
+  try {
+    activeOperationCanceller?.();
+  } catch (error) {
+    logger.warn("取消当前音频操作失败", error);
+  }
+  activeOperationCanceller = null;
   if (episodeSession.advanceTimer) {
     clearTimeout(episodeSession.advanceTimer);
     episodeSession.advanceTimer = null;
@@ -870,6 +1207,7 @@ export function stopEpisodeSession(showMessage = false) {
   episodeSession.isBatch = false;
   episodeSession.hasMultiplePages = false;
   episodeSession.auto = false;
+  episodeSession.manualEach = false;
   episodeSession.rule = null;
   episodeSession.total = 0;
   episodeSession.completed = 0;
@@ -877,10 +1215,81 @@ export function stopEpisodeSession(showMessage = false) {
   episodeSession.failed = 0;
   episodeSession.results = [];
   episodeSession.settling = false;
+  episodeSession.paused = false;
   episodeSession.opening = false;
+  if (cancelTasks) {
+    cancelDownloadTaskBatch("用户取消");
+  }
   if (showMessage && hadTask) {
     Message.info("下载任务已取消");
   }
+}
+
+export function pauseEpisodeSession() {
+  if (
+    !episodeSession.isBatch ||
+    (!episodeSession.activeVideoData && !episodeSession.queue.length)
+  ) {
+    Message.info("当前没有可暂停的批量队列");
+    return;
+  }
+  episodeSession.paused = true;
+  setDownloadTaskBatchPaused(true);
+  Message.info(episodeSession.activeVideoData ? "将在当前项目完成后暂停队列" : "下载队列已暂停");
+}
+
+export function resumeEpisodeSession() {
+  if (!episodeSession.paused) return;
+  episodeSession.paused = false;
+  setDownloadTaskBatchPaused(false);
+  if (!episodeSession.activeVideoData && episodeSession.queue.length > 0) {
+    launchNextEpisode();
+  }
+  Message.info("下载队列已继续");
+}
+
+function startStoredDownloadTasks(
+  tasks: ReturnType<typeof getRetryableDownloadTasks>,
+  mode: "重试" | "继续",
+) {
+  if (tasks.length === 0) {
+    Message.info(mode === "重试" ? "没有失败任务可重试" : "没有中断任务可继续");
+    return;
+  }
+  const snapshot = getTaskCenterState();
+  stopEpisodeSession(false, false);
+  const episodes = tasks.map((task) => {
+    const episode = clone(task.payload) as unknown as EpisodeVideoData;
+    episode._wasmMusicTaskId = task.id;
+    episode._wasmMusicHydrated = true;
+    episode._wasmMusicCurrent = false;
+    episode._wasmMusicSkipMontage = true;
+    episode._wasmMusicSkipDomMetadata = true;
+    return episode;
+  });
+  prepareDownloadTaskRetry(tasks.map((task) => task.id));
+  episodeSession.queue = episodes;
+  episodeSession.isBatch = true;
+  episodeSession.auto = Boolean(snapshot.rule) && snapshot.automatic;
+  episodeSession.manualEach = Boolean(snapshot.manualEach);
+  episodeSession.rule = snapshot.rule ? (clone(snapshot.rule) as RecordData) : null;
+  episodeSession.total = episodes.length;
+  episodeSession.completed = 0;
+  episodeSession.succeeded = 0;
+  episodeSession.failed = 0;
+  episodeSession.results = [];
+  episodeSession.settling = false;
+  episodeSession.paused = false;
+  launchNextEpisode();
+  Message.info(`${mode} ${episodes.length} 个下载任务`);
+}
+
+export function retryFailedEpisodeTasks() {
+  startStoredDownloadTasks(getRetryableDownloadTasks(), "重试");
+}
+
+export function resumeInterruptedEpisodeTasks() {
+  startStoredDownloadTasks(getInterruptedDownloadTasks(), "继续");
 }
 
 function isEpisodePickerRoute() {
@@ -910,7 +1319,7 @@ export async function openMusicApp() {
     const selection =
       episodes.length > 1
         ? await showEpisodePicker(episodes, currentIndex, pickerMeta)
-        : { indexes: [0], useDefault: false };
+        : { indexes: [0], useDefault: false, manualEach: false, titleOverrides: {} };
     if (!selection || selection.indexes.length === 0) {
       return;
     }
@@ -920,12 +1329,39 @@ export async function openMusicApp() {
       Message.info(`正在读取所选 ${selectedEpisodes.length} 个视频的完整信息...`);
       selectedEpisodes = await hydrateSelectedEpisodes(selectedEpisodes);
     }
+    selectedEpisodes = applyEpisodeTitleOverrides(
+      selectedEpisodes,
+      selection.indexes,
+      selection.titleOverrides,
+    );
 
     const savedRule = GM_getValue<RecordData | null>("default_rule");
+    const isBatch = selectedEpisodes.length > 1;
+    const manualEach = isBatch && selection.manualEach;
+    const automatic = isBatch && !manualEach && selection.useDefault && Boolean(savedRule);
+    const taskIds = startDownloadTaskBatch(
+      selectedEpisodes.map((episode) => ({
+        bvid: episode.bvid,
+        page: Number(episode.page) || 1,
+        label: getEpisodeTaskLabel(episode),
+        prefix: episode._wasmMusicBatchPrefix,
+        payload: createTaskEpisodePayload(episode),
+      })),
+      {
+        title: pickerMeta.title || selectedEpisodes[0]?.title || "下载任务",
+        automatic,
+        manualEach,
+        rule: automatic ? savedRule : null,
+      },
+    );
+    selectedEpisodes.forEach((episode, index) => {
+      episode._wasmMusicTaskId = taskIds[index];
+    });
     episodeSession.queue = selectedEpisodes;
-    episodeSession.isBatch = selectedEpisodes.length > 1;
-    episodeSession.hasMultiplePages = episodes.length > 1;  // 视频有多个分P
-    episodeSession.auto = episodeSession.isBatch && selection.useDefault && Boolean(savedRule);
+    episodeSession.isBatch = isBatch;
+    episodeSession.hasMultiplePages = episodes.length > 1; // 视频有多个分P
+    episodeSession.auto = automatic;
+    episodeSession.manualEach = manualEach;
     episodeSession.rule = episodeSession.auto ? clone(savedRule) : null;
     episodeSession.total = selectedEpisodes.length;
     episodeSession.completed = 0;
@@ -933,6 +1369,7 @@ export async function openMusicApp() {
     episodeSession.failed = 0;
     episodeSession.results = [];
     episodeSession.settling = false;
+    episodeSession.paused = false;
     launchNextEpisode();
   } catch (error) {
     logger.error("打开视频选择器失败", error);
@@ -942,3 +1379,14 @@ export async function openMusicApp() {
     episodeSession.opening = false;
   }
 }
+
+configureTaskCenterActions({
+  pause: pauseEpisodeSession,
+  resume: resumeEpisodeSession,
+  hasLiveSession: () =>
+    episodeSession.paused &&
+    Boolean(episodeSession.app && episodeSession.root && episodeSession.queue.length > 0),
+  cancel: () => stopEpisodeSession(true),
+  retryFailed: retryFailedEpisodeTasks,
+  resumeInterrupted: resumeInterruptedEpisodeTasks,
+});

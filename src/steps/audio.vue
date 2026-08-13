@@ -3,17 +3,30 @@ import { ClipRanges, fromData, Lyrics } from "@/data";
 import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
-import { GM_setValue } from "$";
-import { fetchFile } from "@ffmpeg/util";
-import { ffmpeg, ffmpegLoad } from "@/utils/ffmpeg";
+import { GM_download, GM_setValue } from "$";
+import {
+  cleanupFFmpegFiles,
+  ffmpegLoad,
+  getFFmpegDiagnostics,
+  terminateFFmpeg,
+} from "@/utils/ffmpeg";
 import { Message } from "@arco-design/web-vue";
 import {
   episodeSession,
   failEpisodeDownload,
   finishEpisodeDownload,
   getEpisodeSourceUrl,
+  registerActiveEpisodeOperationCanceller,
 } from "@/episode";
 import { clone } from "@/utils/deepmerge";
+import {
+  beginDownloadTask,
+  setDownloadTaskRule,
+  updateDownloadTask,
+  updateTaskCenterRuntime,
+} from "@/taskCenter";
+import { downloadBinary, isAbortError } from "@/utils/download";
+import { saveDownload } from "@/utils/save";
 
 const steps = [
   "获取音频",
@@ -29,15 +42,52 @@ const error = ref<string | null>();
 const fileBlob = ref<string | Blob>();
 const loadMsg = ref("");
 const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
-let downloadTriggered = false;
+const downloadTriggered = ref(false);
+const processing = ref(false);
+const settled = ref(false);
+let operationController: AbortController | null = null;
+let downloadController: AbortController | null = null;
+let externalLyricsDownload: { blob: Blob; fileName: string } | null = null;
+let unregisterActiveOperationCanceller: (() => void) | null = null;
+const saving = ref(false);
+
+function activeTaskId() {
+  return episodeSession.activeVideoData?._wasmMusicTaskId;
+}
+
+function reportTask(stage: string, progress?: number | null) {
+  updateDownloadTask(activeTaskId(), { stage, progress });
+}
+
+function releaseActiveOperationCanceller() {
+  unregisterActiveOperationCanceller?.();
+  unregisterActiveOperationCanceller = null;
+}
+
+function claimActiveOperationCanceller() {
+  releaseActiveOperationCanceller();
+  unregisterActiveOperationCanceller =
+    registerActiveEpisodeOperationCanceller(cancelCurrentOperation);
+}
+
+function cancelCurrentOperation() {
+  operationController?.abort();
+  downloadController?.abort();
+  terminateFFmpeg();
+  updateTaskCenterRuntime({
+    ffmpegStatus: "idle",
+    ffmpegMessage: "当前 FFmpeg 操作已终止，下次任务会重新初始化",
+  });
+}
 
 function handleAudioFailure(reason: unknown) {
   const message = reason instanceof Error ? reason.message : String(reason || "未知错误");
   logger.error("[audio]", reason);
   error.value = message;
   loadMsg.value = "";
-  if (episodeSession.isBatch) {
-    failEpisodeDownload(message);
+  const didSettle = failEpisodeDownload(message);
+  if (episodeSession.isBatch && didSettle) {
+    settled.value = true;
   }
 }
 
@@ -122,252 +172,380 @@ function processLyrics(lyrics: Lyrics, deleteRanges: ClipRanges, speed: number) 
   }, []);
 }
 
-function main() {
+async function main() {
+  if (
+    processing.value ||
+    saving.value ||
+    downloadTriggered.value ||
+    (episodeSession.isBatch && episodeSession.settling)
+  ) {
+    return;
+  }
+  processing.value = true;
+  settled.value = false;
   stepIndex.value = 0;
   const avid = fromData.playerData?.aid || fromData.videoData?.aid;
   const cid = fromData.playerData?.cid || fromData.videoData?.cid;
   error.value = null;
   fileBlob.value = undefined;
+  downloadTriggered.value = false;
+  saving.value = false;
+  externalLyricsDownload = null;
+  operationController?.abort();
+  downloadController?.abort();
+  downloadController = null;
+  const controller = new AbortController();
+  let operationFFmpeg: Awaited<ReturnType<typeof ffmpegLoad>> | null = null;
+  operationController = controller;
+  claimActiveOperationCanceller();
+  beginDownloadTask(activeTaskId(), "获取音轨信息");
+  reportTask("获取音轨信息", 2);
   if (!avid || !cid) {
     handleAudioFailure("未找到当前分集的 aid/cid");
+    operationController = null;
+    releaseActiveOperationCanceller();
+    processing.value = false;
     return;
   }
-  request
-    .get({
+  try {
+    const res: any = await request.get({
       url: `https://api.bilibili.com/x/player/playurl?qn=120&otype=json&fourk=1&fnver=0&fnval=4048&avid=${avid}&cid=${cid}`,
-    })
-    .then(async (res: any) => {
-      let audioUrl = undefined;
-      const dash = res?.data?.dash;
-      if (!dash) {
-        throw new Error("playurl 未返回可用音轨");
-      }
-      /*
-      优先检测 flac：如果存在 Hi-Res 无损，取其 baseUrl。
-      其次检测 dolby：如果是杜比全景声，取其 base_url。
-      最后降级到 audio 数组：取该数组最大 bandwidth。
-      */
-      if (dash.flac && dash.flac.audio) {
-        audioUrl = dash.flac.audio.base_url || dash.flac.audio.baseUrl;
-      }
-      if (!audioUrl && dash.dolby && dash.dolby.audio) {
-        audioUrl = dash.dolby.audio[0].base_url;
-      }
-      if (!audioUrl && Array.isArray(dash.audio) && dash.audio.length > 0) {
-        const bestAudio = dash.audio.reduce((prev: any, current: any) =>
-          prev.bandwidth > current.bandwidth ? prev : current,
-        );
-        audioUrl = bestAudio.base_url || bestAudio.baseUrl;
-      }
-      if (!audioUrl) {
-        throw new Error("playurl 音轨缺少下载地址");
-      }
-      await ffmpegLoad((msg) => {
-        loadMsg.value = msg;
-      });
-      loadMsg.value = "";
-      stepIndex.value++;
-      await ffmpeg.writeFile("input.m4s", await fetchFile(audioUrl));
-      // https://wiki.multimedia.cx/index.php/FFmpeg_Metadata
-      const inputArgs = ["-i", "input.m4s"];
-      const processArgs = [];
-      let filterChains: string[] = [];
-      let lastStreamLabel = "[0:a]";
-      const totalDurationMs = Math.max(0, Number(fromData.videoData?.duration) || 0) * 1000;
-      const { keepRanges, mergedDeleteRanges } = getKeepRanges(
-        fromData.clipRanges || [],
-        totalDurationMs,
+      signal: controller.signal,
+    });
+    let audioUrl: string | undefined;
+    const dash = res?.data?.dash;
+    if (!dash) {
+      throw new Error("playurl 未返回可用音轨");
+    }
+    /* 优先无损，其次杜比，最后选择普通音轨中码率最高的一条。 */
+    if (dash.flac?.audio) {
+      audioUrl = dash.flac.audio.base_url || dash.flac.audio.baseUrl;
+    }
+    if (!audioUrl && Array.isArray(dash.dolby?.audio) && dash.dolby.audio.length > 0) {
+      audioUrl = dash.dolby.audio[0].base_url || dash.dolby.audio[0].baseUrl;
+    }
+    if (!audioUrl && Array.isArray(dash.audio) && dash.audio.length > 0) {
+      const bestAudio = dash.audio.reduce((prev: any, current: any) =>
+        prev.bandwidth > current.bandwidth ? prev : current,
       );
-      if (mergedDeleteRanges.length > 0 && keepRanges.length === 0) {
-        throw new Error("剪辑范围覆盖了当前分集的全部音频");
+      audioUrl = bestAudio.base_url || bestAudio.baseUrl;
+    }
+    if (!audioUrl) {
+      throw new Error("playurl 音轨缺少下载地址");
+    }
+
+    reportTask("检查 FFmpeg 缓存与运行环境", 5);
+    updateTaskCenterRuntime({
+      ffmpegStatus: "loading",
+      ffmpegMessage: "正在检查缓存并初始化",
+    });
+    const ffmpeg = await ffmpegLoad((message) => {
+      loadMsg.value = message;
+      reportTask(message, 8);
+      updateTaskCenterRuntime({ ffmpegStatus: "loading", ffmpegMessage: message });
+    }, controller.signal);
+    operationFFmpeg = ffmpeg;
+    const ffmpegDiagnostics = getFFmpegDiagnostics();
+    updateTaskCenterRuntime({
+      ffmpegStatus: "ready",
+      ffmpegMessage: `已就绪（${ffmpegDiagnostics.provider || "未知来源"}${
+        ffmpegDiagnostics.loadedFromCache ? " / 本地缓存" : ""
+      }）`,
+      ffmpegProvider: ffmpegDiagnostics.provider,
+      ffmpegMode: ffmpegDiagnostics.mode,
+      cacheAvailable: ffmpegDiagnostics.cacheAvailable,
+    });
+    loadMsg.value = "";
+    stepIndex.value++;
+    reportTask("下载音频", 15);
+    const audioBytes = await downloadBinary(audioUrl, {
+      signal: controller.signal,
+      onProgress: ({ loaded, percent }) => {
+        const megabytes = (loaded / 1024 / 1024).toFixed(1);
+        reportTask(
+          `下载音频${percent === null ? `（${megabytes} MB）` : `（${Math.round(percent)}%）`}`,
+          percent === null ? 20 : 15 + percent * 0.4,
+        );
+      },
+    });
+    if (controller.signal.aborted) return;
+    await cleanupFFmpegFiles(ffmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
+    await ffmpeg.writeFile("input.m4s", audioBytes);
+    stepIndex.value++;
+    reportTask("分析剪辑、倍速与元数据", 58);
+    // https://wiki.multimedia.cx/index.php/FFmpeg_Metadata
+    const inputArgs = ["-i", "input.m4s"];
+    const processArgs = [];
+    let filterChains: string[] = [];
+    let lastStreamLabel = "[0:a]";
+    const totalDurationMs = Math.max(0, Number(fromData.videoData?.duration) || 0) * 1000;
+    const { keepRanges, mergedDeleteRanges } = getKeepRanges(
+      fromData.clipRanges || [],
+      totalDurationMs,
+    );
+    if (mergedDeleteRanges.length > 0 && keepRanges.length === 0) {
+      throw new Error("剪辑范围覆盖了当前分集的全部音频");
+    }
+    if (keepRanges.length > 0) {
+      const segmentLabels: string[] = [];
+      keepRanges.forEach((r, i) => {
+        const endStr = r.end ? `:end=${r.end}` : "";
+        const label = `[a${i}]`;
+        filterChains.push(`[0:a]atrim=start=${r.start}${endStr},asetpts=PTS-STARTPTS${label}`);
+        segmentLabels.push(label);
+      });
+      if (segmentLabels.length > 1) {
+        const concatLabel = "[out_clip]";
+        filterChains.push(
+          `${segmentLabels.join("")}concat=n=${segmentLabels.length}:v=0:a=1${concatLabel}`,
+        );
+        lastStreamLabel = concatLabel;
+      } else {
+        // 如果只有一个片段，不需要 concat，直接指向该片段
+        lastStreamLabel = segmentLabels[0];
       }
-      if (keepRanges.length > 0) {
-        const segmentLabels: string[] = [];
-        keepRanges.forEach((r, i) => {
-          const endStr = r.end ? `:end=${r.end}` : "";
-          const label = `[a${i}]`;
-          filterChains.push(`[0:a]atrim=start=${r.start}${endStr},asetpts=PTS-STARTPTS${label}`);
-          segmentLabels.push(label);
-        });
-        if (segmentLabels.length > 1) {
-          const concatLabel = "[out_clip]";
-          filterChains.push(
-            `${segmentLabels.join("")}concat=n=${segmentLabels.length}:v=0:a=1${concatLabel}`,
-          );
-          lastStreamLabel = concatLabel;
-        } else {
-          // 如果只有一个片段，不需要 concat，直接指向该片段
-          lastStreamLabel = segmentLabels[0];
-        }
-      }
-      if (fromData.speed !== 1) {
-        const speedLabel = "[final_a]";
-        filterChains.push(`${lastStreamLabel}atempo=${fromData.speed}${speedLabel}`);
-        lastStreamLabel = speedLabel;
+    }
+    if (fromData.speed !== 1) {
+      const speedLabel = "[final_a]";
+      filterChains.push(`${lastStreamLabel}atempo=${fromData.speed}${speedLabel}`);
+      lastStreamLabel = speedLabel;
+      processArgs.push("-c:a", "aac", "-q:a", "2");
+    } else {
+      if (filterChains.length > 0) {
         processArgs.push("-c:a", "aac", "-q:a", "2");
       } else {
-        if (filterChains.length > 0) {
-          processArgs.push("-c:a", "aac", "-q:a", "2");
-        } else {
-          processArgs.push("-c:a", "copy");
+        processArgs.push("-c:a", "copy");
+      }
+    }
+    if (filterChains.length > 0) {
+      processArgs.push("-filter_complex", filterChains.join(";"));
+    }
+    processArgs.push("-map", lastStreamLabel === "[0:a]" ? "0:a" : lastStreamLabel);
+    const episodeSourceUrl = getEpisodeSourceUrl();
+    const metadataArgs = [
+      "-metadata",
+      `title=${fromData.title}`,
+      "-metadata",
+      `artist=${fromData.author}`,
+      "-metadata",
+      `source_url=${episodeSourceUrl}`,
+      "-metadata",
+      `publisher=${episodeSourceUrl}`,
+      "-metadata",
+      `encoded_by=ocyss/wasm-music`,
+      "-metadata",
+      `comment=Wasm🎶音乐姬下载,仅供个人学习使用,严谨售卖和其他侵权行为`,
+    ];
+    if (fromData.coverUrl) {
+      stepIndex.value = 3;
+      reportTask("下载封面", 62);
+      const coverBytes = await downloadBinary(fromData.coverUrl.replace("http://", "https://"), {
+        signal: controller.signal,
+        onProgress: ({ percent }) =>
+          reportTask("下载封面", percent === null ? 64 : 62 + percent * 0.04),
+      });
+      await ffmpeg.writeFile("cover.jpg", coverBytes);
+      inputArgs.push("-i", "cover.jpg");
+      processArgs.push("-map", "1:0");
+      processArgs.push("-c:v", "copy");
+      processArgs.push("-disposition:v", "attached_pic");
+    }
+
+    if (fromData.lyricsData && fromData.lyricsData.length > 0) {
+      const finalLyrics = processLyrics(
+        fromData.lyricsData,
+        fromData.clipRanges || [],
+        fromData.speed || 1,
+      );
+      const header = [
+        `[ti:${fromData.title}]`, // 标题
+        `[ar:${fromData.author}]`, // 艺术家
+        `[al:${fromData.data?.album || ""}]`, // 专辑
+        `[re:ocyss/wasm-music]`, // 制作工具
+        `[ve:1.0.0]`, // 版本
+        `[url: ${episodeSourceUrl}]`,
+      ].filter((line) => !line.includes(": ]"));
+
+      const lrcString = [
+        ...header,
+        ...finalLyrics.map((item) => `${formatLrc(item[0])} ${item[1]}`),
+      ].join("\n");
+
+      if (fromData.externalLyrics) {
+        // 外置歌词延后到音频保存阶段，并与音频一起等待可观测的下载结果。
+        const lrcBlob = new Blob([lrcString], { type: "text/lrc;charset=utf-8" });
+        const lrcFileName = (fromData.file ?? "bilibili_music").replace(/\.\w+$/, "") + ".lrc";
+        externalLyricsDownload = { blob: lrcBlob, fileName: lrcFileName };
+      } else {
+        metadataArgs.push("-metadata", `lyrics=${lrcString}`);
+      }
+    }
+    if (fromData.data?.album) {
+      metadataArgs.push("-metadata", `album=${fromData.data.album}`);
+    }
+    if (fromData.data?.music_publish) {
+      metadataArgs.push("-metadata", `date=${fromData.data.music_publish}`);
+    }
+    stepIndex.value = 4;
+    reportTask("FFmpeg 正在处理音频", 68);
+    const progressHandler = ({ progress }: { progress: number }) => {
+      if (Number.isFinite(progress)) {
+        reportTask("FFmpeg 正在处理音频", 68 + Math.max(0, Math.min(1, progress)) * 27);
+      }
+    };
+    ffmpeg.on("progress", progressHandler);
+    let exitCode: number;
+    try {
+      exitCode = await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"]);
+    } finally {
+      ffmpeg.off("progress", progressHandler);
+    }
+    if (exitCode !== 0) {
+      throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}`);
+    }
+    const fileData = await ffmpeg.readFile("output.m4a");
+    if (
+      (typeof fileData === "string" && fileData.length === 0) ||
+      (typeof fileData !== "string" && fileData.byteLength === 0)
+    ) {
+      throw new Error("FFmpeg 未生成有效的音频文件");
+    }
+
+    fileBlob.value =
+      typeof fileData === "string"
+        ? fileData
+        : new Blob([fileData as BlobPart], { type: "audio/m4a" });
+    stepIndex.value = steps.length - 1;
+    reportTask("音频已生成，等待保存", 98);
+    if (episodeSession.isBatch && episodeSession.auto) {
+      const activeVideoData = episodeSession.activeVideoData;
+      setTimeout(() => {
+        if (
+          episodeSession.isBatch &&
+          episodeSession.auto &&
+          episodeSession.activeVideoData === activeVideoData
+        ) {
+          download();
         }
-      }
-      if (filterChains.length > 0) {
-        processArgs.push("-filter_complex", filterChains.join(";"));
-      }
-      processArgs.push("-map", lastStreamLabel === "[0:a]" ? "0:a" : lastStreamLabel);
-      const episodeSourceUrl = getEpisodeSourceUrl();
-      const metadataArgs = [
-        "-metadata",
-        `title=${fromData.title}`,
-        "-metadata",
-        `artist=${fromData.author}`,
-        "-metadata",
-        `source_url=${episodeSourceUrl}`,
-        "-metadata",
-        `publisher=${episodeSourceUrl}`,
-        "-metadata",
-        `encoded_by=ocyss/wasm-music`,
-        "-metadata",
-        `comment=Wasm🎶音乐姬下载,仅供个人学习使用,严谨售卖和其他侵权行为`,
-      ];
-      if (fromData.coverUrl) {
-        await ffmpeg.writeFile(
-          "cover.jpg",
-          await fetchFile(fromData.coverUrl!.replace("http://", "https://")),
-        );
-        inputArgs.push("-i", "cover.jpg");
-        processArgs.push("-map", "1:0");
-        processArgs.push("-c:v", "copy");
-        processArgs.push("-disposition:v", "attached_pic");
-      }
-
-      if (fromData.lyricsData && fromData.lyricsData.length > 0) {
-        const finalLyrics = processLyrics(
-          fromData.lyricsData,
-          fromData.clipRanges || [],
-          fromData.speed || 1,
-        );
-        const header = [
-          `[ti:${fromData.title}]`, // 标题
-          `[ar:${fromData.author}]`, // 艺术家
-          `[al:${fromData.data?.album || ""}]`, // 专辑
-          `[re:ocyss/wasm-music]`, // 制作工具
-          `[ve:1.0.0]`, // 版本
-          `[url: ${episodeSourceUrl}]`,
-        ].filter((line) => !line.includes(": ]"));
-
-        const lrcString = [
-          ...header,
-          ...finalLyrics.map((item) => `${formatLrc(item[0])} ${item[1]}`),
-        ].join("\n");
-
-        if (fromData.externalLyrics) {
-          // 外置歌词：单独下载 .lrc 文件，不嵌入音频
-          const lrcBlob = new Blob([lrcString], { type: "text/lrc;charset=utf-8" });
-          const lrcFileName = (fromData.file ?? "bilibili_music").replace(/\.\w+$/, "") + ".lrc";
-          FileSaver.saveAs(lrcBlob, lrcFileName);
-        } else {
-          metadataArgs.push("-metadata", `lyrics=${lrcString}`);
-        }
-      }
-      if (fromData.data?.album) {
-        metadataArgs.push("-metadata", `album=${fromData.data.album}`);
-      }
-      if (fromData.data?.music_publish) {
-        metadataArgs.push("-metadata", `date=${fromData.data.music_publish}`);
-      }
-      const exitCode = await ffmpeg.exec([
-        ...inputArgs,
-        ...processArgs,
-        ...metadataArgs,
-        "output.m4a",
-      ]);
-      if (exitCode !== 0) {
-        throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}`);
-      }
-      const fileData = await ffmpeg.readFile("output.m4a");
-      if (
-        (typeof fileData === "string" && fileData.length === 0) ||
-        (typeof fileData !== "string" && fileData.byteLength === 0)
-      ) {
-        throw new Error("FFmpeg 未生成有效的音频文件");
-      }
-
-      fileBlob.value =
-        typeof fileData === "string"
-          ? fileData
-          : new Blob([fileData as BlobPart], { type: "audio/m4a" });
-      stepIndex.value = steps.length - 1;
-      if (episodeSession.isBatch && episodeSession.auto) {
-        const activeVideoData = episodeSession.activeVideoData;
-        setTimeout(() => {
-          if (
-            episodeSession.isBatch &&
-            episodeSession.auto &&
-            episodeSession.activeVideoData === activeVideoData
-          ) {
-            download();
-          }
-        }, 300);
-      }
-    })
-    .catch(handleAudioFailure);
+      }, 300);
+    }
+  } catch (reason) {
+    if (controller.signal.aborted || isAbortError(reason)) {
+      error.value = "任务已取消";
+      loadMsg.value = "";
+      return;
+    }
+    const diagnostics = getFFmpegDiagnostics();
+    if (!diagnostics.loaded && diagnostics.lastError) {
+      updateTaskCenterRuntime({
+        ffmpegStatus: "error",
+        ffmpegMessage: diagnostics.lastError,
+      });
+    }
+    handleAudioFailure(reason);
+  } finally {
+    if (operationFFmpeg) {
+      await cleanupFFmpegFiles(operationFFmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
+    }
+    if (operationController === controller) {
+      operationController = null;
+      releaseActiveOperationCanceller();
+    }
+    processing.value = false;
+  }
   if (fromData.usedefaultconfig) {
     fromData.usedefaultconfig = false;
   }
 }
 
-const download = () => {
-  if (!fileBlob.value) {
+const download = async () => {
+  const audioSource = fileBlob.value;
+  if (!audioSource) {
     handleAudioFailure("文件为空");
     return;
   }
-  if (episodeSession.isBatch && downloadTriggered) {
+  if (processing.value || saving.value || downloadTriggered.value || settled.value) {
     return;
   }
-  downloadTriggered = true;
-  const url =
-    typeof fileBlob.value === "string" ? fileBlob.value : URL.createObjectURL(fileBlob.value);
-
-  // GM_download({
-  //   url,
-  //   name: fromData.file ?? "bilibili_music.m4a",
-  //   downloadMode: "browser",
-  // } as GmDownloadRequest & { [key: string]: any });
-
+  downloadTriggered.value = true;
+  saving.value = true;
+  if (!episodeSession.isBatch) {
+    error.value = null;
+  }
+  beginDownloadTask(activeTaskId(), "正在保存音频文件");
+  const controller = new AbortController();
+  downloadController = controller;
+  claimActiveOperationCanceller();
+  const baseFileName = fromData.file || "bilibili_music.m4a";
+  const pagePrefix =
+    episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
+    `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
+  const withBatchPrefix = (fileName: string) =>
+    episodeSession.isBatch ? `${pagePrefix}_${fileName}` : fileName;
+  const finalFileName = withBatchPrefix(baseFileName);
   try {
-    const link = document.createElement("a");
-    const baseFileName = fromData.file || "bilibili_music.m4a";
-    const pagePrefix =
-      episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
-      `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
-    link.download = episodeSession.isBatch ? `${pagePrefix}_${baseFileName}` : baseFileName;
-    link.href = url;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    reportTask("正在保存音频文件", 99);
+    loadMsg.value = "正在等待浏览器确认音频文件已保存…";
+    await saveDownload(GM_download, audioSource, finalFileName, {
+      signal: controller.signal,
+      onProgress: ({ percent }) => {
+        reportTask(
+          percent === null ? "正在保存音频文件" : `正在保存音频文件（${Math.round(percent)}%）`,
+          99,
+        );
+      },
+    });
+    if (externalLyricsDownload) {
+      reportTask("正在保存外置歌词", 99);
+      loadMsg.value = "音频已保存，正在等待浏览器确认歌词文件已保存…";
+      await saveDownload(
+        GM_download,
+        externalLyricsDownload.blob,
+        withBatchPrefix(externalLyricsDownload.fileName),
+        { signal: controller.signal },
+      );
+    }
   } catch (downloadError) {
-    if (typeof fileBlob.value !== "string") {
-      URL.revokeObjectURL(url);
+    if (!episodeSession.isBatch) {
+      downloadTriggered.value = false;
+    }
+    if (controller.signal.aborted || isAbortError(downloadError)) {
+      error.value = "任务已取消";
+      loadMsg.value = "";
+      return;
     }
     handleAudioFailure(downloadError);
     return;
+  } finally {
+    saving.value = false;
+    if (downloadController === controller) {
+      downloadController = null;
+      releaseActiveOperationCanceller();
+    }
   }
-  if (typeof fileBlob.value !== "string") {
-    setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  }
-  if (episodeSession.isBatch) {
+  loadMsg.value = "";
+  if (episodeSession.isBatch && !episodeSession.manualEach) {
     if (!episodeSession.rule) {
       episodeSession.rule = clone(fromData.record);
+      setDownloadTaskRule(episodeSession.rule, true);
     }
     episodeSession.auto = true;
-    finishEpisodeDownload();
+  }
+  const didSettle = finishEpisodeDownload(finalFileName);
+  if (episodeSession.isBatch && didSettle) {
+    settled.value = true;
   }
 };
 
 onMounted(() => {
   main();
+});
+
+onUnmounted(() => {
+  if (operationController || downloadController || processing.value || saving.value) {
+    cancelCurrentOperation();
+  }
+  releaseActiveOperationCanceller();
 });
 
 const saveDefault = () => {
@@ -401,13 +579,26 @@ const saveDefault = () => {
       </template>
       <template #extra>
         <a-space v-if="stepIndex === steps.length - 1">
-          <a-button @click="download">开始下载</a-button>
+          <a-button
+            @click="download"
+            :disabled="processing || saving || downloadTriggered || settled"
+          >
+            {{ saving ? "正在保存…" : "开始下载" }}
+          </a-button>
         </a-space>
       </template>
     </a-result>
     <div v-if="loadMsg" class="load-msg">{{ loadMsg }}</div>
     <a-button @click="saveDefault">保存为默认规则</a-button>
-    <Btn @prev="$emit('prev')" @next="main" :next="{ disabled: !fileBlob }" nextLabel="重试" />
+    <Btn
+      @prev="$emit('prev')"
+      @next="main"
+      :prev="{ disabled: processing || saving || settled }"
+      :next="{
+        disabled: processing || saving || settled || downloadTriggered || (!fileBlob && !error),
+      }"
+      nextLabel="重试"
+    />
   </div>
 </template>
 

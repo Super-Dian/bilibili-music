@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, onUnmounted, ref } from "vue";
 import StepAudio from "@/steps/audio.vue";
 import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
 import UiButton from "@/components/UiButton.vue";
-import { fromData, normalizeRecordProcessingRule, reset, type RecordData } from "./data";
+import { fromData, normalizeRecordProcessingRule, reset, userConfig } from "./data";
+import type { RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
 import { Message } from "@arco-design/web-vue";
@@ -14,13 +15,20 @@ import { logger } from "./utils/logger";
 import {
   episodeSession,
   getActiveDefaultRule,
+  registerEpisodeAppTransitionHandler,
   openMusicApp,
   stopEpisodeSession,
-  type EpisodeVideoData,
 } from "./episode";
+import type { EpisodeVideoData } from "./episode";
+import { applyDarkMode } from "./main";
 const visible = ref(true);
 const current = ref(1);
+const preparing = ref(true);
+const preparingLabel = ref("正在准备下载信息…");
+const batchStatus = ref("");
 const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
+let initializationSequence = 0;
+let unregisterTransitionHandler: (() => void) | null = null;
 
 function applyProcessingRule(rule: RecordData) {
   const processing = normalizeRecordProcessingRule(rule);
@@ -79,11 +87,32 @@ function checkSide() {
   GM_setValue("sideShow", sideShow.value);
 }
 
-onMounted(async () => {
-  sideShow.value = GM_getValue("sideShow") !== false;
-  //每次运行都重置数据
+function getEpisodeLabel(videoData: EpisodeVideoData | null) {
+  return (
+    videoData?._wasmMusicPickerTitle ||
+    videoData?.part ||
+    videoData?.title ||
+    videoData?.bvid ||
+    "当前视频"
+  );
+}
+
+async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
+  const sequence = ++initializationSequence;
+  const episodeLabel = getEpisodeLabel(activeEpisode);
+  preparing.value = true;
+  preparingLabel.value = episodeSession.isBatch
+    ? `正在准备 ${episodeSession.completed + 1}/${episodeSession.total}：${episodeLabel}`
+    : "正在准备下载信息…";
+  batchStatus.value = episodeSession.isBatch
+    ? `批量任务 ${episodeSession.completed + 1}/${episodeSession.total} · ${episodeLabel}`
+    : "";
+
+  // 先卸载上一项的步骤组件，再清空共享数据；外层 Modal 始终保留。
+  await nextTick();
+  if (sequence !== initializationSequence) return;
   reset();
-  const activeEpisode = episodeSession.activeVideoData;
+  current.value = 1;
   const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
     ? null
     : document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
@@ -93,6 +122,7 @@ onMounted(async () => {
   fromData.videoData = clone(activeEpisode || playerVideoData || null);
   if (!fromData.videoData) {
     fromData.err = "未找到视频数据，后续操作无法继续";
+    preparing.value = false;
     return;
   }
 
@@ -107,11 +137,14 @@ onMounted(async () => {
           }),
       );
       const data = await res.json();
+      if (sequence !== initializationSequence) return;
       fromData.data = data.data;
     } catch (error) {
       logger.warn("获取音乐信息失败，将按无音乐信息继续", error);
     }
   }
+
+  if (sequence !== initializationSequence) return;
 
   if (episodeSession.auto) {
     const defaultRule = getActiveDefaultRule();
@@ -127,6 +160,21 @@ onMounted(async () => {
     current.value = 2;
     Message.info("所选视频不是当前正在播放的视频，已跳过音频剪辑步骤");
   }
+  preparing.value = false;
+}
+
+onMounted(() => {
+  sideShow.value = GM_getValue("sideShow") !== false;
+  unregisterTransitionHandler = registerEpisodeAppTransitionHandler((videoData) =>
+    initializeEpisode(videoData),
+  );
+  void initializeEpisode(episodeSession.activeVideoData);
+});
+
+onUnmounted(() => {
+  initializationSequence++;
+  unregisterTransitionHandler?.();
+  unregisterTransitionHandler = null;
 });
 
 function onOpen() {
@@ -187,13 +235,21 @@ function onOpen() {
           minWidth: 0,
         }"
       >
+        <div v-if="batchStatus" class="wasm-music-batch-status">{{ batchStatus }}</div>
         <a-result
-          v-if="fromData.err"
+          v-if="preparing"
+          status="info"
+          :title="preparingLabel"
+          subtitle="下载窗口会保持打开，并在这里切换到下一项"
+        />
+        <a-result
+          v-else-if="fromData.err"
           status="error"
           :title="fromData.err"
           subtitle="您可以重新打开弹窗, 重新获取数据, 或者刷新页面. 如果多次且更换视频也无法使用请联系开发者"
         />
         <component
+          v-else
           :is="steps[current - 1]"
           @prev="onPrev"
           @next="onNext"
@@ -215,5 +271,15 @@ function onOpen() {
 }
 .step-content .arco-spin {
   width: 100%;
+}
+.wasm-music-batch-status {
+  margin: 0 0 12px;
+  padding: 7px 12px;
+  color: var(--color-text-2);
+  background: var(--color-fill-2);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 20px;
+  text-align: left;
 }
 </style>

@@ -6,7 +6,10 @@ import { createApp } from "vue";
 import App from "@/App.vue";
 import { defaultData } from "@/data";
 import { configureEpisodeAppLauncher, openMusicApp } from "@/episode";
+import { initFloatingEntry } from "@/floatingEntry";
+import { initTaskCenterUI, updateTaskCenterRuntime } from "@/taskCenter";
 import { drop } from "@/utils/drop";
+import { preflightFFmpegEnvironment } from "@/utils/ffmpeg";
 import { logger } from "@/utils/logger";
 
 import elmGetter from "./utils/elmGetter";
@@ -55,6 +58,16 @@ configureEpisodeAppLauncher(() => {
 });
 
 const main = () => void openMusicApp();
+
+initFloatingEntry(main);
+initTaskCenterUI();
+const ffmpegPreflight = preflightFFmpegEnvironment();
+updateTaskCenterRuntime({
+  ffmpegStatus: ffmpegPreflight.supported ? "ready" : "error",
+  ffmpegMessage: ffmpegPreflight.message,
+  ffmpegMode: ffmpegPreflight.mode,
+  cacheAvailable: ffmpegPreflight.cacheAvailable,
+});
 
 elmGetter.each(".tag-panel .tag .bgm-tag", (elm) => {
   const download = document.createElement("a");

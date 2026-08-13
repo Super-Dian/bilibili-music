@@ -18,6 +18,7 @@ export type RequestArgs<TContext, TResponseType extends ResponseType> = Partial<
   > & {
     onStream: OnStream;
     cookie: boolean;
+    signal: AbortSignal;
   }
 >;
 type ResolvedReturnType<T extends (...args: any) => any> =
@@ -32,10 +33,23 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
   responseType = "json" as TResponseType,
   onStream = () => {},
   cookie = true,
+  signal,
 }: RequestArgs<TContext, TResponseType>) {
   headers["Referer"] = window.location.href;
   headers["User-Agent"] = window.navigator.userAgent;
   return new Promise<TContext>((resolve, reject) => {
+    let abortRequest: (() => void) | null = null;
+    const cleanup = () => signal?.removeEventListener("abort", abort);
+    const abort = () => {
+      cleanup();
+      reject(signal?.reason || new RequestError("用户中止"));
+      abortRequest?.();
+    };
+    if (signal?.aborted) {
+      abort();
+      return;
+    }
+    signal?.addEventListener("abort", abort, { once: true });
     void (async () => {
       try {
         const ck = cookie
@@ -48,8 +62,12 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
               }),
             )
           : [];
+        if (signal?.aborted) {
+          abort();
+          return;
+        }
         logger.debug("music-log/requests", { url, data, method, headers, ck });
-        GM_xmlhttpRequest<TContext, TResponseType>({
+        const xhr = GM_xmlhttpRequest<TContext, TResponseType>({
           method,
           url,
           data,
@@ -59,16 +77,20 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
           cookie: ck.map((c) => `${c.name}=${c.value}`).join("; "),
 
           ontimeout() {
-            reject(new RequestError(`超时 ${Math.round(timeout / 1000)}s`));
+            cleanup();
+            reject(new RequestError(`超时 ${Math.round(timeout)}s`));
           },
           onabort() {
+            cleanup();
             reject(new RequestError("用户中止"));
           },
           onerror(e) {
+            cleanup();
             const msg = `${e.responseText} | ${e.error}`;
             reject(new RequestError(msg));
           },
           onloadend(e) {
+            cleanup();
             resolve(e.response);
           },
           onloadstart(e) {
@@ -78,7 +100,9 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
             }
           },
         });
+        abortRequest = () => xhr.abort();
       } catch (err) {
+        cleanup();
         reject(err);
       }
     })();

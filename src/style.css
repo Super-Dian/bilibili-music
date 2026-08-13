@@ -318,11 +318,94 @@
   border-top: 1px solid #e3e5e7;
 }
 
+.wasm-music-episode-query[hidden],
+.wasm-music-episode-list[hidden],
+.wasm-music-episode-pagination[hidden],
+.wasm-music-episode-rename-panel[hidden] {
+  display: none !important;
+}
+
 .wasm-music-episode-page-info {
   min-width: 130px;
   color: #61666d;
   font-size: 13px;
   text-align: center;
+}
+
+.wasm-music-episode-rename-panel {
+  display: flex;
+  min-height: 180px;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 22px;
+  overflow: hidden;
+  border-top: 1px solid #e3e5e7;
+}
+
+.wasm-music-episode-rename-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wasm-music-episode-rename-header span {
+  color: #61666d;
+  font-size: 12px;
+}
+
+.wasm-music-episode-rename-bulk {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.wasm-music-episode-rename-bulk input,
+.wasm-music-episode-rename-row input {
+  box-sizing: border-box;
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  color: #18191c;
+  background: #fff;
+  border: 1px solid #c9ccd0;
+  border-radius: 7px;
+  outline: none;
+}
+
+.wasm-music-episode-rename-bulk input {
+  width: 150px;
+}
+
+.wasm-music-episode-rename-bulk input:focus,
+.wasm-music-episode-rename-row input:focus {
+  border-color: #00aeec;
+  box-shadow: 0 0 0 2px rgba(0, 174, 236, 0.12);
+}
+
+.wasm-music-episode-rename-list {
+  display: flex;
+  min-height: 110px;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.wasm-music-episode-rename-row {
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.wasm-music-episode-rename-meta {
+  overflow: hidden;
+  color: #00aeec;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .wasm-music-episode-options {
@@ -338,6 +421,10 @@
   align-items: flex-start;
   gap: 8px;
   cursor: pointer;
+}
+
+.wasm-music-episode-options label + label {
+  margin-top: 8px;
 }
 
 .wasm-music-episode-options input {
@@ -409,6 +496,7 @@ body[arco-theme="dark"] .wasm-music-episode-header,
 body[arco-theme="dark"] .wasm-music-episode-tools,
 body[arco-theme="dark"] .wasm-music-episode-query,
 body[arco-theme="dark"] .wasm-music-episode-pagination,
+body[arco-theme="dark"] .wasm-music-episode-rename-panel,
 body[arco-theme="dark"] .wasm-music-episode-footer,
 body[arco-theme="dark"] .wasm-music-episode-options {
   border-color: #444;
@@ -430,7 +518,9 @@ body[arco-theme="dark"] .wasm-music-episode-btn {
 }
 
 body[arco-theme="dark"] .wasm-music-episode-search,
-body[arco-theme="dark"] .wasm-music-episode-filter {
+body[arco-theme="dark"] .wasm-music-episode-filter,
+body[arco-theme="dark"] .wasm-music-episode-rename-bulk input,
+body[arco-theme="dark"] .wasm-music-episode-rename-row input {
   color: #f1f2f3;
   background: #1f1f1f;
   border-color: #555;
