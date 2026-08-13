@@ -536,10 +536,7 @@ body[arco-theme="dark"] .wasm-music-episode-mask .wasm-music-episode-row input[t
   border-color: #555 !important;
 }
 
-body[arco-theme="dark"]
-  .wasm-music-episode-mask
-  .wasm-music-episode-row
-  input[type="checkbox"]:checked {
+body[arco-theme="dark"] .wasm-music-episode-mask .wasm-music-episode-row input[type="checkbox"]:checked {
   background-color: #00aeec !important;
   border-color: #00aeec !important;
 }

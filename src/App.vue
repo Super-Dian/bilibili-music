@@ -15,6 +15,7 @@ import {
   episodeSession,
   getActiveDefaultRule,
   registerEpisodeAppTransitionHandler,
+  openMusicApp,
   stopEpisodeSession,
 } from "./episode";
 import type { EpisodeVideoData } from "./episode";
@@ -246,7 +247,13 @@ function onOpen() {
           :title="fromData.err"
           subtitle="您可以重新打开弹窗, 重新获取数据, 或者刷新页面. 如果多次且更换视频也无法使用请联系开发者"
         />
-        <component v-else :is="steps[current - 1]" @prev="onPrev" @next="onNext" />
+        <component
+          v-else
+          :is="steps[current - 1]"
+          @prev="onPrev"
+          @next="onNext"
+          @backToPicker="handleBackToPicker"
+        />
       </div>
     </div>
   </a-modal>
