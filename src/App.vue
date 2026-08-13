@@ -5,7 +5,7 @@ import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
-import { fromData, normalizeRecordProcessingRule, reset, userConfig, type RecordData } from "./data";
+import { fromData, normalizeRecordProcessingRule, reset, type RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
 import { Message } from "@arco-design/web-vue";
@@ -17,7 +17,6 @@ import {
   stopEpisodeSession,
   type EpisodeVideoData,
 } from "./episode";
-import { applyDarkMode } from "./main";
 const visible = ref(true);
 const current = ref(1);
 const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
@@ -73,12 +72,6 @@ function onNext() {
 
 const sideShow = ref(true);
 const fullscreen = ref(false);
-
-function toggleDarkMode() {
-  userConfig.darkMode = !userConfig.darkMode;
-  applyDarkMode(userConfig.darkMode);
-  Message.success(userConfig.darkMode ? "已切换到深色模式" : "已切换到浅色模式");
-}
 
 function checkSide() {
   sideShow.value = !sideShow.value;
@@ -168,12 +161,6 @@ function onOpen() {
       <div style="display: flex; justify-content: space-between">
         <a-space>
           <a-button @click="checkSide"> 侧栏 </a-button>
-          <a-button @click="toggleDarkMode">
-            <template #icon>
-              <icon-moon v-if="!userConfig.darkMode" />
-              <icon-sun v-else />
-            </template>
-          </a-button>
         </a-space>
         <a-space>
           <a-button @click="handleCancel"> 取消 </a-button>

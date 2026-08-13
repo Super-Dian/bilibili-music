@@ -4,25 +4,43 @@ import { GM_getResourceURL, GM_registerMenuCommand, unsafeWindow } from "$";
 import { createApp } from "vue";
 
 import App from "@/App.vue";
-import { defaultData, userConfig } from "@/data";
+import { defaultData } from "@/data";
 import { configureEpisodeAppLauncher, openMusicApp } from "@/episode";
 import { drop } from "@/utils/drop";
 import { logger } from "@/utils/logger";
 
 import elmGetter from "./utils/elmGetter";
 
-/** 应用深色模式到 DOM */
-export function applyDarkMode(dark: boolean) {
+/** 检测页面是否处于深色模式 */
+function detectDarkMode(): boolean {
+  const html = document.documentElement;
+  return (
+    html.classList.contains("dark") ||
+    html.classList.contains("night-mode") ||
+    html.getAttribute("data-theme") === "dark" ||
+    html.getAttribute("data-dark-mode") === "true"
+  );
+}
+
+/** 同步深色模式到 Arco 主题 */
+function syncDarkMode() {
   if (document.body) {
-    document.body.setAttribute("arco-theme", dark ? "dark" : "light");
+    document.body.setAttribute("arco-theme", detectDarkMode() ? "dark" : "light");
   }
 }
 
-// DOM 就绪后应用深色模式
+// 监听页面 class 变化
+const darkModeObserver = new MutationObserver(syncDarkMode);
+darkModeObserver.observe(document.documentElement, {
+  attributes: true,
+  attributeFilter: ["class", "data-theme", "data-dark-mode"],
+});
+
+// 初始同步（DOM 就绪后）
 if (document.body) {
-  applyDarkMode(userConfig.darkMode);
+  syncDarkMode();
 } else {
-  document.addEventListener("DOMContentLoaded", () => applyDarkMode(userConfig.darkMode));
+  document.addEventListener("DOMContentLoaded", syncDarkMode);
 }
 
 GM_getResourceURL("wasm_music_backend_bg");

@@ -1,3 +1,38 @@
+@import "tailwindcss";
+
+/* 自定义主题 */
+@theme {
+  --color-bili-blue: #00aeec;
+  --color-bili-blue-dark: #00a1d6;
+  --color-bili-bg: #f6f7f8;
+  --color-bili-border: #e3e5e7;
+  --color-bili-text: #18191c;
+  --color-bili-text-secondary: #61666d;
+  --color-bili-text-muted: #9499a0;
+}
+
+/* 深色模式变量 */
+@variant dark (&:where([arco-theme="dark"], [data-theme="dark"]));
+
+/* 自定义组件样式 */
+@layer components {
+  .btn {
+    @apply px-4 py-2 rounded cursor-pointer transition-colors;
+  }
+  .btn-primary {
+    @apply bg-bili-blue text-white hover:bg-bili-blue-dark;
+  }
+  .btn-secondary {
+    @apply bg-white border border-gray-300 text-gray-700 hover:border-bili-blue hover:text-bili-blue;
+  }
+  .input {
+    @apply px-3 py-2 border border-gray-300 rounded outline-none bg-white text-gray-900;
+  }
+  .input:focus {
+    @apply border-bili-blue ring-2 ring-bili-blue/20;
+  }
+}
+
 .tag .bgm-tag {
   display: flex;
   justify-content: center;

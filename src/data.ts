@@ -6,7 +6,6 @@ import { logger } from "@/utils/logger";
 // import { ClipRanges, Lyrics } from "@ocyss/wasm-music-backend";
 
 export const defaultUserConfig = {
-  darkMode: false,
   openai: {
     host: "https://api.openai.com/v1",
     key: "",
