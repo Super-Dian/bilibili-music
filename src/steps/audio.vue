@@ -3,6 +3,8 @@ import { ClipRanges, fromData, Lyrics } from "@/data";
 import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
+import UiResult from "@/components/UiResult.vue";
+import UiButton from "@/components/UiButton.vue";
 import { GM_download, GM_setValue } from "$";
 import {
   cleanupFFmpegFiles,
@@ -556,7 +558,7 @@ const saveDefault = () => {
 
 <template>
   <div class="audio">
-    <a-result
+    <UiResult
       :status="status"
       :title="error ?? `${stepIndex + 1}/${steps.length}:${steps[stepIndex]}`"
     >
@@ -578,18 +580,18 @@ const saveDefault = () => {
         </div>
       </template>
       <template #extra>
-        <a-space v-if="stepIndex === steps.length - 1">
-          <a-button
+        <div v-if="stepIndex === steps.length - 1" style="display: flex; gap: 8px">
+          <UiButton
             @click="download"
             :disabled="processing || saving || downloadTriggered || settled"
           >
             {{ saving ? "正在保存…" : "开始下载" }}
-          </a-button>
-        </a-space>
+          </UiButton>
+        </div>
       </template>
-    </a-result>
+    </UiResult>
     <div v-if="loadMsg" class="load-msg">{{ loadMsg }}</div>
-    <a-button @click="saveDefault">保存为默认规则</a-button>
+    <UiButton @click="saveDefault">保存为默认规则</UiButton>
     <Btn
       @prev="$emit('prev')"
       @next="main"

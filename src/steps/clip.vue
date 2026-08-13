@@ -3,6 +3,7 @@ import { fromData } from "@/data";
 import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import Btn from "@/components/btn.vue";
 import UiButton from "@/components/UiButton.vue";
+import UiSpin from "@/components/UiSpin.vue";
 import { episodeSession } from "@/episode";
 
 interface DeletedSection {
@@ -347,7 +348,7 @@ function next() {
 
 <template>
   <div class="montage-container">
-    <a-spin :loading="isAuditioning">
+    <UiSpin :loading="isAuditioning">
       <!-- 倍速控制 -->
       <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px">
         <label style="font-size: 13px">倍速：</label>
@@ -441,7 +442,7 @@ function next() {
           ></UiButton>
         </div>
       </div>
-    </a-spin>
+    </UiSpin>
     <div style="display: flex; justify-content: center; align-items: center; margin: 20px 0; gap: 10px">
       <UiButton v-if="episodeSession.hasMultiplePages" @click="backToPicker"> 返回选择 </UiButton>
       <UiButton @click="startAudition">

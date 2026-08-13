@@ -13,13 +13,16 @@ declare module 'vue' {
     Cover: typeof import('./src/steps/cover.vue')['default']
     Info: typeof import('./src/steps/info.vue')['default']
     Lyrics: typeof import('./src/steps/lyrics.vue')['default']
+    UiAlert: typeof import('./src/components/UiAlert.vue')['default']
     UiButton: typeof import('./src/components/UiButton.vue')['default']
     UiButtonGroup: typeof import('./src/components/UiButtonGroup.vue')['default']
     UiCheckbox: typeof import('./src/components/UiCheckbox.vue')['default']
     UiFormItem: typeof import('./src/components/UiFormItem.vue')['default']
     UiInput: typeof import('./src/components/UiInput.vue')['default']
     UiInputGroup: typeof import('./src/components/UiInputGroup.vue')['default']
+    UiResult: typeof import('./src/components/UiResult.vue')['default']
     UiSpace: typeof import('./src/components/UiSpace.vue')['default']
+    UiSpin: typeof import('./src/components/UiSpin.vue')['default']
     UiTextarea: typeof import('./src/components/UiTextarea.vue')['default']
   }
 }
