@@ -17,26 +17,37 @@ import elmGetter from "./utils/elmGetter";
 /** 检测页面是否处于深色模式 */
 function detectDarkMode(): boolean {
   const html = document.documentElement;
-  return (
-    html.classList.contains("dark") ||
-    html.classList.contains("night-mode") ||
-    html.getAttribute("data-theme") === "dark" ||
-    html.getAttribute("data-dark-mode") === "true"
-  );
+
+  // 检查 html 的 class 列表
+  const classList = html.classList;
+
+  // 根据开发者说明：直接监听 html 的 class 当中 night-mode, dark 属性
+  const isDark = classList.contains("dark") || classList.contains("night-mode");
+
+  logger.debug("[DarkMode] detect:", {
+    classes: html.className,
+    hasDark: classList.contains("dark"),
+    hasNightMode: classList.contains("night-mode"),
+    result: isDark,
+  });
+
+  return isDark;
 }
 
 /** 同步深色模式到 Arco 主题 */
 function syncDarkMode() {
   if (document.body) {
-    document.body.setAttribute("arco-theme", detectDarkMode() ? "dark" : "light");
+    const isDark = detectDarkMode();
+    document.body.setAttribute("arco-theme", isDark ? "dark" : "light");
+    logger.debug("[DarkMode] synced:", isDark ? "dark" : "light");
   }
 }
 
-// 监听页面 class 变化
+// 监听 html class 变化
 const darkModeObserver = new MutationObserver(syncDarkMode);
 darkModeObserver.observe(document.documentElement, {
   attributes: true,
-  attributeFilter: ["class", "data-theme", "data-dark-mode"],
+  attributeFilter: ["class"],
 });
 
 // 初始同步（DOM 就绪后）

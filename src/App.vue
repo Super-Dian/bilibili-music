@@ -20,7 +20,6 @@ import {
   stopEpisodeSession,
 } from "./episode";
 import type { EpisodeVideoData } from "./episode";
-import { applyDarkMode } from "./main";
 const visible = ref(true);
 const current = ref(1);
 const preparing = ref(true);
