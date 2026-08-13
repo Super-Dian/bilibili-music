@@ -2,7 +2,8 @@
 import { fromData } from "@/data";
 import Btn from "@/components/btn.vue";
 import { GM_getValue, GM_setValue } from "$";
-import { getActiveDefaultRule } from "@/episode";
+import { getActiveDefaultRule, type EpisodeVideoData } from "@/episode";
+import { applyMetadataFormat } from "@/utils/format";
 
 const emits = defineEmits(["next", "prev"]);
 
@@ -34,13 +35,7 @@ function next() {
 const handleSelect = (type: keyof typeof infoRecord, format: string) => {
   GM_setValue(`${type}-format${!fromData.data ? "_no_music" : ""}`, format);
   infoRecord[type] = format;
-  const maps = infoMaps.value;
-  return format
-    .replaceAll("1", maps[0])
-    .replaceAll("2", maps[1])
-    .replaceAll("3", maps[2])
-    .replaceAll("4", maps[3])
-    .replaceAll("5", maps[4]);
+  return applyMetadataFormat(format, infoMaps.value);
 };
 
 const handleTitleSelect = (value: any) => {
@@ -59,6 +54,15 @@ const handleFileSelect = (value: any) => {
   fromData.file = `${title.replaceAll(invalidFileNameRegex, "")}.m4a`;
 };
 
+const applyBatchTitleOverride = () => {
+  const customTitle = (
+    fromData.videoData as EpisodeVideoData | undefined
+  )?._wasmMusicCustomTitle?.trim();
+  if (!customTitle) return;
+  fromData.title = customTitle;
+  fromData.file = `${customTitle.replaceAll(invalidFileNameRegex, "")}.m4a`;
+};
+
 onMounted(() => {
   const noMusic = !fromData.data ? "_no_music" : "";
   if (fromData.usedefaultconfig) {
@@ -68,6 +72,7 @@ onMounted(() => {
       handleTitleSelect(titleSelects.includes(format.title) ? format.title : titleSelects[0]);
       handleAuthorSelect(authorSelects.includes(format.author) ? format.author : authorSelects[0]);
       handleFileSelect(fileSelects.includes(format.file) ? format.file : fileSelects[0]);
+      applyBatchTitleOverride();
       next();
       return;
     }
@@ -79,6 +84,7 @@ onMounted(() => {
   handleTitleSelect(titleFormat);
   handleAuthorSelect(authorFormat);
   handleFileSelect(fileFormat);
+  applyBatchTitleOverride();
 });
 </script>
 
