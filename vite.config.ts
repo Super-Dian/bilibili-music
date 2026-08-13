@@ -3,6 +3,7 @@ import path from "path";
 import process from "process";
 
 import { vitePluginForArco } from "@arco-plugins/vite-vue";
+import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
 import { ArcoResolver } from "unplugin-vue-components/resolvers";
@@ -18,6 +19,7 @@ const rootDir = process.cwd();
 export default defineConfig({
   plugins: [
     vue(),
+    tailwindcss(),
     vitePluginForArco({
       style: "css",
     }),
@@ -104,14 +106,6 @@ export default defineConfig({
             .jsdelivr("Vue", "dist/vue.global.prod.js")
             .concat(util.dataUrl(";window.Vue=Vue;")),
           "@arco-design/web-vue": cdn.jsdelivr("ArcoVue", "dist/arco-vue.min.js"),
-          // "@ffmpeg/ffmpeg": cdn.jsdelivr(
-          //   "@ffmpeg/ffmpeg",
-          //   "dist/umd/ffmpeg.js"
-          // ),
-          // "@ffmpeg/util": cdn.jsdelivr(
-          //   "@ffmpeg/util",
-          //   "dist/umd/index.js"
-          // ),
         },
       },
       server: {
