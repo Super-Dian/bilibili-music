@@ -4,6 +4,7 @@ import Btn from "@/components/btn.vue";
 import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
 import UiFormItem from "@/components/UiFormItem.vue";
+import UiDropdown from "@/components/UiDropdown.vue";
 import { GM_getValue, GM_setValue } from "$";
 import { getActiveDefaultRule, type EpisodeVideoData } from "@/episode";
 import { applyMetadataFormat } from "@/utils/format";
@@ -119,52 +120,25 @@ onMounted(() => {
     <UiFormItem label="内嵌标题">
       <div style="display: flex; gap: 8px">
         <UiInput v-model="fromData.title" />
-        <a-dropdown @select="handleTitleSelect">
-          <a-button type="primary">
-            <template #icon>
-              <icon-settings />
-            </template>
-          </a-button>
-          <template #content>
-            <a-doption v-for="item in titleSelects" :key="item">
-              {{ item }}
-            </a-doption>
-          </template>
-        </a-dropdown>
+        <UiDropdown :options="titleSelects.map(item => ({ label: item, value: item }))" @select="handleTitleSelect">
+          <button class="icon-btn"><icon-settings /></button>
+        </UiDropdown>
       </div>
     </UiFormItem>
     <UiFormItem label="内嵌作者">
       <div style="display: flex; gap: 8px">
         <UiInput v-model="fromData.author" />
-        <a-dropdown @select="handleAuthorSelect">
-          <a-button type="primary">
-            <template #icon>
-              <icon-settings />
-            </template>
-          </a-button>
-          <template #content>
-            <a-doption v-for="item in authorSelects" :key="item">
-              {{ item }}
-            </a-doption>
-          </template>
-        </a-dropdown>
+        <UiDropdown :options="authorSelects.map(item => ({ label: item, value: item }))" @select="handleAuthorSelect">
+          <button class="icon-btn"><icon-settings /></button>
+        </UiDropdown>
       </div>
     </UiFormItem>
     <UiFormItem label="下载文件名">
       <div style="display: flex; gap: 8px">
         <UiInput v-model="fromData.file" />
-        <a-dropdown @select="handleFileSelect">
-          <a-button type="primary">
-            <template #icon>
-              <icon-settings />
-            </template>
-          </a-button>
-          <template #content>
-            <a-doption v-for="item in fileSelects" :key="item">
-              {{ item }}
-            </a-doption>
-          </template>
-        </a-dropdown>
+        <UiDropdown :options="fileSelects.map(item => ({ label: item, value: item }))" @select="handleFileSelect">
+          <button class="icon-btn"><icon-settings /></button>
+        </UiDropdown>
       </div>
     </UiFormItem>
     <Btn @next="next" @prev="$emit('prev')" />
@@ -174,5 +148,24 @@ onMounted(() => {
 <style scoped>
 .form-container {
   padding: 16px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  background: #00aeec;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.icon-btn:hover {
+  background: #00a1d6;
 }
 </style>
