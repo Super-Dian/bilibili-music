@@ -1013,7 +1013,6 @@ function editLyrics(item: SubTitle) {
               <div
                 v-if="onlineLyricsViewMode === 'diff'"
                 class="diff-container-textarea"
-                style="min-height: 300px"
               >
                 <span
                   v-for="(part, index) in onlineLyricsDiff"
@@ -1030,7 +1029,6 @@ function editLyrics(item: SubTitle) {
                 class="online-lyrics-editor"
                 v-model="editableOnlineLyrics"
                 placeholder="在线歌词（可编辑，修改后用于智能纠错）"
-                :rows="10"
               />
             </div>
           </UiSpin>
@@ -1293,6 +1291,11 @@ body[arco-theme="dark"] .lyrics-preview-text {
   max-height: 100%;
   overflow: hidden;
 }
+.ui-textarea-wrapper {
+  flex: 1;
+  min-height: 0;
+  resize: none;
+}
 .lyrics-left-textarea {
   flex: 1;
   min-height: 0;
@@ -1338,9 +1341,16 @@ body[arco-theme="dark"] .lyrics-preview-text {
   height: auto !important;
 }
 
+/* 在线歌词编辑框和 diff 容器 */
+.online-lyrics-editor,
+.diff-container-textarea {
+  flex: 1;
+  min-height: 300px;
+  max-height: 500px;
+}
+
 .diff-container-textarea {
   overflow-y: scroll;
-  flex: 1;
   white-space: pre-wrap;
   font-family: monospace;
   background: #f5f5f5;
