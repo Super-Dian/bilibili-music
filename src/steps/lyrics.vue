@@ -198,6 +198,9 @@ const onlineLyrics = ref<string>("");
 /** 当前激活的 tab */
 const activeTab = ref("1");
 
+/** 是否显示 OpenAI 设置面板 */
+const showOpenAISettings = ref(false);
+
 /** 第一句歌词开始时间（mm:ss格式） */
 const lyricsStartTime = ref("");
 const lyricsStartTimeError = ref(false);
@@ -818,9 +821,9 @@ function editLyrics(item: SubTitle) {
 </script>
 
 <template>
-  <a-spin :loading="!fromData.playerData && !error">
+  <UiSpin :loading="!fromData.playerData && !error">
     <form @submit.prevent>
-      <a-result
+      <UiResult
         v-if="error"
         status="error"
         :title="error"
@@ -831,7 +834,7 @@ function editLyrics(item: SubTitle) {
             <UiButton type="primary" @click="skipLyrics">跳过字幕嵌入</UiButton>
           </div>
         </template>
-      </a-result>
+      </UiResult>
       <div class="lyrics-list-scroll" v-else-if="fromData.playerData">
         <a-checkbox-group v-model="subtitle" @change="onChange">
           <template v-for="item in subtitles" :key="item.id">
@@ -881,7 +884,7 @@ function editLyrics(item: SubTitle) {
       </UiCheckbox>
       <Btn @next="next" @prev="$emit('prev')" />
     </form>
-  </a-spin>
+  </UiSpin>
   <UiModal v-model:visible="visible" title="歌词工作台" fullscreen>
     <template #footer>
       <UiButton @click="handleCancel"> 取消 </UiButton>
@@ -975,15 +978,7 @@ function editLyrics(item: SubTitle) {
             </UiAlert>
             <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
               <div style="display: flex; gap: 8px; margin-bottom: 10px">
-                <a-select v-model="lyricsBodySwitch.onlineDiff" style="width: 140px">
-                  <a-option
-                    v-for="[key, [label]] in Object.entries(diffFunc)"
-                    :key="key"
-                    :value="key"
-                  >
-                    {{ label }}
-                  </a-option>
-                </a-select>
+                <UiSelect v-model="lyricsBodySwitch.onlineDiff" :options="Object.entries(diffFunc).map(([key, [label]]) => ({ label, value: key }))" style="width: 140px" />
                 <UiButton
                   @click="onlineLyricsViewMode = onlineLyricsViewMode === 'edit' ? 'diff' : 'edit'"
                 >
@@ -1021,26 +1016,30 @@ function editLyrics(item: SubTitle) {
             <UiAlert type="info">将网络歌词给AI进行纠正（此部分未进行维护，可用性未知）</UiAlert>
 
             <UiButton type="primary" @click="aiRewrite">AI 改写</UiButton>
-            <a-trigger trigger="click" :unmount-on-close="false">
-              <UiButton type="primary">
+            <div style="position: relative">
+              <UiButton type="primary" @click="showOpenAISettings = !showOpenAISettings">
                 <template #icon> <icon-settings /> </template>
               </UiButton>
-              <template #content>
-                <div
-                  style="
-                    padding: 10px;
-                    width: 200px;
-                    background-color: var(--color-bg-popup);
-                    border-radius: 4px;
-                    box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
-                  "
-                >
-                  <UiInput placeholder="Host" v-model="userConfig.openai.host" />
-                  <UiInput placeholder="Key" v-model="userConfig.openai.key" />
-                  <UiInput placeholder="Modal" v-model="userConfig.openai.modal" />
-                </div>
-              </template>
-            </a-trigger>
+              <div
+                v-if="showOpenAISettings"
+                style="
+                  position: absolute;
+                  left: 0;
+                  top: 100%;
+                  margin-top: 4px;
+                  padding: 10px;
+                  width: 200px;
+                  background-color: var(--color-bg-popup);
+                  border-radius: 4px;
+                  box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
+                  z-index: 1000;
+                "
+              >
+                <UiInput placeholder="Host" v-model="userConfig.openai.host" style="margin-bottom: 8px" />
+                <UiInput placeholder="Key" v-model="userConfig.openai.key" style="margin-bottom: 8px" />
+                <UiInput placeholder="Modal" v-model="userConfig.openai.modal" />
+              </div>
+            </div>
           </div>
           <UiSpin
             style="margin-top: 10px; flex: 1; overflow: auto; width: 100%"
@@ -1067,16 +1066,7 @@ function editLyrics(item: SubTitle) {
                 />
             </details>
             <div style="margin-bottom: 10px">
-              <a-select v-model="lyricsBodySwitch.aiDiff">
-                >
-                <a-option
-                  v-for="[key, [label]] in Object.entries(diffFunc)"
-                  :key="key"
-                  :value="key"
-                >
-                  {{ label }}
-                </a-option>
-              </a-select>
+              <UiSelect v-model="lyricsBodySwitch.aiDiff" :options="Object.entries(diffFunc).map(([key, [label]]) => ({ label, value: key }))" />
               <UiAlert :type="lyricsBodyLine[0] === lyricsBodyLine[2] ? 'success' : 'error'"
                 ><span style="margin-right: 20px">原行数：{{ lyricsBodyLine[0] }}</span
                 ><span>AI行数：{{ lyricsBodyLine[2] }}</span>
