@@ -11,6 +11,7 @@ import UiSpin from "@/components/UiSpin.vue";
 import UiAlert from "@/components/UiAlert.vue";
 import UiSelect from "@/components/UiSelect.vue";
 import UiModal from "@/components/UiModal.vue";
+import UiTabs from "@/components/UiTabs.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -193,6 +194,9 @@ const originalAiBody = ref<Body[]>([]);
 const originalAiText = ref("");
 
 const onlineLyrics = ref<string>("");
+
+/** 当前激活的 tab */
+const activeTab = ref("1");
 
 /** 第一句歌词开始时间（mm:ss格式） */
 const lyricsStartTime = ref("");
@@ -902,8 +906,12 @@ function editLyrics(item: SubTitle) {
           <UiCheckbox v-model="lyricsBodySwitch.note"> ♪ </UiCheckbox>
         </div>
       </div>
-      <a-tabs class="lyrics-right-panel">
-        <a-tab-pane key="1" title="在线歌词">
+      <UiTabs class="lyrics-right-panel" :active-key="activeTab" @change="activeTab = $event" :tabs="[
+        { key: '1', title: '在线歌词' },
+        { key: '2', title: 'AI 改写' },
+        { key: '3', title: '结果预览' }
+      ]">
+        <div v-if="activeTab === '1'">
           <UiSpin
             style="height: 100%; display: flex; flex-direction: column"
             :loading="onlineLyricsLoading || onlineLyricsLoading2"
@@ -1007,8 +1015,8 @@ function editLyrics(item: SubTitle) {
               />
             </div>
           </UiSpin>
-        </a-tab-pane>
-        <a-tab-pane key="2" title="AI 改写" style="display: flex; flex-direction: column">
+        </div>
+        <div v-if="activeTab === '2'" style="display: flex; flex-direction: column">
           <div style="display: flex; flex-direction: column; gap: 8px">
             <UiAlert type="info">将网络歌词给AI进行纠正（此部分未进行维护，可用性未知）</UiAlert>
 
@@ -1086,11 +1094,11 @@ function editLyrics(item: SubTitle) {
               >
             </div>
           </a-spin>
-        </a-tab-pane>
-        <a-tab-pane key="3" title="结果预览">
+        </div>
+        <div v-if="activeTab === '3'">
           <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="10" />
-        </a-tab-pane>
-      </a-tabs>
+        </div>
+      </UiTabs>
     </div>
   </UiModal>
 </template>
