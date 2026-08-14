@@ -29,7 +29,6 @@ function handleChange(event: Event) {
       'ui-checkbox',
       disabled && 'ui-checkbox-disabled',
     ]"
-    @click.prevent="disabled ? undefined : undefined"
   >
     <input
       type="checkbox"

@@ -920,13 +920,11 @@ function editLyrics(item: SubTitle) {
     </template>
     <div v-if="editLyricsData && editLyricsData.data" class="lyrics-workspace">
       <div class="lyrics-left-panel">
-        <div class="lyrics-left-content">
-          <UiTextarea
-            class="lyrics-left-textarea"
-            v-model="editLyricsData.data._editBody"
-            :rows="20"
-          />
-        </div>
+        <UiTextarea
+          class="lyrics-left-textarea"
+          v-model="editLyricsData.data._editBody"
+          :rows="20"
+        />
         <div class="lyrics-left-footer">
           <span>格式化：</span>
           <UiCheckbox v-model="lyricsBodySwitch.note"> ♪ </UiCheckbox>
@@ -1293,14 +1291,12 @@ body[arco-theme="dark"] .lyrics-preview-text {
   min-width: 0;
   min-height: 0;
   max-height: 100%;
-}
-.lyrics-left-content {
-  flex: 1;
-  min-height: 0;
   overflow: hidden;
 }
 .lyrics-left-textarea {
-  height: 100%;
+  flex: 1;
+  min-height: 0;
+  resize: none;
 }
 .lyrics-left-footer {
   display: flex;
@@ -1310,6 +1306,8 @@ body[arco-theme="dark"] .lyrics-preview-text {
   font-size: 14px;
   color: #666;
   flex-shrink: 0;
+  border-top: 1px solid #e3e5e7;
+  margin-top: 8px;
 }
 
 /* 右侧：tab 面板整体可滚动 */
