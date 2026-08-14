@@ -10,16 +10,20 @@ interface MessageOptions {
   duration?: number;
 }
 
-const container = (() => {
-  if (typeof document === "undefined") return null;
-  const el = document.createElement("div");
-  el.style.cssText = "position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;";
-  document.body.appendChild(el);
-  return el;
-})();
+let container: HTMLDivElement | null = null;
+
+function ensureContainer() {
+  if (container) return container;
+  if (typeof document === "undefined" || !document.body) return null;
+  container = document.createElement("div");
+  container.style.cssText = "position:fixed;top:24px;left:50%;transform:translateX(-50%);z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none;";
+  document.body.appendChild(container);
+  return container;
+}
 
 function showMessage(options: MessageOptions) {
-  if (!container) return;
+  const containerEl = ensureContainer();
+  if (!containerEl) return;
 
   const { type, content, duration = 3000 } = options;
 
@@ -56,7 +60,7 @@ function showMessage(options: MessageOptions) {
   `;
   el.innerHTML = `<span style="color: ${colors[type]}">${icons[type]}</span><span>${content}</span>`;
 
-  container.appendChild(el);
+  containerEl.appendChild(el);
 
   // 动画进入
   requestAnimationFrame(() => {
