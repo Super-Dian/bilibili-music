@@ -10,6 +10,7 @@ import UiTextarea from "@/components/UiTextarea.vue";
 import UiSpin from "@/components/UiSpin.vue";
 import UiAlert from "@/components/UiAlert.vue";
 import UiSelect from "@/components/UiSelect.vue";
+import UiModal from "@/components/UiModal.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -877,8 +878,7 @@ function editLyrics(item: SubTitle) {
       <Btn @next="next" @prev="$emit('prev')" />
     </form>
   </a-spin>
-  <a-modal v-model:visible="visible" fullscreen :body-style="{ height: '100%' }">
-    <template #title> 歌词工作台 </template>
+  <UiModal v-model:visible="visible" title="歌词工作台" fullscreen>
     <template #footer>
       <UiButton @click="handleCancel"> 取消 </UiButton>
       <UiButton
@@ -1092,7 +1092,7 @@ function editLyrics(item: SubTitle) {
         </a-tab-pane>
       </a-tabs>
     </div>
-  </a-modal>
+  </UiModal>
 </template>
 
 <style>
