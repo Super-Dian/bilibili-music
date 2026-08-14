@@ -9,6 +9,7 @@ import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
 import UiSpin from "@/components/UiSpin.vue";
 import UiAlert from "@/components/UiAlert.vue";
+import UiSelect from "@/components/UiSelect.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -915,7 +916,7 @@ function editLyrics(item: SubTitle) {
                   <icon-search />
                 </template>
               </UiButton>
-              <a-select
+              <UiSelect
                 :options="onlineLyricsOptions"
                 :style="{ width: '160px' }"
                 placeholder="在线歌词"
