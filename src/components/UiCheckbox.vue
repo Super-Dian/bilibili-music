@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue?: boolean | string | number;
     value?: string | number;
@@ -13,7 +13,14 @@ withDefaults(
   },
 );
 
-defineEmits(["update:modelValue", "change"]);
+const emit = defineEmits(["update:modelValue", "change"]);
+
+function handleChange(event: Event) {
+  if (props.disabled) return;
+  const target = event.target as HTMLInputElement;
+  emit("update:modelValue", target.checked);
+  emit("change", event);
+}
 </script>
 
 <template>
@@ -22,13 +29,14 @@ defineEmits(["update:modelValue", "change"]);
       'ui-checkbox',
       disabled && 'ui-checkbox-disabled',
     ]"
+    @click.prevent="disabled ? undefined : undefined"
   >
     <input
       type="checkbox"
       class="ui-checkbox-input"
       :checked="modelValue === true || modelValue === value"
       :disabled="disabled"
-      @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked); $emit('change', $event)"
+      @change="handleChange"
     />
     <span class="ui-checkbox-mark">
       <svg v-if="modelValue === true || modelValue === value" viewBox="0 0 12 12" fill="none">
