@@ -80,7 +80,7 @@ const onChange = (v: (string | number | boolean)[]) => {
 </script>
 
 <template>
-  <a-form auto-label-width :model="{}">
+  <form @submit.prevent>
     <a-checkbox-group :model-value="cover" @change="onChange">
       <template v-for="item in covers" :key="item.label">
         <a-checkbox :value="item.url">
@@ -106,7 +106,7 @@ const onChange = (v: (string | number | boolean)[]) => {
     </a-checkbox-group>
 
     <Btn @next="next" @prev="$emit('prev')" />
-  </a-form>
+  </form>
 </template>
 
 <style scoped></style>

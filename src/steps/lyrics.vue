@@ -811,7 +811,7 @@ function editLyrics(item: SubTitle) {
 
 <template>
   <a-spin :loading="!fromData.playerData && !error">
-    <a-form auto-label-width :model="{}">
+    <form @submit.prevent>
       <a-result
         v-if="error"
         status="error"
@@ -872,7 +872,7 @@ function editLyrics(item: SubTitle) {
         外置歌词（保存为独立 .lrc 文件，不嵌入音频）
       </UiCheckbox>
       <Btn @next="next" @prev="$emit('prev')" />
-    </a-form>
+    </form>
   </a-spin>
   <a-modal v-model:visible="visible" fullscreen :body-style="{ height: '100%' }">
     <template #title> 歌词工作台 </template>
