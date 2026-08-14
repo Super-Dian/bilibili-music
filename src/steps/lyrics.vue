@@ -906,7 +906,7 @@ function editLyrics(item: SubTitle) {
             tip="正在搜索在线歌词"
           >
             <div style="display: flex; gap: 8px">
-              <a-input :style="{ width: '160px' }" placeholder="歌名" v-model="onlineSearch" />
+              <UiInput :style="{ width: '160px' }" placeholder="歌名" v-model="onlineSearch" />
               <UiButton @click="searchOnlineLyrics">
                 <template #icon>
                   <icon-search />
@@ -932,7 +932,7 @@ function editLyrics(item: SubTitle) {
                 使用在线歌词
               </UiCheckbox>
               <span>开始时间：</span>
-              <a-input
+              <UiInput
                 v-model="lyricsStartTime"
                 style="width: 100px"
                 placeholder="mm:ss"
@@ -1023,9 +1023,9 @@ function editLyrics(item: SubTitle) {
                     box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.15);
                   "
                 >
-                  <a-input placeholder="Host" v-model="userConfig.openai.host" />
-                  <a-input placeholder="Key" v-model="userConfig.openai.key" />
-                  <a-input placeholder="Modal" v-model="userConfig.openai.modal" />
+                  <UiInput placeholder="Host" v-model="userConfig.openai.host" />
+                  <UiInput placeholder="Key" v-model="userConfig.openai.key" />
+                  <UiInput placeholder="Modal" v-model="userConfig.openai.modal" />
                 </div>
               </template>
             </a-trigger>
