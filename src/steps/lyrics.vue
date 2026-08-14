@@ -1342,7 +1342,10 @@ body[arco-theme="dark"] .lyrics-preview-text {
 }
 
 /* 在线歌词编辑框和 diff 容器 */
-.online-lyrics-editor,
+.online-lyrics-editor :deep(.ui-textarea) {
+  min-height: 300px;
+}
+
 .diff-container-textarea {
   min-height: 300px;
   max-height: 500px;

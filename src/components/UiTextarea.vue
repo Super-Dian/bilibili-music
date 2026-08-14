@@ -58,7 +58,6 @@ const charCount = computed(() => (props.modelValue || "").length);
 
 .ui-textarea {
   width: 100%;
-  min-height: 300px;
   padding: 8px 12px;
   font-size: 14px;
   line-height: 1.5715;
