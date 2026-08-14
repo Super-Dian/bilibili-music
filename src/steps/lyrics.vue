@@ -863,30 +863,29 @@ function editLyrics(item: SubTitle) {
         </template>
       </UiResult>
       <div class="lyrics-list-scroll" v-else-if="fromData.playerData">
-        <div style="display: flex; flex-direction: column; gap: 8px">
+        <div class="lyrics-list">
           <div v-for="item in subtitles" :key="item.id">
             <div
-              class="custom-checkbox-card"
-              :class="{ 'custom-checkbox-card-checked': subtitle.includes(item.id_str) }"
-              style="width: 100%; display: flex; align-items: flex-start; cursor: pointer"
+              class="lyrics-card"
+              :class="{ 'lyrics-card-checked': subtitle.includes(item.id_str) }"
               @click="toggleSubtitle(item.id_str)"
             >
-              <div class="custom-checkbox-card-mask">
-                <div class="custom-checkbox-card-mask-dot" v-if="subtitle.includes(item.id_str)" />
+              <div class="lyrics-card-checkbox">
+                <div class="lyrics-card-checkbox-dot" v-if="subtitle.includes(item.id_str)" />
               </div>
-              <div style="flex: 1">
-                <div class="custom-checkbox-card-title">
-                  {{ item.lan_doc }}
-                  <UiButton type="primary" size="small" @click.stop="editLyrics(item)">
-                    <template #icon>
-                      <icon-settings />
-                    </template>
-                  </UiButton>
+              <div class="lyrics-card-content">
+                <div class="lyrics-card-header">
+                  <span class="lyrics-card-title">{{ item.lan_doc }}</span>
+                  <button class="lyrics-card-btn" @click.stop="editLyrics(item)">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                    </svg>
+                  </button>
                 </div>
 
                 <div
                   v-if="item.data"
-                  class="lyrics-preview-text"
+                  class="lyrics-card-preview"
                 >
                   {{
                     subtitleEdit &&
@@ -1117,21 +1116,146 @@ function editLyrics(item: SubTitle) {
 </template>
 
 <style>
-.custom-checkbox-card-title {
+/* 歌词列表样式 */
+.lyrics-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.lyrics-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #e3e5e7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.lyrics-card:hover {
+  border-color: #00aeec;
+  background: #f5f5f5;
+}
+
+.lyrics-card-checked {
+  border-color: #00aeec;
+  background: #e6f7ff;
+}
+
+.lyrics-card-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c9ccd0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all 0.2s ease;
+}
+
+.lyrics-card-checked .lyrics-card-checkbox {
+  background: #00aeec;
+  border-color: #00aeec;
+}
+
+.lyrics-card-checkbox-dot {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 2px;
+}
+
+.lyrics-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.lyrics-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  margin-bottom: 8px;
 }
+
+.lyrics-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #18191c;
+}
+
+.lyrics-card-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: #00aeec;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.lyrics-card-btn:hover {
+  background: #00a1d6;
+}
+
+.lyrics-card-preview {
+  width: 100%;
+  height: 200px;
+  white-space: break-spaces;
+  overflow-y: auto;
+  color: #666;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #f9f9f9;
+  border-radius: 4px;
+  padding: 8px;
+}
+
 .lyrics-list-scroll {
   max-height: 60vh;
   overflow-y: auto;
 }
-.lyrics-preview-text {
-  width: 100%;
-  height: 280px;
-  white-space: break-spaces;
-  overflow-y: scroll;
-  color: #4f4d4d;
+
+/* 深色模式 */
+:global([arco-theme="dark"]) .lyrics-card,
+:global([data-theme="dark"]) .lyrics-card {
+  border-color: #444;
+  background: #2a2a2a;
+}
+
+:global([arco-theme="dark"]) .lyrics-card:hover,
+:global([data-theme="dark"]) .lyrics-card:hover {
+  background: #3a3a3a;
+}
+
+:global([arco-theme="dark"]) .lyrics-card-checked,
+:global([data-theme="dark"]) .lyrics-card-checked {
+  background: #173344;
+  border-color: #00aeec;
+}
+
+:global([arco-theme="dark"]) .lyrics-card-checkbox,
+:global([data-theme="dark"]) .lyrics-card-checkbox {
+  border-color: #555;
+}
+
+:global([arco-theme="dark"]) .lyrics-card-title,
+:global([data-theme="dark"]) .lyrics-card-title {
+  color: #e0e0e0;
+}
+
+:global([arco-theme="dark"]) .lyrics-card-preview,
+:global([data-theme="dark"]) .lyrics-card-preview {
+  background: #1f1f1f;
+  color: #999;
 }
 
 /* 深色模式：歌词预览文字 */
