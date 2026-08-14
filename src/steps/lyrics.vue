@@ -7,6 +7,7 @@ import UiCheckbox from "@/components/UiCheckbox.vue";
 import UiButton from "@/components/UiButton.vue";
 import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
+import UiSpin from "@/components/UiSpin.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -901,7 +902,7 @@ function editLyrics(item: SubTitle) {
       </div>
       <a-tabs class="lyrics-right-panel">
         <a-tab-pane key="1" title="在线歌词">
-          <a-spin
+          <UiSpin
             style="height: 100%; display: flex; flex-direction: column"
             :loading="onlineLyricsLoading || onlineLyricsLoading2"
             tip="正在搜索在线歌词"
@@ -1003,7 +1004,7 @@ function editLyrics(item: SubTitle) {
                 :rows="10"
               />
             </div>
-          </a-spin>
+          </UiSpin>
         </a-tab-pane>
         <a-tab-pane key="2" title="AI 改写" style="display: flex; flex-direction: column">
           <div style="display: flex; flex-direction: column; gap: 8px">
