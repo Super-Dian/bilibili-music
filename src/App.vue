@@ -6,6 +6,8 @@ import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
 import UiButton from "@/components/UiButton.vue";
+import UiSteps from "@/components/UiSteps.vue";
+import UiResult from "@/components/UiResult.vue";
 import { fromData, normalizeRecordProcessingRule, reset, userConfig } from "./data";
 import type { RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
@@ -219,13 +221,13 @@ function onOpen() {
     <div
       style="display: flex; justify-content: space-between; align-items: center; max-height: 75vh"
     >
-      <a-steps :current="current" @change="setCurrent" direction="vertical" small v-show="sideShow">
-        <a-step>音频剪辑</a-step>
-        <a-step>基本信息</a-step>
-        <a-step>封面获取</a-step>
-        <a-step>歌词获取</a-step>
-        <a-step>音频内嵌</a-step>
-      </a-steps>
+      <UiSteps :current="current" @change="setCurrent" direction="vertical" size="small" v-show="sideShow">
+        <div>音频剪辑</div>
+        <div>基本信息</div>
+        <div>封面获取</div>
+        <div>歌词获取</div>
+        <div>音频内嵌</div>
+      </UiSteps>
       <div
         class="step-content"
         :style="{
@@ -235,13 +237,13 @@ function onOpen() {
         }"
       >
         <div v-if="batchStatus" class="wasm-music-batch-status">{{ batchStatus }}</div>
-        <a-result
+        <UiResult
           v-if="preparing"
           status="info"
           :title="preparingLabel"
           subtitle="下载窗口会保持打开，并在这里切换到下一项"
         />
-        <a-result
+        <UiResult
           v-else-if="fromData.err"
           status="error"
           :title="fromData.err"
