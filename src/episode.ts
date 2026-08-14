@@ -1,5 +1,5 @@
 import { GM_getValue, unsafeWindow } from "$";
-import { Message } from "@arco-design/web-vue";
+import { Message } from "@/utils/message";
 
 import { fromData, type RecordData } from "@/data";
 import {

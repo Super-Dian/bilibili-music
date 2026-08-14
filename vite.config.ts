@@ -2,11 +2,9 @@ import fs from "fs";
 import path from "path";
 import process from "process";
 
-import { vitePluginForArco } from "@arco-plugins/vite-vue";
 import tailwindcss from "@tailwindcss/vite";
 import vue from "@vitejs/plugin-vue";
 import AutoImport from "unplugin-auto-import/vite";
-import { ArcoResolver } from "unplugin-vue-components/resolvers";
 import Components from "unplugin-vue-components/vite";
 import { defineConfig } from "vite";
 import monkey, { cdn, util } from "vite-plugin-monkey";
@@ -20,23 +18,14 @@ export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
-    vitePluginForArco({
-      style: "css",
-    }),
     AutoImport({
       dts: true,
       imports: ["vue"],
-      resolvers: [ArcoResolver()],
     }),
     Components({
       dts: true,
       dirs: ["src/steps", "src/components"],
       include: /.vue$/,
-      resolvers: [
-        ArcoResolver({
-          sideEffect: false,
-        }),
-      ],
     }),
     {
       name: "replace-url",
@@ -105,7 +94,6 @@ export default defineConfig({
           vue: cdn
             .jsdelivr("Vue", "dist/vue.global.prod.js")
             .concat(util.dataUrl(";window.Vue=Vue;")),
-          "@arco-design/web-vue": cdn.jsdelivr("ArcoVue", "dist/arco-vue.min.js"),
         },
       },
       server: {

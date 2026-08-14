@@ -12,7 +12,19 @@ import UiAlert from "@/components/UiAlert.vue";
 import UiSelect from "@/components/UiSelect.vue";
 import UiModal from "@/components/UiModal.vue";
 import UiTabs from "@/components/UiTabs.vue";
-import { Message, SelectOptionGroup } from "@arco-design/web-vue";
+import { Message } from "@/utils/message";
+
+interface SelectOption {
+  label: string;
+  value: string | number;
+  disabled?: boolean;
+}
+
+interface SelectOptionGroup {
+  isGroup: true;
+  label: string;
+  options: SelectOption[];
+}
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
 import { logger } from "@/utils/logger";

@@ -21,6 +21,7 @@ declare module 'vue' {
     UiFormItem: typeof import('./src/components/UiFormItem.vue')['default']
     UiInput: typeof import('./src/components/UiInput.vue')['default']
     UiInputGroup: typeof import('./src/components/UiInputGroup.vue')['default']
+    UiMessage: typeof import('./src/components/UiMessage.vue')['default']
     UiModal: typeof import('./src/components/UiModal.vue')['default']
     UiResult: typeof import('./src/components/UiResult.vue')['default']
     UiSelect: typeof import('./src/components/UiSelect.vue')['default']

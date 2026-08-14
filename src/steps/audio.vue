@@ -12,7 +12,7 @@ import {
   getFFmpegDiagnostics,
   terminateFFmpeg,
 } from "@/utils/ffmpeg";
-import { Message } from "@arco-design/web-vue";
+import { Message } from "@/utils/message";
 import {
   episodeSession,
   failEpisodeDownload,

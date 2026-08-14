@@ -1,4 +1,4 @@
-import { Message } from "@arco-design/web-vue";
+import { Message } from "@/utils/message";
 
 import { userConfig } from "@/data";
 

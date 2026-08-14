@@ -13,7 +13,7 @@ import { fromData, normalizeRecordProcessingRule, reset, userConfig } from "./da
 import type { RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
 import { GM_getValue, GM_setValue } from "$";
-import { Message } from "@arco-design/web-vue";
+import { Message } from "@/utils/message";
 import { logger } from "./utils/logger";
 import {
   episodeSession,
