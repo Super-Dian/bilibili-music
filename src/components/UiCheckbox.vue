@@ -28,8 +28,7 @@ defineEmits(["update:modelValue", "change"]);
       class="ui-checkbox-input"
       :checked="modelValue === true || modelValue === value"
       :disabled="disabled"
-      @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked)"
-      @change="$emit('change', $event)"
+      @change="$emit('update:modelValue', ($event.target as HTMLInputElement).checked); $emit('change', $event)"
     />
     <span class="ui-checkbox-mark">
       <svg v-if="modelValue === true || modelValue === value" viewBox="0 0 12 12" fill="none">

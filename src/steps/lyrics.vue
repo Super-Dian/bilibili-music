@@ -3,6 +3,8 @@ import { fromData, Lyrics, userConfig } from "@/data";
 import { onMounted, ref, computed, reactive } from "vue";
 import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
+import UiCheckbox from "@/components/UiCheckbox.vue";
+import UiButton from "@/components/UiButton.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -864,23 +866,23 @@ function editLyrics(item: SubTitle) {
           </template>
         </a-checkbox-group>
       </div>
-      <a-checkbox v-model="fromData.externalLyrics" style="margin-top: 8px">
+      <UiCheckbox v-model="fromData.externalLyrics" style="margin-top: 8px">
         外置歌词（保存为独立 .lrc 文件，不嵌入音频）
-      </a-checkbox>
+      </UiCheckbox>
       <Btn @next="next" @prev="$emit('prev')" />
     </a-form>
   </a-spin>
   <a-modal v-model:visible="visible" fullscreen :body-style="{ height: '100%' }">
     <template #title> 歌词工作台 </template>
     <template #footer>
-      <a-button @click="handleCancel"> 取消 </a-button>
-      <a-button
+      <UiButton @click="handleCancel"> 取消 </UiButton>
+      <UiButton
         type="primary"
         :disabled="!useOnlineLyrics && lyricsBodyLine[0] !== lyricsBodyLine[1]"
         @click="handleOk"
       >
         确定
-      </a-button>
+      </UiButton>
     </template>
     <div v-if="editLyricsData && editLyricsData.data" class="lyrics-workspace">
       <div class="lyrics-left-panel">
@@ -893,9 +895,9 @@ function editLyrics(item: SubTitle) {
           :word-length="(v: string) => v.split('\n').length"
         />
         格式化：
-        <a-input-group>
-          <a-checkbox v-model="lyricsBodySwitch.note"> ♪ </a-checkbox>
-        </a-input-group>
+        <div style="display: flex; gap: 8px">
+          <UiCheckbox v-model="lyricsBodySwitch.note"> ♪ </UiCheckbox>
+        </div>
       </div>
       <a-tabs class="lyrics-right-panel">
         <a-tab-pane key="1" title="在线歌词">
@@ -904,32 +906,32 @@ function editLyrics(item: SubTitle) {
             :loading="onlineLyricsLoading || onlineLyricsLoading2"
             tip="正在搜索在线歌词"
           >
-            <a-input-group>
+            <div style="display: flex; gap: 8px">
               <a-input :style="{ width: '160px' }" placeholder="歌名" v-model="onlineSearch" />
-              <a-button @click="searchOnlineLyrics">
+              <UiButton @click="searchOnlineLyrics">
                 <template #icon>
                   <icon-search />
                 </template>
-              </a-button>
+              </UiButton>
               <a-select
                 :options="onlineLyricsOptions"
                 :style="{ width: '160px' }"
                 placeholder="在线歌词"
                 v-model="onlineLyricsIndex"
               />
-              <a-checkbox v-model="lyricsBodySwitch.timeAxis">时间轴</a-checkbox>
-              <a-checkbox v-model="lyricsBodySwitch.blankChar">空白字符</a-checkbox>
-              <a-checkbox v-model="lyricsBodySwitch.metaInfo">元信息</a-checkbox>
-              <a-checkbox v-model="lyricsBodySwitch.stripMeta">智能去除元信息</a-checkbox>
-            </a-input-group>
+              <UiCheckbox v-model="lyricsBodySwitch.timeAxis">时间轴</UiCheckbox>
+              <UiCheckbox v-model="lyricsBodySwitch.blankChar">空白字符</UiCheckbox>
+              <UiCheckbox v-model="lyricsBodySwitch.metaInfo">元信息</UiCheckbox>
+              <UiCheckbox v-model="lyricsBodySwitch.stripMeta">智能去除元信息</UiCheckbox>
+            </div>
             <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px">
-              <a-checkbox
+              <UiCheckbox
                 v-model="useOnlineLyrics"
                 :disabled="!onlineLyrics"
                 @change="onUseOnlineLyricsChange"
               >
                 使用在线歌词
-              </a-checkbox>
+              </UiCheckbox>
               <span>开始时间：</span>
               <a-input
                 v-model="lyricsStartTime"
@@ -939,29 +941,29 @@ function editLyrics(item: SubTitle) {
                 :disabled="!useOnlineLyrics"
                 @change="onLyricsStartTimeChange"
               />
-              <a-button :disabled="lyricsMode === 'ai'" @click="undoReplaceLyrics">
+              <UiButton :disabled="lyricsMode === 'ai'" @click="undoReplaceLyrics">
                 ↩ 撤销
-              </a-button>
+              </UiButton>
             </div>
             <a-alert type="info" style="margin-bottom: 10px">
               💡
               使用在线歌词：勾选后会自动替换歌词并使用在线歌词的时间轴。开始时间指的是在线字幕在视频中应当开始的时间，为了方便对齐可以删掉在线歌词中的非正文部分（如标题，歌手），可以使用去除元数据快速删除。
             </a-alert>
-            <a-button-group style="margin: 10px 0">
-              <a-button
+            <div style="margin: 10px 0; display: flex; gap: 8px">
+              <UiButton
                 type="outline"
                 :disabled="!onlineLyrics || useOnlineLyrics"
                 @click="smartCorrectLyrics"
               >
                 智能纠错
-              </a-button>
-            </a-button-group>
+              </UiButton>
+            </div>
             <a-alert type="info" style="margin-bottom: 10px">
               💡
               使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文，智能纠错会保留AI字幕的时间轴
             </a-alert>
             <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
-              <a-input-group style="margin-bottom: 10px">
+              <div style="display: flex; gap: 8px; margin-bottom: 10px">
                 <a-select v-model="lyricsBodySwitch.onlineDiff" style="width: 140px">
                   <a-option
                     v-for="[key, [label]] in Object.entries(diffFunc)"
@@ -971,12 +973,12 @@ function editLyrics(item: SubTitle) {
                     {{ label }}
                   </a-option>
                 </a-select>
-                <a-button
+                <UiButton
                   @click="onlineLyricsViewMode = onlineLyricsViewMode === 'edit' ? 'diff' : 'edit'"
                 >
                   {{ onlineLyricsViewMode === "edit" ? "查看差异" : "编辑歌词" }}
-                </a-button>
-              </a-input-group>
+                </UiButton>
+              </div>
 
               <div
                 v-if="onlineLyricsViewMode === 'diff'"
@@ -1003,14 +1005,14 @@ function editLyrics(item: SubTitle) {
           </a-spin>
         </a-tab-pane>
         <a-tab-pane key="2" title="AI 改写" style="display: flex; flex-direction: column">
-          <a-button-group>
+          <div style="display: flex; flex-direction: column; gap: 8px">
             <a-alert type="info">将网络歌词给AI进行纠正（此部分未进行维护，可用性未知）</a-alert>
 
-            <a-button type="primary" @click="aiRewrite">AI 改写</a-button>
+            <UiButton type="primary" @click="aiRewrite">AI 改写</UiButton>
             <a-trigger trigger="click" :unmount-on-close="false">
-              <a-button type="primary">
+              <UiButton type="primary">
                 <template #icon> <icon-settings /> </template>
-              </a-button>
+              </UiButton>
               <template #content>
                 <div
                   style="
@@ -1027,7 +1029,7 @@ function editLyrics(item: SubTitle) {
                 </div>
               </template>
             </a-trigger>
-          </a-button-group>
+          </div>
           <a-spin
             style="margin-top: 10px; flex: 1; overflow: auto; width: 100%"
             :loading="aiRewriteLoading"
@@ -1039,15 +1041,13 @@ function editLyrics(item: SubTitle) {
                     在线歌词
                   </a-button>
 
-                  <a-button-group>
-                    <a-button
-                      type="primary"
-                      @click="aiRewritePrompt += ' {{danmu}}'"
-                      :disabled="true"
-                    >
-                      添加弹幕
-                    </a-button>
-                  </a-button-group>
+                  <a-button
+                    type="primary"
+                    @click="aiRewritePrompt += ' {{danmu}}'"
+                    :disabled="true"
+                  >
+                    添加弹幕
+                  </a-button>
                 </div>
                 <a-textarea
                   v-model="aiRewritePrompt"
