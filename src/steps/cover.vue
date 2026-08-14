@@ -85,10 +85,10 @@ const onChange = (v: (string | number | boolean)[]) => {
       <template v-for="item in covers" :key="item.label">
         <a-checkbox :value="item.url">
           <template #checkbox="{ checked }">
-            <a-space
-              align="start"
+            <div
               class="custom-checkbox-card"
               :class="{ 'custom-checkbox-card-checked': checked }"
+              style="display: flex; align-items: flex-start"
             >
               <div className="custom-checkbox-card-mask">
                 <div className="custom-checkbox-card-mask-dot" />
@@ -97,9 +97,9 @@ const onChange = (v: (string | number | boolean)[]) => {
                 <div className="custom-checkbox-card-title">
                   {{ item.label }}
                 </div>
-                <a-image width="80" :src="item.url" :preview="false" />
+                <img width="80" :src="item.url" style="border-radius: 4px" />
               </div>
-            </a-space>
+            </div>
           </template>
         </a-checkbox>
       </template>

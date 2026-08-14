@@ -827,9 +827,9 @@ function editLyrics(item: SubTitle) {
         subtitle="请查看视频是否有字幕,包括AI字幕,如果没有,请跳过"
       >
         <template #extra>
-          <a-space>
-            <a-button type="primary" @click="skipLyrics">跳过字幕嵌入</a-button>
-          </a-space>
+          <div style="display: flex; gap: 8px">
+            <UiButton type="primary" @click="skipLyrics">跳过字幕嵌入</UiButton>
+          </div>
         </template>
       </a-result>
       <div class="lyrics-list-scroll" v-else-if="fromData.playerData">
@@ -837,11 +837,11 @@ function editLyrics(item: SubTitle) {
           <template v-for="item in subtitles" :key="item.id">
             <a-checkbox :value="item.id_str">
               <template #checkbox="{ checked }">
-                <a-space
+                <div
                   align="start"
                   class="custom-checkbox-card"
                   :class="{ 'custom-checkbox-card-checked': checked }"
-                  style="width: 100%"
+                  style="width: 100%; display: flex; align-items: flex-start"
                 >
                   <div className="custom-checkbox-card-mask">
                     <div className="custom-checkbox-card-mask-dot" />
@@ -849,11 +849,11 @@ function editLyrics(item: SubTitle) {
                   <div>
                     <div className="custom-checkbox-card-title">
                       {{ item.lan_doc }}
-                      <a-button type="primary" size="small" @click="editLyrics(item)">
+                      <UiButton type="primary" size="small" @click="editLyrics(item)">
                         <template #icon>
                           <icon-settings />
                         </template>
-                      </a-button>
+                      </UiButton>
                     </div>
 
                     <div
@@ -870,7 +870,7 @@ function editLyrics(item: SubTitle) {
                       }}
                     </div>
                   </div>
-                </a-space>
+                </div>
               </template>
             </a-checkbox>
           </template>
