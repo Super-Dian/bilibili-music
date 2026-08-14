@@ -35,12 +35,13 @@ withDefaults(
 
 .ui-form-item-label {
   flex-shrink: 0;
-  width: 80px;
+  width: 100px;
   padding-right: 12px;
   color: #18191c;
   font-size: 14px;
   line-height: 32px;
   text-align: right;
+  white-space: nowrap;
 }
 
 .ui-form-item-content {
