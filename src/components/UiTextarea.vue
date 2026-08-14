@@ -54,16 +54,11 @@ const charCount = computed(() => (props.modelValue || "").length);
 .ui-textarea-wrapper {
   position: relative;
   width: 100%;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
 }
 
 .ui-textarea {
   width: 100%;
-  flex: 1;
-  min-height: 0;
+  min-height: 300px;
   padding: 8px 12px;
   font-size: 14px;
   line-height: 1.5715;
@@ -72,7 +67,7 @@ const charCount = computed(() => (props.modelValue || "").length);
   border: 1px solid #c9ccd0;
   border-radius: 6px;
   outline: none;
-  resize: none;
+  resize: vertical;
   transition: all 0.2s ease;
   box-sizing: border-box;
   font-family: inherit;
