@@ -8,6 +8,7 @@ import StepLyrics from "@/steps/lyrics.vue";
 import UiButton from "@/components/UiButton.vue";
 import UiSteps from "@/components/UiSteps.vue";
 import UiResult from "@/components/UiResult.vue";
+import UiModal from "@/components/UiModal.vue";
 import { fromData, normalizeRecordProcessingRule, reset, userConfig } from "./data";
 import type { RecordData } from "./data";
 import { clone } from "./utils/deepmerge";
@@ -184,29 +185,13 @@ function onOpen() {
 </script>
 
 <template>
-  <a-modal
+  <UiModal
     v-model:visible="visible"
-    @open="onOpen"
+    title="音乐姬 >_< 下载服务🎶"
+    :fullscreen="fullscreen"
     :maskClosable="false"
     :escToClose="false"
-    :closable="false"
-    :mask="false"
-    :fullscreen="fullscreen"
-    draggable
   >
-    <template #title
-      >音乐姬{{ ">_<" }}下载服务🎶
-      <UiButton
-        style="position: absolute; right: 20px"
-        @click="fullscreen = !fullscreen"
-        size="small"
-      >
-        <template #icon>
-          <icon-expand v-if="fullscreen" />
-          <icon-shrink v-else />
-        </template>
-      </UiButton>
-    </template>
     <template #footer>
       <div style="display: flex; justify-content: space-between">
         <div style="display: flex; gap: 8px">
@@ -258,7 +243,7 @@ function onOpen() {
         />
       </div>
     </div>
-  </a-modal>
+  </UiModal>
 </template>
 
 <style>
