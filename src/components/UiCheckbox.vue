@@ -114,6 +114,7 @@ defineEmits(["update:modelValue", "change"]);
   border-color: #e3e5e7;
 }
 
+.ui-checkbox-disabled.ui-checkbox-input:checked + .ui-checkbox-mark,
 .ui-checkbox-disabled .ui-checkbox-input:checked + .ui-checkbox-mark {
   background: #c9ccd0;
   border-color: #c9ccd0;

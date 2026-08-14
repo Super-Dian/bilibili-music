@@ -922,12 +922,11 @@ function editLyrics(item: SubTitle) {
       <div class="lyrics-left-panel">
         <UiTextarea
           class="lyrics-left-textarea"
-          style="margin-right: 10px"
           v-model="editLyricsData.data._editBody"
-          :rows="10"
+          :rows="20"
         />
-        格式化：
-        <div style="display: flex; gap: 8px">
+        <div class="lyrics-left-footer">
+          <span>格式化：</span>
           <UiCheckbox v-model="lyricsBodySwitch.note"> ♪ </UiCheckbox>
         </div>
       </div>
@@ -942,15 +941,18 @@ function editLyrics(item: SubTitle) {
             :loading="onlineLyricsLoading || onlineLyricsLoading2"
             tip="正在搜索在线歌词"
           >
-            <div style="display: flex; gap: 8px">
+            <div style="display: flex; gap: 8px; flex-wrap: wrap">
               <UiInput :style="{ width: '160px' }" placeholder="歌名" v-model="onlineSearch" />
               <UiButton @click="searchOnlineLyrics">
                 <template #icon>
-                  <icon-search />
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                  </svg>
                 </template>
               </UiButton>
               <UiSelect
-                :options="onlineLyricsOptions"
+                :options="onlineLyricsOptions.flatMap(group => group.options)"
                 :style="{ width: '160px' }"
                 placeholder="在线歌词"
                 v-model="onlineLyricsIndex"
@@ -1278,26 +1280,36 @@ body[arco-theme="dark"] .lyrics-preview-text {
   display: flex;
   height: 100%;
   min-height: 0;
-  justify-content: space-around;
+  gap: 16px;
 }
 
 /* 左侧：歌词编辑框 */
 .lyrics-left-panel {
-  width: 48%;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
 }
 .lyrics-left-textarea {
   flex: 1;
-  min-height: 200px;
+  min-height: 300px;
+}
+.lyrics-left-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 14px;
+  color: #666;
 }
 
 /* 右侧：tab 面板整体可滚动 */
 .lyrics-right-panel {
-  width: 48%;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  min-width: 0;
   min-height: 0;
   overflow-y: auto;
 }
