@@ -176,7 +176,7 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 ### 构建结果
 
 ```
-dist/wasm-music.user.js  346.95 kB │ gzip: 77.74 kB
+dist/wasm-music.user.js  357.16 kB │ gzip: 79.69 kB
 ```
 
 ### 深色模式支持
@@ -193,38 +193,6 @@ dist/wasm-music.user.js  346.95 kB │ gzip: 77.74 kB
 ### 下一步计划
 
 1. ~~移除 Arco Design 依赖~~ ✅ 已完成
-2. 优化 CSS，减少包体积
-3. 完善深色模式适配
-4. 测试所有功能
-- `UiCheckbox.vue` — 复选框，支持 v-model
-- `UiSpace.vue` — 间距容器
-- `UiFormItem.vue` — 表单项
-- `UiButtonGroup.vue` — 按钮组
-- `UiInputGroup.vue` — 输入框组
-- `UiSpin.vue` — 加载动画
-- `UiAlert.vue` — 提示框
-- `UiResult.vue` — 结果展示
-
-### 构建结果
-
-```
-dist/wasm-music.user.js  548.30 kB │ gzip: 99.70 kB
-```
-
-### 深色模式支持
-
-所有自定义组件都支持深色模式，通过以下选择器：
-
-```css
-:global([arco-theme="dark"]) .ui-xxx,
-:global([data-theme="dark"]) .ui-xxx {
-  /* 深色模式样式 */
-}
-```
-
-### 下一步计划
-
-1. 继续替换剩余的 Arco 组件
-2. 移除 Arco Design 依赖
-3. 优化 CSS，减少包体积
-4. 完善深色模式适配
+2. 完善深色模式适配
+3. 测试所有功能
+4. 优化 CSS，减少包体积
