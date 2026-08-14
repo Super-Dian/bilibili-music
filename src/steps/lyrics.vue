@@ -1042,24 +1042,24 @@ function editLyrics(item: SubTitle) {
               </template>
             </a-trigger>
           </div>
-          <a-spin
+          <UiSpin
             style="margin-top: 10px; flex: 1; overflow: auto; width: 100%"
             :loading="aiRewriteLoading"
           >
             <details style="margin-bottom: 10px; border: 1px solid #e3e5e7; border-radius: 6px; padding: 8px">
               <summary style="cursor: pointer; font-weight: 500; margin-bottom: 10px">自定义 Prompt</summary>
                 <div style="display: flex; gap: 8px; margin-bottom: 10px">
-                  <a-button type="primary" @click="aiRewritePrompt += ' {{onlineLyrics}}'">
+                  <UiButton type="primary" @click="aiRewritePrompt += ' {{onlineLyrics}}'">
                     在线歌词
-                  </a-button>
+                  </UiButton>
 
-                  <a-button
+                  <UiButton
                     type="primary"
                     @click="aiRewritePrompt += ' {{danmu}}'"
                     :disabled="true"
                   >
                     添加弹幕
-                  </a-button>
+                  </UiButton>
                 </div>
                 <UiTextarea
                   v-model="aiRewritePrompt"
@@ -1093,7 +1093,7 @@ function editLyrics(item: SubTitle) {
                 >{{ part.value }}</span
               >
             </div>
-          </a-spin>
+          </UiSpin>
         </div>
         <div v-if="activeTab === '3'">
           <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="10" />
