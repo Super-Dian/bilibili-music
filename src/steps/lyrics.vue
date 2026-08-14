@@ -8,6 +8,7 @@ import UiButton from "@/components/UiButton.vue";
 import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
 import UiSpin from "@/components/UiSpin.vue";
+import UiAlert from "@/components/UiAlert.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -946,10 +947,10 @@ function editLyrics(item: SubTitle) {
                 ↩ 撤销
               </UiButton>
             </div>
-            <a-alert type="info" style="margin-bottom: 10px">
+            <UiAlert type="info" style="margin-bottom: 10px">
               💡
               使用在线歌词：勾选后会自动替换歌词并使用在线歌词的时间轴。开始时间指的是在线字幕在视频中应当开始的时间，为了方便对齐可以删掉在线歌词中的非正文部分（如标题，歌手），可以使用去除元数据快速删除。
-            </a-alert>
+            </UiAlert>
             <div style="margin: 10px 0; display: flex; gap: 8px">
               <UiButton
                 type="outline"
@@ -959,10 +960,10 @@ function editLyrics(item: SubTitle) {
                 智能纠错
               </UiButton>
             </div>
-            <a-alert type="info" style="margin-bottom: 10px">
+            <UiAlert type="info" style="margin-bottom: 10px">
               💡
               使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文，智能纠错会保留AI字幕的时间轴
-            </a-alert>
+            </UiAlert>
             <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
               <div style="display: flex; gap: 8px; margin-bottom: 10px">
                 <a-select v-model="lyricsBodySwitch.onlineDiff" style="width: 140px">
@@ -1008,7 +1009,7 @@ function editLyrics(item: SubTitle) {
         </a-tab-pane>
         <a-tab-pane key="2" title="AI 改写" style="display: flex; flex-direction: column">
           <div style="display: flex; flex-direction: column; gap: 8px">
-            <a-alert type="info">将网络歌词给AI进行纠正（此部分未进行维护，可用性未知）</a-alert>
+            <UiAlert type="info">将网络歌词给AI进行纠正（此部分未进行维护，可用性未知）</UiAlert>
 
             <UiButton type="primary" @click="aiRewrite">AI 改写</UiButton>
             <a-trigger trigger="click" :unmount-on-close="false">
@@ -1067,10 +1068,10 @@ function editLyrics(item: SubTitle) {
                   {{ label }}
                 </a-option>
               </a-select>
-              <a-alert :type="lyricsBodyLine[0] === lyricsBodyLine[2] ? 'success' : 'error'"
+              <UiAlert :type="lyricsBodyLine[0] === lyricsBodyLine[2] ? 'success' : 'error'"
                 ><span style="margin-right: 20px">原行数：{{ lyricsBodyLine[0] }}</span
                 ><span>AI行数：{{ lyricsBodyLine[2] }}</span>
-              </a-alert>
+              </UiAlert>
             </div>
             <div class="diff-container-textarea">
               <span
