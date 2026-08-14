@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref } from "vue";
+import { ref, nextTick } from "vue";
 
 interface DropdownOption {
   label: string;
@@ -20,6 +20,8 @@ withDefaults(
 
 const emit = defineEmits(["select"]);
 const isVisible = ref(false);
+const menuRef = ref<HTMLDivElement | null>(null);
+const menuStyle = ref<{ right?: string; left?: string }>({});
 
 function handleSelect(option: DropdownOption) {
   if (option.disabled) return;
@@ -34,9 +36,11 @@ function handleClickOutside(event: MouseEvent) {
   }
 }
 
-function toggle() {
+async function toggle() {
   isVisible.value = !isVisible.value;
   if (isVisible.value) {
+    await nextTick();
+    updateMenuPosition();
     setTimeout(() => {
       document.addEventListener("click", handleClickOutside);
     }, 0);
@@ -44,12 +48,25 @@ function toggle() {
     document.removeEventListener("click", handleClickOutside);
   }
 }
+
+function updateMenuPosition() {
+  if (!menuRef.value) return;
+  const rect = menuRef.value.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+
+  // 如果菜单超出右边界，则向左对齐
+  if (rect.right > viewportWidth) {
+    menuStyle.value = { right: "0", left: "auto" };
+  } else {
+    menuStyle.value = { left: "0", right: "auto" };
+  }
+}
 </script>
 
 <template>
   <div class="ui-dropdown" @click="trigger === 'click' && toggle()">
     <slot />
-    <div v-if="isVisible" class="ui-dropdown-menu">
+    <div v-if="isVisible" ref="menuRef" class="ui-dropdown-menu" :style="menuStyle">
       <div
         v-for="option in options"
         :key="option.value"
@@ -72,8 +89,7 @@ function toggle() {
 .ui-dropdown-menu {
   position: absolute;
   top: 100%;
-  left: 0;
-  min-width: 120px;
+  min-width: 80px;
   padding: 4px 0;
   background: #fff;
   border-radius: 6px;
