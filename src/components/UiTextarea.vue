@@ -39,13 +39,16 @@ const charCount = computed(() => (props.modelValue || "").length);
       :readonly="readonly"
       :rows="rows"
       :maxlength="maxLength"
-      @input="$emit('update:modelValue', ($event.target as HTMLTextAreaElement).value); $emit('input', $event)"
+      @input="
+        $emit('update:modelValue', ($event.target as HTMLTextAreaElement).value);
+        $emit('input', $event);
+      "
       @change="$emit('change', $event)"
       @focus="$emit('focus', $event)"
       @blur="$emit('blur', $event)"
     ></textarea>
     <span v-if="showWordLimit" class="ui-textarea-word-limit">
-      {{ charCount }}{{ maxLength ? `/${maxLength}` : '' }}
+      {{ charCount }}{{ maxLength ? `/${maxLength}` : "" }}
     </span>
   </div>
 </template>
@@ -54,6 +57,8 @@ const charCount = computed(() => (props.modelValue || "").length);
 .ui-textarea-wrapper {
   position: relative;
   width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .ui-textarea {
@@ -70,6 +75,7 @@ const charCount = computed(() => (props.modelValue || "").length);
   transition: all 0.2s ease;
   box-sizing: border-box;
   font-family: inherit;
+  flex: 1;
 }
 
 .ui-textarea:focus {

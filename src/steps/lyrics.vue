@@ -878,15 +878,14 @@ function editLyrics(item: SubTitle) {
                   <span class="lyrics-card-title">{{ item.lan_doc }}</span>
                   <button class="lyrics-card-btn" @click.stop="editLyrics(item)">
                     <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+                      <path
+                        d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+                      />
                     </svg>
                   </button>
                 </div>
 
-                <div
-                  v-if="item.data"
-                  class="lyrics-card-preview"
-                >
+                <div v-if="item.data" class="lyrics-card-preview">
                   {{
                     subtitleEdit &&
                     subtitleEdit.data &&
@@ -930,11 +929,16 @@ function editLyrics(item: SubTitle) {
           <UiCheckbox v-model="lyricsBodySwitch.note"> ♪ </UiCheckbox>
         </div>
       </div>
-      <UiTabs class="lyrics-right-panel" :active-key="activeTab" @change="activeTab = $event" :tabs="[
-        { key: '1', title: '在线歌词' },
-        { key: '2', title: 'AI 改写' },
-        { key: '3', title: '结果预览' }
-      ]">
+      <UiTabs
+        class="lyrics-right-panel"
+        :active-key="activeTab"
+        @change="activeTab = $event"
+        :tabs="[
+          { key: '1', title: '在线歌词' },
+          { key: '2', title: 'AI 改写' },
+          { key: '3', title: '结果预览' },
+        ]"
+      >
         <div v-if="activeTab === '1'">
           <UiSpin
             style="height: 100%; display: flex; flex-direction: column"
@@ -945,14 +949,21 @@ function editLyrics(item: SubTitle) {
               <UiInput :style="{ width: '160px' }" placeholder="歌名" v-model="onlineSearch" />
               <UiButton @click="searchOnlineLyrics">
                 <template #icon>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="M21 21l-4.35-4.35"/>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    width="16"
+                    height="16"
+                  >
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="M21 21l-4.35-4.35" />
                   </svg>
                 </template>
               </UiButton>
               <UiSelect
-                :options="onlineLyricsOptions.flatMap(group => group.options)"
+                :options="onlineLyricsOptions.flatMap((group) => group.options)"
                 :style="{ width: '160px' }"
                 placeholder="在线歌词"
                 v-model="onlineLyricsIndex"
@@ -1002,7 +1013,13 @@ function editLyrics(item: SubTitle) {
             </UiAlert>
             <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
               <div style="display: flex; gap: 8px; margin-bottom: 10px">
-                <UiSelect v-model="lyricsBodySwitch.onlineDiff" :options="Object.entries(diffFunc).map(([key, [label]]) => ({ label, value: key }))" style="width: 140px" />
+                <UiSelect
+                  v-model="lyricsBodySwitch.onlineDiff"
+                  :options="
+                    Object.entries(diffFunc).map(([key, [label]]) => ({ label, value: key }))
+                  "
+                  style="width: 140px"
+                />
                 <UiButton
                   @click="onlineLyricsViewMode = onlineLyricsViewMode === 'edit' ? 'diff' : 'edit'"
                 >
@@ -1010,10 +1027,7 @@ function editLyrics(item: SubTitle) {
                 </UiButton>
               </div>
 
-              <div
-                v-if="onlineLyricsViewMode === 'diff'"
-                class="diff-container-textarea"
-              >
+              <div v-if="onlineLyricsViewMode === 'diff'" class="diff-container-textarea">
                 <span
                   v-for="(part, index) in onlineLyricsDiff"
                   :key="index"
@@ -1057,8 +1071,16 @@ function editLyrics(item: SubTitle) {
                   z-index: 1000;
                 "
               >
-                <UiInput placeholder="Host" v-model="userConfig.openai.host" style="margin-bottom: 8px" />
-                <UiInput placeholder="Key" v-model="userConfig.openai.key" style="margin-bottom: 8px" />
+                <UiInput
+                  placeholder="Host"
+                  v-model="userConfig.openai.host"
+                  style="margin-bottom: 8px"
+                />
+                <UiInput
+                  placeholder="Key"
+                  v-model="userConfig.openai.key"
+                  style="margin-bottom: 8px"
+                />
                 <UiInput placeholder="Modal" v-model="userConfig.openai.modal" />
               </div>
             </div>
@@ -1067,28 +1089,33 @@ function editLyrics(item: SubTitle) {
             style="margin-top: 10px; flex: 1; overflow: auto; width: 100%"
             :loading="aiRewriteLoading"
           >
-            <details style="margin-bottom: 10px; border: 1px solid #e3e5e7; border-radius: 6px; padding: 8px">
-              <summary style="cursor: pointer; font-weight: 500; margin-bottom: 10px">自定义 Prompt</summary>
-                <div style="display: flex; gap: 8px; margin-bottom: 10px">
-                  <UiButton type="primary" @click="aiRewritePrompt += ' {{onlineLyrics}}'">
-                    在线歌词
-                  </UiButton>
+            <details
+              style="
+                margin-bottom: 10px;
+                border: 1px solid #e3e5e7;
+                border-radius: 6px;
+                padding: 8px;
+              "
+            >
+              <summary style="cursor: pointer; font-weight: 500; margin-bottom: 10px">
+                自定义 Prompt
+              </summary>
+              <div style="display: flex; gap: 8px; margin-bottom: 10px">
+                <UiButton type="primary" @click="aiRewritePrompt += ' {{onlineLyrics}}'">
+                  在线歌词
+                </UiButton>
 
-                  <UiButton
-                    type="primary"
-                    @click="aiRewritePrompt += ' {{danmu}}'"
-                    :disabled="true"
-                  >
-                    添加弹幕
-                  </UiButton>
-                </div>
-                <UiTextarea
-                  v-model="aiRewritePrompt"
-                  :rows="4"
-                />
+                <UiButton type="primary" @click="aiRewritePrompt += ' {{danmu}}'" :disabled="true">
+                  添加弹幕
+                </UiButton>
+              </div>
+              <UiTextarea v-model="aiRewritePrompt" :rows="4" />
             </details>
             <div style="margin-bottom: 10px">
-              <UiSelect v-model="lyricsBodySwitch.aiDiff" :options="Object.entries(diffFunc).map(([key, [label]]) => ({ label, value: key }))" />
+              <UiSelect
+                v-model="lyricsBodySwitch.aiDiff"
+                :options="Object.entries(diffFunc).map(([key, [label]]) => ({ label, value: key }))"
+              />
               <UiAlert :type="lyricsBodyLine[0] === lyricsBodyLine[2] ? 'success' : 'error'"
                 ><span style="margin-right: 20px">原行数：{{ lyricsBodyLine[0] }}</span
                 ><span>AI行数：{{ lyricsBodyLine[2] }}</span>
@@ -1290,11 +1317,6 @@ body[arco-theme="dark"] .lyrics-preview-text {
   min-height: 0;
   max-height: 100%;
   overflow: hidden;
-}
-.ui-textarea-wrapper {
-  flex: 1;
-  min-height: 0;
-  resize: none;
 }
 .lyrics-left-textarea {
   flex: 1;

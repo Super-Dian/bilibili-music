@@ -206,13 +206,20 @@ function onOpen() {
     <div
       style="display: flex; justify-content: space-between; align-items: center; max-height: 75vh"
     >
-      <UiSteps :current="current" @change="setCurrent" direction="vertical" size="small" v-show="sideShow">
-        <div>音频剪辑</div>
-        <div>基本信息</div>
-        <div>封面获取</div>
-        <div>歌词获取</div>
-        <div>音频内嵌</div>
-      </UiSteps>
+      <UiSteps
+        :current="current"
+        @change="setCurrent"
+        direction="vertical"
+        size="small"
+        v-show="sideShow"
+        :items="[
+          { title: '音频剪辑' },
+          { title: '基本信息' },
+          { title: '封面获取' },
+          { title: '歌词获取' },
+          { title: '音频内嵌' }
+        ]"
+      />
       <div
         class="step-content"
         :style="{

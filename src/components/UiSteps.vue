@@ -1,14 +1,20 @@
 <script lang="ts" setup>
+interface StepItem {
+  title: string;
+}
+
 withDefaults(
   defineProps<{
     current?: number;
     direction?: "horizontal" | "vertical";
     size?: "small" | "medium";
+    items?: StepItem[];
   }>(),
   {
     current: 0,
     direction: "horizontal",
     size: "medium",
+    items: () => [],
   },
 );
 
@@ -18,7 +24,7 @@ defineEmits(["change"]);
 <template>
   <div :class="['ui-steps', `ui-steps-${direction}`, `ui-steps-${size}`]">
     <div
-      v-for="(slot, index) in $slots.default?.() ?? []"
+      v-for="(item, index) in items"
       :key="index"
       :class="[
         'ui-steps-item',
@@ -32,9 +38,9 @@ defineEmits(["change"]);
         <span v-else>{{ index + 1 }}</span>
       </div>
       <div class="ui-steps-content">
-        <div class="ui-steps-title">{{ slot.children?.default?.() ?? slot }}</div>
+        <div class="ui-steps-title">{{ item.title }}</div>
       </div>
-      <div v-if="index < ($slots.default?.() ?? []).length - 1" class="ui-steps-tail"></div>
+      <div v-if="index < items.length - 1" class="ui-steps-tail"></div>
     </div>
   </div>
 </template>
