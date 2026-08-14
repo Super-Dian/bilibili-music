@@ -74,23 +74,22 @@ function selectCover(url: string | undefined) {
 
 <template>
   <form @submit.prevent>
-    <div style="display: flex; flex-direction: column; gap: 12px">
+    <div class="cover-list">
       <div
         v-for="item in covers"
         :key="item.label"
-        class="custom-checkbox-card"
-        :class="{ 'custom-checkbox-card-checked': cover.includes(item.url || '') }"
-        style="display: flex; align-items: flex-start; cursor: pointer"
+        class="cover-item"
+        :class="{ 'cover-item-checked': cover.includes(item.url || '') }"
         @click="selectCover(item.url)"
       >
-        <div class="custom-checkbox-card-mask">
-          <div class="custom-checkbox-card-mask-dot" v-if="cover.includes(item.url || '')" />
+        <div class="cover-checkbox">
+          <div class="cover-checkbox-dot" v-if="cover.includes(item.url || '')" />
         </div>
-        <div>
-          <div class="custom-checkbox-card-title">
+        <div class="cover-content">
+          <div class="cover-title">
             {{ item.label }}
           </div>
-          <img width="80" :src="item.url" style="border-radius: 4px" />
+          <img class="cover-image" :src="item.url" />
         </div>
       </div>
     </div>
@@ -99,4 +98,103 @@ function selectCover(url: string | undefined) {
   </form>
 </template>
 
-<style scoped></style>
+<style scoped>
+.cover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.cover-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e3e5e7;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cover-item:hover {
+  border-color: #00aeec;
+  background: #f5f5f5;
+}
+
+.cover-item-checked {
+  border-color: #00aeec;
+  background: #e6f7ff;
+}
+
+.cover-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c9ccd0;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: all 0.2s ease;
+}
+
+.cover-item-checked .cover-checkbox {
+  background: #00aeec;
+  border-color: #00aeec;
+}
+
+.cover-checkbox-dot {
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-radius: 2px;
+}
+
+.cover-content {
+  flex: 1;
+}
+
+.cover-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: #18191c;
+  margin-bottom: 8px;
+}
+
+.cover-image {
+  width: 100px;
+  height: auto;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+/* 深色模式 */
+:global([arco-theme="dark"]) .cover-item,
+:global([data-theme="dark"]) .cover-item {
+  border-color: #444;
+  background: #2a2a2a;
+}
+
+:global([arco-theme="dark"]) .cover-item:hover,
+:global([data-theme="dark"]) .cover-item:hover {
+  background: #3a3a3a;
+}
+
+:global([arco-theme="dark"]) .cover-item-checked,
+:global([data-theme="dark"]) .cover-item-checked {
+  background: #173344;
+  border-color: #00aeec;
+}
+
+:global([arco-theme="dark"]) .cover-checkbox,
+:global([data-theme="dark"]) .cover-checkbox {
+  border-color: #555;
+}
+
+:global([arco-theme="dark"]) .cover-title,
+:global([data-theme="dark"]) .cover-title {
+  color: #e0e0e0;
+}
+</style>
