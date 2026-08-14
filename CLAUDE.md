@@ -133,8 +133,10 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 | `<a-button>` | `UiButton` | 32 | ✅ 完成 |
 | `<a-input>` | `UiInput` | 12 | ✅ 完成 |
 | `<a-textarea>` | `UiTextarea` | 5 | ✅ 完成 |
+| `<a-checkbox>` | 自定义 div | 9 | ✅ 完成 |
 | `<a-space>` | CSS flex | 7 | ✅ 完成 |
 | `<a-form-item>` | `UiFormItem` | 8 | ✅ 完成 |
+| `<a-form>` | 原生 form | 3 | ✅ 完成 |
 | `<a-button-group>` | `UiButtonGroup` | 3 | ✅ 已创建组件 |
 | `<a-input-group>` | `UiInputGroup` | 3 | ✅ 已创建组件 |
 | `<a-list>` | 原生 div | 1 | ✅ 完成 |
@@ -142,18 +144,13 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 | `<a-spin>` | `UiSpin` | 4 | ✅ 完成 |
 | `<a-alert>` | `UiAlert` | 4 | ✅ 已创建组件 |
 | `<a-result>` | `UiResult` | 4 | ✅ 完成 |
-
-### 待替换的组件
-
-| 组件 | 数量 | 复杂度 | 说明 |
-|------|------|--------|------|
-| `<a-checkbox>` | 9 | 低 | 已创建 UiCheckbox 组件 |
-| `<a-modal>` | 2 | 高 | 需要使用 `<dialog>` 元素 |
-| `<a-tabs>` | 1 | 中 | 需要自定义 tabs 组件 |
-| `<a-steps>` | 1 | 中 | 需要自定义步骤组件 |
-| `<a-select>` | 3 | 中 | 需要自定义 select 组件 |
-| `<a-dropdown>` | 3 | 中 | 需要自定义 dropdown 组件 |
-| `<a-form>` | 3 | 低 | 可保留或使用原生 form |
+| `<a-select>` | `UiSelect` | 3 | ✅ 已创建组件 |
+| `<a-modal>` | `UiModal` | 2 | ✅ 已创建组件 |
+| `<a-tabs>` | `UiTabs` | 1 | ✅ 已创建组件 |
+| `<a-steps>` | `UiSteps` | 1 | ✅ 已创建组件 |
+| `<a-dropdown>` | `UiDropdown` | 3 | ✅ 已创建组件 |
+| `<a-image>` | `<img>` | 1 | ✅ 完成 |
+| `<a-trigger>` | 自定义下拉 | 1 | ✅ 完成 |
 
 ### 新增的自定义组件
 
@@ -162,6 +159,43 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 - `UiButton.vue` — 通用按钮，支持 primary/secondary/outline/text 类型
 - `UiInput.vue` — 输入框，支持 v-model
 - `UiTextarea.vue` — 文本域，支持 v-model
+- `UiCheckbox.vue` — 复选框，支持 v-model
+- `UiSpace.vue` — 间距容器
+- `UiFormItem.vue` — 表单项
+- `UiButtonGroup.vue` — 按钮组
+- `UiInputGroup.vue` — 输入框组
+- `UiSpin.vue` — 加载动画
+- `UiAlert.vue` — 提示框
+- `UiResult.vue` — 结果展示
+- `UiSelect.vue` — 下拉选择
+- `UiTabs.vue` — 标签页
+- `UiSteps.vue` — 步骤条
+- `UiDropdown.vue` — 下拉菜单
+- `UiModal.vue` — 模态框
+
+### 构建结果
+
+```
+dist/wasm-music.user.js  346.95 kB │ gzip: 77.74 kB
+```
+
+### 深色模式支持
+
+所有自定义组件都支持深色模式，通过以下选择器：
+
+```css
+:global([arco-theme="dark"]) .ui-xxx,
+:global([data-theme="dark"]) .ui-xxx {
+  /* 深色模式样式 */
+}
+```
+
+### 下一步计划
+
+1. ~~移除 Arco Design 依赖~~ ✅ 已完成
+2. 优化 CSS，减少包体积
+3. 完善深色模式适配
+4. 测试所有功能
 - `UiCheckbox.vue` — 复选框，支持 v-model
 - `UiSpace.vue` — 间距容器
 - `UiFormItem.vue` — 表单项
