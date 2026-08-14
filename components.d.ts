@@ -17,13 +17,17 @@ declare module 'vue' {
     UiButton: typeof import('./src/components/UiButton.vue')['default']
     UiButtonGroup: typeof import('./src/components/UiButtonGroup.vue')['default']
     UiCheckbox: typeof import('./src/components/UiCheckbox.vue')['default']
+    UiDropdown: typeof import('./src/components/UiDropdown.vue')['default']
     UiFormItem: typeof import('./src/components/UiFormItem.vue')['default']
     UiInput: typeof import('./src/components/UiInput.vue')['default']
     UiInputGroup: typeof import('./src/components/UiInputGroup.vue')['default']
+    UiModal: typeof import('./src/components/UiModal.vue')['default']
     UiResult: typeof import('./src/components/UiResult.vue')['default']
     UiSelect: typeof import('./src/components/UiSelect.vue')['default']
     UiSpace: typeof import('./src/components/UiSpace.vue')['default']
     UiSpin: typeof import('./src/components/UiSpin.vue')['default']
+    UiSteps: typeof import('./src/components/UiSteps.vue')['default']
+    UiTabs: typeof import('./src/components/UiTabs.vue')['default']
     UiTextarea: typeof import('./src/components/UiTextarea.vue')['default']
   }
 }
