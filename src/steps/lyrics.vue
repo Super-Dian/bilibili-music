@@ -5,6 +5,7 @@ import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
 import UiCheckbox from "@/components/UiCheckbox.vue";
 import UiButton from "@/components/UiButton.vue";
+import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
