@@ -64,46 +64,36 @@ function next() {
   emits("next");
 }
 
-const onChange = (v: (string | number | boolean)[]) => {
-  const val = v.pop();
-  if (val) {
-    fromData.coverUrl = val.toString();
-    cover.value = [val.toString()];
-
-    coverRecord.label = covers.find((item) => item.url === val.toString())?.label;
-  } else {
-    fromData.coverUrl = null;
-    cover.value = [];
-    coverRecord.label = undefined;
-  }
-};
+function selectCover(url: string | undefined) {
+  if (!url) return;
+  fromData.coverUrl = url;
+  cover.value = [url];
+  coverRecord.label = covers.find((item) => item.url === url)?.label;
+}
 </script>
 
 <template>
   <form @submit.prevent>
-    <a-checkbox-group :model-value="cover" @change="onChange">
-      <template v-for="item in covers" :key="item.label">
-        <a-checkbox :value="item.url">
-          <template #checkbox="{ checked }">
-            <div
-              class="custom-checkbox-card"
-              :class="{ 'custom-checkbox-card-checked': checked }"
-              style="display: flex; align-items: flex-start"
-            >
-              <div className="custom-checkbox-card-mask">
-                <div className="custom-checkbox-card-mask-dot" />
-              </div>
-              <div>
-                <div className="custom-checkbox-card-title">
-                  {{ item.label }}
-                </div>
-                <img width="80" :src="item.url" style="border-radius: 4px" />
-              </div>
-            </div>
-          </template>
-        </a-checkbox>
-      </template>
-    </a-checkbox-group>
+    <div style="display: flex; flex-direction: column; gap: 12px">
+      <div
+        v-for="item in covers"
+        :key="item.label"
+        class="custom-checkbox-card"
+        :class="{ 'custom-checkbox-card-checked': cover.includes(item.url || '') }"
+        style="display: flex; align-items: flex-start; cursor: pointer"
+        @click="selectCover(item.url)"
+      >
+        <div class="custom-checkbox-card-mask">
+          <div class="custom-checkbox-card-mask-dot" v-if="cover.includes(item.url || '')" />
+        </div>
+        <div>
+          <div class="custom-checkbox-card-title">
+            {{ item.label }}
+          </div>
+          <img width="80" :src="item.url" style="border-radius: 4px" />
+        </div>
+      </div>
+    </div>
 
     <Btn @next="next" @prev="$emit('prev')" />
   </form>

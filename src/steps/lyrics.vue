@@ -35,6 +35,21 @@ const lyricsRecord = {
   label: undefined as string | undefined,
 };
 
+function toggleSubtitle(id: string) {
+  const index = subtitle.value.indexOf(id);
+  if (index > -1) {
+    subtitle.value = [];
+    fromData.lyricsData = null;
+    lyricsRecord.label = undefined;
+    noSubtitle.value = true;
+  } else {
+    subtitle.value = [id];
+    const s = subtitles.value.find((item) => item.id_str === id);
+    lyricsRecord.label = s?.lan_doc;
+    noSubtitle.value = false;
+  }
+}
+
 const onChange = (v: (string | number | boolean)[]) => {
   const val = v.at(-1);
   if (val !== undefined && val !== false) {
@@ -836,48 +851,44 @@ function editLyrics(item: SubTitle) {
         </template>
       </UiResult>
       <div class="lyrics-list-scroll" v-else-if="fromData.playerData">
-        <a-checkbox-group v-model="subtitle" @change="onChange">
-          <template v-for="item in subtitles" :key="item.id">
-            <a-checkbox :value="item.id_str">
-              <template #checkbox="{ checked }">
-                <div
-                  align="start"
-                  class="custom-checkbox-card"
-                  :class="{ 'custom-checkbox-card-checked': checked }"
-                  style="width: 100%; display: flex; align-items: flex-start"
-                >
-                  <div className="custom-checkbox-card-mask">
-                    <div className="custom-checkbox-card-mask-dot" />
-                  </div>
-                  <div>
-                    <div className="custom-checkbox-card-title">
-                      {{ item.lan_doc }}
-                      <UiButton type="primary" size="small" @click="editLyrics(item)">
-                        <template #icon>
-                          <icon-settings />
-                        </template>
-                      </UiButton>
-                    </div>
-
-                    <div
-                      v-if="item.data"
-                      class="lyrics-preview-text"
-                    >
-                      {{
-                        subtitleEdit &&
-                        subtitleEdit.data &&
-                        item.id_str === subtitleEdit.id_str &&
-                        lyricsBodyContent
-                          ? lyricsBodyContent
-                          : item.data.body.map((item) => item.content).join("\n")
-                      }}
-                    </div>
-                  </div>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div v-for="item in subtitles" :key="item.id">
+            <div
+              class="custom-checkbox-card"
+              :class="{ 'custom-checkbox-card-checked': subtitle.includes(item.id_str) }"
+              style="width: 100%; display: flex; align-items: flex-start; cursor: pointer"
+              @click="toggleSubtitle(item.id_str)"
+            >
+              <div class="custom-checkbox-card-mask">
+                <div class="custom-checkbox-card-mask-dot" v-if="subtitle.includes(item.id_str)" />
+              </div>
+              <div style="flex: 1">
+                <div class="custom-checkbox-card-title">
+                  {{ item.lan_doc }}
+                  <UiButton type="primary" size="small" @click.stop="editLyrics(item)">
+                    <template #icon>
+                      <icon-settings />
+                    </template>
+                  </UiButton>
                 </div>
-              </template>
-            </a-checkbox>
-          </template>
-        </a-checkbox-group>
+
+                <div
+                  v-if="item.data"
+                  class="lyrics-preview-text"
+                >
+                  {{
+                    subtitleEdit &&
+                    subtitleEdit.data &&
+                    item.id_str === subtitleEdit.id_str &&
+                    lyricsBodyContent
+                      ? lyricsBodyContent
+                      : item.data.body.map((item) => item.content).join("\n")
+                  }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <UiCheckbox v-model="fromData.externalLyrics" style="margin-top: 8px">
         外置歌词（保存为独立 .lrc 文件，不嵌入音频）
