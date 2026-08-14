@@ -352,34 +352,43 @@ function next() {
       <!-- 倍速控制 -->
       <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px">
         <label style="font-size: 13px">倍速：</label>
-        <select v-model.number="selectedSpeed">
+        <select v-model.number="selectedSpeed" class="speed-select">
           <option v-for="s in speedOptions" :key="s" :value="s">{{ s }}x</option>
         </select>
       </div>
       <!-- 控制按钮 -->
       <div class="control-buttons">
-        <div>
+        <div class="control-row">
           <UiButton @click="endAtCurrent">从这开头</UiButton>
           <UiButton @click="startFromCurrent">从这结尾</UiButton>
         </div>
-        <div>
+        <div class="control-row">
           <UiButton type="primary" @click="startRecording" :disabled="isRecording">
             <template #icon>
-              <icon-play-circle-fill v-if="!isPlaying" />
-              <icon-pause-circle-fill v-else />
+              <svg v-if="!isPlaying" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              </svg>
             </template>
             开始记录
           </UiButton>
           <UiButton @click="togglePlay">
             <template #icon>
-              <icon-play-circle-fill v-if="!isPlaying" />
-              <icon-pause-circle-fill v-else />
+              <svg v-if="!isPlaying" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M8 5v14l11-7z"/>
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+              </svg>
             </template>
           </UiButton>
           <UiButton @click="endRecording" :disabled="!isRecording" type="primary">
             <template #icon>
-              <icon-play-circle-fill v-if="!isPlaying" />
-              <icon-pause-circle-fill v-else />
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
             </template>
             结束记录
           </UiButton>
@@ -438,8 +447,12 @@ function next() {
             <a @click="seekTo(section.end)">{{ section.end.toFixed(2) }}s</a>
           </span>
           <UiButton status="danger" @click="removeSection(section.id)">
-            <template #icon> <icon-close /> </template
-          ></UiButton>
+            <template #icon>
+              <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+              </svg>
+            </template>
+          </UiButton>
         </div>
       </div>
     </UiSpin>
@@ -458,15 +471,33 @@ function next() {
   padding: 20px;
 }
 
+.speed-select {
+  padding: 6px 12px;
+  font-size: 14px;
+  border: 1px solid #c9ccd0;
+  border-radius: 6px;
+  background: #fff;
+  color: #18191c;
+  cursor: pointer;
+  outline: none;
+}
+
+.speed-select:focus {
+  border-color: #00aeec;
+  box-shadow: 0 0 0 2px rgba(0, 174, 236, 0.15);
+}
+
 .control-buttons {
   margin-bottom: 20px;
   display: flex;
-  gap: 10px;
   flex-direction: column;
-  > div {
-    display: flex;
-    justify-content: space-around;
-  }
+  gap: 10px;
+}
+
+.control-row {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
 }
 
 .timeline {
