@@ -5,6 +5,7 @@ import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
 import UiCheckbox from "@/components/UiCheckbox.vue";
 import UiButton from "@/components/UiButton.vue";
+import UiTextarea from "@/components/UiTextarea.vue";
 import { Message, SelectOptionGroup } from "@arco-design/web-vue";
 import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
@@ -886,13 +887,11 @@ function editLyrics(item: SubTitle) {
     </template>
     <div v-if="editLyricsData && editLyricsData.data" class="lyrics-workspace">
       <div class="lyrics-left-panel">
-        <a-textarea
+        <UiTextarea
           class="lyrics-left-textarea"
           style="margin-right: 10px"
           v-model="editLyricsData.data._editBody"
-          show-word-limit
-          :max-length="useOnlineLyrics ? undefined : { length: lyricsBodyLine[0], errorOnly: true }"
-          :word-length="(v: string) => v.split('\n').length"
+          :rows="10"
         />
         格式化：
         <div style="display: flex; gap: 8px">
@@ -995,11 +994,12 @@ function editLyrics(item: SubTitle) {
                   >{{ part.value }}</span
                 >
               </div>
-              <a-textarea
+              <UiTextarea
                 v-else
                 class="online-lyrics-editor"
                 v-model="editableOnlineLyrics"
                 placeholder="在线歌词（可编辑，修改后用于智能纠错）"
+                :rows="10"
               />
             </div>
           </a-spin>
@@ -1049,12 +1049,9 @@ function editLyrics(item: SubTitle) {
                     添加弹幕
                   </a-button>
                 </div>
-                <a-textarea
+                <UiTextarea
                   v-model="aiRewritePrompt"
-                  :auto-size="{
-                    minRows: 4,
-                    maxRows: 10,
-                  }"
+                  :rows="4"
                 />
             </details>
             <div style="margin-bottom: 10px">
@@ -1087,7 +1084,7 @@ function editLyrics(item: SubTitle) {
           </a-spin>
         </a-tab-pane>
         <a-tab-pane key="3" title="结果预览">
-          <a-textarea class="result-preview-editor" :model-value="lyricsBodyContent" />
+          <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="10" />
         </a-tab-pane>
       </a-tabs>
     </div>
