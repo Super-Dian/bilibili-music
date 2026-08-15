@@ -149,30 +149,33 @@ defineEmits(["close"]);
   color: #ff4d4f;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-alert-info,
-:global([data-theme="dark"]) .ui-alert-info {
+body[arco-theme="dark"] .ui-alert-info,
+body[data-theme="dark"] .ui-alert-info {
   background: #112636;
   border-color: #15395b;
   color: #177dc0;
 }
 
-:global([arco-theme="dark"]) .ui-alert-success,
-:global([data-theme="dark"]) .ui-alert-success {
+body[arco-theme="dark"] .ui-alert-success,
+body[data-theme="dark"] .ui-alert-success {
   background: #162312;
   border-color: #274916;
   color: #49aa19;
 }
 
-:global([arco-theme="dark"]) .ui-alert-warning,
-:global([data-theme="dark"]) .ui-alert-warning {
+body[arco-theme="dark"] .ui-alert-warning,
+body[data-theme="dark"] .ui-alert-warning {
   background: #2b2111;
   border-color: #4b3808;
   color: #d89614;
 }
 
-:global([arco-theme="dark"]) .ui-alert-error,
-:global([data-theme="dark"]) .ui-alert-error {
+body[arco-theme="dark"] .ui-alert-error,
+body[data-theme="dark"] .ui-alert-error {
   background: #2c1618;
   border-color: #58181c;
   color: #dc2224;

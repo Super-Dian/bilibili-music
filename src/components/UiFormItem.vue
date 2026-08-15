@@ -49,9 +49,12 @@ withDefaults(
   min-width: 0;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-form-item-label,
-:global([data-theme="dark"]) .ui-form-item-label {
+body[arco-theme="dark"] .ui-form-item-label,
+body[data-theme="dark"] .ui-form-item-label {
   color: #e0e0e0;
 }
 </style>

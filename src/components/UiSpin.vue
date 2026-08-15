@@ -116,14 +116,17 @@ withDefaults(
   }
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-spin-dot span,
-:global([data-theme="dark"]) .ui-spin-dot span {
+body[arco-theme="dark"] .ui-spin-dot span,
+body[data-theme="dark"] .ui-spin-dot span {
   background: #00aeec;
 }
 
-:global([arco-theme="dark"]) .ui-spin-tip,
-:global([data-theme="dark"]) .ui-spin-tip {
+body[arco-theme="dark"] .ui-spin-tip,
+body[data-theme="dark"] .ui-spin-tip {
   color: #999;
 }
 </style>

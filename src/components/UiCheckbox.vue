@@ -127,26 +127,29 @@ function handleChange(event: Event) {
   border-color: #c9ccd0;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-checkbox,
-:global([data-theme="dark"]) .ui-checkbox {
+body[arco-theme="dark"] .ui-checkbox,
+body[data-theme="dark"] .ui-checkbox {
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .ui-checkbox-mark,
-:global([data-theme="dark"]) .ui-checkbox-mark {
+body[arco-theme="dark"] .ui-checkbox-mark,
+body[data-theme="dark"] .ui-checkbox-mark {
   background: #2a2a2a;
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .ui-checkbox-input:checked + .ui-checkbox-mark,
-:global([data-theme="dark"]) .ui-checkbox-input:checked + .ui-checkbox-mark {
+body[arco-theme="dark"] .ui-checkbox-input:checked + .ui-checkbox-mark,
+body[data-theme="dark"] .ui-checkbox-input:checked + .ui-checkbox-mark {
   background: #00aeec;
   border-color: #00aeec;
 }
 
-:global([arco-theme="dark"]) .ui-checkbox:hover .ui-checkbox-mark,
-:global([data-theme="dark"]) .ui-checkbox:hover .ui-checkbox-mark {
+body[arco-theme="dark"] .ui-checkbox:hover .ui-checkbox-mark,
+body[data-theme="dark"] .ui-checkbox:hover .ui-checkbox-mark {
   border-color: #00aeec;
 }
 </style>

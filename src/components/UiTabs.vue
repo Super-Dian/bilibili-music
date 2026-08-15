@@ -69,19 +69,22 @@ defineEmits(["update:activeKey", "change"]);
   min-height: 100px;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-tabs-nav,
-:global([data-theme="dark"]) .ui-tabs-nav {
+body[arco-theme="dark"] .ui-tabs-nav,
+body[data-theme="dark"] .ui-tabs-nav {
   border-bottom-color: #444;
 }
 
-:global([arco-theme="dark"]) .ui-tabs-tab,
-:global([data-theme="dark"]) .ui-tabs-tab {
+body[arco-theme="dark"] .ui-tabs-tab,
+body[data-theme="dark"] .ui-tabs-tab {
   color: #999;
 }
 
-:global([arco-theme="dark"]) .ui-tabs-tab-active,
-:global([data-theme="dark"]) .ui-tabs-tab-active {
+body[arco-theme="dark"] .ui-tabs-tab-active,
+body[data-theme="dark"] .ui-tabs-tab-active {
   color: #00aeec;
 }
 </style>

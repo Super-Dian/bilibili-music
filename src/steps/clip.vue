@@ -562,15 +562,27 @@ function next() {
   z-index: 1;
 }
 
+</style>
+
+<style>
 /* 深色模式：下拉框 */
-body[arco-theme="dark"] .montage-container select {
+body[arco-theme="dark"] .speed-select,
+body[data-theme="dark"] .speed-select {
   background: #2a2a2a;
   color: #e0e0e0;
   border-color: #555;
 }
 
 /* 深色模式：删除片段列表项边框 */
-body[arco-theme="dark"] .montage-container .arco-list-item {
-  border-color: #444;
+body[arco-theme="dark"] .deleted-list-item,
+body[data-theme="dark"] .deleted-list-item {
+  border-color: #444 !important;
+  color: #e0e0e0;
+}
+
+/* 深色模式：删除列表项链接 */
+body[arco-theme="dark"] .deleted-list-item a,
+body[data-theme="dark"] .deleted-list-item a {
+  color: #00aeec;
 }
 </style>

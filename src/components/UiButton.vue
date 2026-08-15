@@ -161,16 +161,18 @@ defineEmits(["click"]);
   }
 }
 
-/* 深色模式 */
-:global([arco-theme="dark"]) .ui-btn-secondary,
-:global([data-theme="dark"]) .ui-btn-secondary {
+</style>
+
+<style>
+body[arco-theme="dark"] .ui-btn-secondary,
+body[data-theme="dark"] .ui-btn-secondary {
   background: #2a2a2a;
   color: #e0e0e0;
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .ui-btn-secondary:hover:not(.ui-btn-disabled),
-:global([data-theme="dark"]) .ui-btn-secondary:hover:not(.ui-btn-disabled) {
+body[arco-theme="dark"] .ui-btn-secondary:hover:not(.ui-btn-disabled),
+body[data-theme="dark"] .ui-btn-secondary:hover:not(.ui-btn-disabled) {
   color: #00aeec;
   border-color: #00aeec;
 }

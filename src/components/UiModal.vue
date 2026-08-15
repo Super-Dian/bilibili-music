@@ -149,31 +149,34 @@ function handleKeydown(event: KeyboardEvent) {
   flex-shrink: 0;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-modal,
-:global([data-theme="dark"]) .ui-modal {
+body[arco-theme="dark"] .ui-modal,
+body[data-theme="dark"] .ui-modal {
   background: #2a2a2a;
 }
 
-:global([arco-theme="dark"]) .ui-modal-header,
-:global([data-theme="dark"]) .ui-modal-header,
-:global([arco-theme="dark"]) .ui-modal-footer,
-:global([data-theme="dark"]) .ui-modal-footer {
+body[arco-theme="dark"] .ui-modal-header,
+body[data-theme="dark"] .ui-modal-header,
+body[arco-theme="dark"] .ui-modal-footer,
+body[data-theme="dark"] .ui-modal-footer {
   border-color: #444;
 }
 
-:global([arco-theme="dark"]) .ui-modal-title,
-:global([data-theme="dark"]) .ui-modal-title {
+body[arco-theme="dark"] .ui-modal-title,
+body[data-theme="dark"] .ui-modal-title {
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .ui-modal-close,
-:global([data-theme="dark"]) .ui-modal-close {
+body[arco-theme="dark"] .ui-modal-close,
+body[data-theme="dark"] .ui-modal-close {
   color: #999;
 }
 
-:global([arco-theme="dark"]) .ui-modal-close:hover,
-:global([data-theme="dark"]) .ui-modal-close:hover {
+body[arco-theme="dark"] .ui-modal-close:hover,
+body[data-theme="dark"] .ui-modal-close:hover {
   background: #3a3a3a;
   color: #e0e0e0;
 }

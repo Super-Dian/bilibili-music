@@ -108,33 +108,36 @@ const charCount = computed(() => (props.modelValue || "").length);
   color: #c9ccd0;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-textarea,
-:global([data-theme="dark"]) .ui-textarea {
+body[arco-theme="dark"] .ui-textarea,
+body[data-theme="dark"] .ui-textarea {
   color: #e0e0e0;
   background: #2a2a2a;
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .ui-textarea::placeholder,
-:global([data-theme="dark"]) .ui-textarea::placeholder {
+body[arco-theme="dark"] .ui-textarea::placeholder,
+body[data-theme="dark"] .ui-textarea::placeholder {
   color: #666;
 }
 
-:global([arco-theme="dark"]) .ui-textarea:focus,
-:global([data-theme="dark"]) .ui-textarea:focus {
+body[arco-theme="dark"] .ui-textarea:focus,
+body[data-theme="dark"] .ui-textarea:focus {
   border-color: #00aeec;
 }
 
-:global([arco-theme="dark"]) .ui-textarea-disabled,
-:global([data-theme="dark"]) .ui-textarea-disabled {
+body[arco-theme="dark"] .ui-textarea-disabled,
+body[data-theme="dark"] .ui-textarea-disabled {
   background: #1f1f1f;
   border-color: #444;
   color: #666;
 }
 
-:global([arco-theme="dark"]) .ui-textarea-word-limit,
-:global([data-theme="dark"]) .ui-textarea-word-limit {
+body[arco-theme="dark"] .ui-textarea-word-limit,
+body[data-theme="dark"] .ui-textarea-word-limit {
   color: #666;
 }
 </style>

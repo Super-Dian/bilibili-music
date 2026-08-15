@@ -96,26 +96,28 @@ defineEmits(["update:modelValue", "input", "change", "focus", "blur"]);
   box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.15);
 }
 
-/* 深色模式 */
-:global([arco-theme="dark"]) .ui-input,
-:global([data-theme="dark"]) .ui-input {
+</style>
+
+<style>
+body[arco-theme="dark"] .ui-input,
+body[data-theme="dark"] .ui-input {
   color: #e0e0e0;
   background: #2a2a2a;
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .ui-input::placeholder,
-:global([data-theme="dark"]) .ui-input::placeholder {
+body[arco-theme="dark"] .ui-input::placeholder,
+body[data-theme="dark"] .ui-input::placeholder {
   color: #666;
 }
 
-:global([arco-theme="dark"]) .ui-input:focus,
-:global([data-theme="dark"]) .ui-input:focus {
+body[arco-theme="dark"] .ui-input:focus,
+body[data-theme="dark"] .ui-input:focus {
   border-color: #00aeec;
 }
 
-:global([arco-theme="dark"]) .ui-input-disabled,
-:global([data-theme="dark"]) .ui-input-disabled {
+body[arco-theme="dark"] .ui-input-disabled,
+body[data-theme="dark"] .ui-input-disabled {
   background: #1f1f1f;
   border-color: #444;
   color: #666;

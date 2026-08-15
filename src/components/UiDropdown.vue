@@ -119,25 +119,28 @@ function updateMenuPosition() {
   background: transparent;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-dropdown-menu,
-:global([data-theme="dark"]) .ui-dropdown-menu {
+body[arco-theme="dark"] .ui-dropdown-menu,
+body[data-theme="dark"] .ui-dropdown-menu {
   background: #2a2a2a;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
 }
 
-:global([arco-theme="dark"]) .ui-dropdown-item,
-:global([data-theme="dark"]) .ui-dropdown-item {
+body[arco-theme="dark"] .ui-dropdown-item,
+body[data-theme="dark"] .ui-dropdown-item {
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .ui-dropdown-item:hover,
-:global([data-theme="dark"]) .ui-dropdown-item:hover {
+body[arco-theme="dark"] .ui-dropdown-item:hover,
+body[data-theme="dark"] .ui-dropdown-item:hover {
   background: #3a3a3a;
 }
 
-:global([arco-theme="dark"]) .ui-dropdown-item-disabled,
-:global([data-theme="dark"]) .ui-dropdown-item-disabled {
+body[arco-theme="dark"] .ui-dropdown-item-disabled,
+body[data-theme="dark"] .ui-dropdown-item-disabled {
   color: #666;
 }
 </style>

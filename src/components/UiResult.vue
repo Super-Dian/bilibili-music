@@ -102,14 +102,17 @@ withDefaults(
   color: #c9ccd0;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-result-title,
-:global([data-theme="dark"]) .ui-result-title {
+body[arco-theme="dark"] .ui-result-title,
+body[data-theme="dark"] .ui-result-title {
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .ui-result-subtitle,
-:global([data-theme="dark"]) .ui-result-subtitle {
+body[arco-theme="dark"] .ui-result-subtitle,
+body[data-theme="dark"] .ui-result-subtitle {
   color: #999;
 }
 </style>

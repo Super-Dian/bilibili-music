@@ -145,28 +145,31 @@ defineEmits(["change"]);
   background: #00aeec;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-steps-icon,
-:global([data-theme="dark"]) .ui-steps-icon {
+body[arco-theme="dark"] .ui-steps-icon,
+body[data-theme="dark"] .ui-steps-icon {
   background: #444;
   color: #999;
 }
 
-:global([arco-theme="dark"]) .ui-steps-item-finish .ui-steps-icon,
-:global([data-theme="dark"]) .ui-steps-item-finish .ui-steps-icon,
-:global([arco-theme="dark"]) .ui-steps-item-active .ui-steps-icon,
-:global([data-theme="dark"]) .ui-steps-item-active .ui-steps-icon {
+body[arco-theme="dark"] .ui-steps-item-finish .ui-steps-icon,
+body[data-theme="dark"] .ui-steps-item-finish .ui-steps-icon,
+body[arco-theme="dark"] .ui-steps-item-active .ui-steps-icon,
+body[data-theme="dark"] .ui-steps-item-active .ui-steps-icon {
   background: #00aeec;
   color: #fff;
 }
 
-:global([arco-theme="dark"]) .ui-steps-title,
-:global([data-theme="dark"]) .ui-steps-title {
+body[arco-theme="dark"] .ui-steps-title,
+body[data-theme="dark"] .ui-steps-title {
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .ui-steps-tail,
-:global([data-theme="dark"]) .ui-steps-tail {
+body[arco-theme="dark"] .ui-steps-tail,
+body[data-theme="dark"] .ui-steps-tail {
   background: #444;
 }
 </style>

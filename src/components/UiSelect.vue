@@ -72,21 +72,24 @@ defineEmits(["update:modelValue", "change"]);
   cursor: not-allowed;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-select,
-:global([data-theme="dark"]) .ui-select {
+body[arco-theme="dark"] .ui-select,
+body[data-theme="dark"] .ui-select {
   color: #e0e0e0;
   background: #2a2a2a;
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .ui-select:focus,
-:global([data-theme="dark"]) .ui-select:focus {
+body[arco-theme="dark"] .ui-select:focus,
+body[data-theme="dark"] .ui-select:focus {
   border-color: #00aeec;
 }
 
-:global([arco-theme="dark"]) .ui-select-disabled,
-:global([data-theme="dark"]) .ui-select-disabled {
+body[arco-theme="dark"] .ui-select-disabled,
+body[data-theme="dark"] .ui-select-disabled {
   background: #1f1f1f;
   border-color: #444;
   color: #666;

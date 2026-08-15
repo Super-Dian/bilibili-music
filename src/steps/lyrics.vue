@@ -1042,6 +1042,7 @@ function editLyrics(item: SubTitle) {
                 v-else
                 class="online-lyrics-editor"
                 v-model="editableOnlineLyrics"
+                :rows="15"
                 placeholder="在线歌词（可编辑，修改后用于智能纠错）"
               />
             </div>
@@ -1135,7 +1136,7 @@ function editLyrics(item: SubTitle) {
           </UiSpin>
         </div>
         <div v-if="activeTab === '3'">
-          <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="10" />
+          <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="15" />
         </div>
       </UiTabs>
     </div>
@@ -1165,9 +1166,15 @@ function editLyrics(item: SubTitle) {
   border-color: #00aeec;
   background: #f5f5f5;
 }
+.lyrics-card:hover .lyrics-card-preview {
+  background: #f5f5f5;
+}
 
 .lyrics-card-checked {
   border-color: #00aeec;
+  background: #e6f7ff;
+}
+.lyrics-card-checked .lyrics-card-preview {
   background: #e6f7ff;
 }
 
@@ -1249,38 +1256,47 @@ function editLyrics(item: SubTitle) {
 .lyrics-list-scroll {
   max-height: 60vh;
   overflow-y: auto;
+  padding: 12px;
 }
 
 /* 深色模式 */
-:global([arco-theme="dark"]) .lyrics-card,
-:global([data-theme="dark"]) .lyrics-card {
+body[arco-theme="dark"] .lyrics-card,
+body[data-theme="dark"] .lyrics-card {
   border-color: #444;
   background: #2a2a2a;
 }
 
-:global([arco-theme="dark"]) .lyrics-card:hover,
-:global([data-theme="dark"]) .lyrics-card:hover {
+body[arco-theme="dark"] .lyrics-card:hover,
+body[data-theme="dark"] .lyrics-card:hover {
+  background: #3a3a3a;
+}
+body[arco-theme="dark"] .lyrics-card:hover .lyrics-card-preview,
+body[data-theme="dark"] .lyrics-card:hover .lyrics-card-preview {
   background: #3a3a3a;
 }
 
-:global([arco-theme="dark"]) .lyrics-card-checked,
-:global([data-theme="dark"]) .lyrics-card-checked {
+body[arco-theme="dark"] .lyrics-card-checked,
+body[data-theme="dark"] .lyrics-card-checked {
   background: #173344;
   border-color: #00aeec;
 }
+body[arco-theme="dark"] .lyrics-card-checked .lyrics-card-preview,
+body[data-theme="dark"] .lyrics-card-checked .lyrics-card-preview {
+  background: #173344;
+}
 
-:global([arco-theme="dark"]) .lyrics-card-checkbox,
-:global([data-theme="dark"]) .lyrics-card-checkbox {
+body[arco-theme="dark"] .lyrics-card-checkbox,
+body[data-theme="dark"] .lyrics-card-checkbox {
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .lyrics-card-title,
-:global([data-theme="dark"]) .lyrics-card-title {
+body[arco-theme="dark"] .lyrics-card-title,
+body[data-theme="dark"] .lyrics-card-title {
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .lyrics-card-preview,
-:global([data-theme="dark"]) .lyrics-card-preview {
+body[arco-theme="dark"] .lyrics-card-preview,
+body[data-theme="dark"] .lyrics-card-preview {
   background: #1f1f1f;
   color: #999;
 }
@@ -1295,8 +1311,8 @@ body[arco-theme="dark"] .lyrics-preview-text {
 }
 
 /* 在线歌词编辑框、结果预览框高度 */
-.lyrics-right-panel .online-lyrics-editor .arco-textarea,
-.lyrics-right-panel .result-preview-editor .arco-textarea {
+.lyrics-right-panel .online-lyrics-editor .ui-textarea,
+.lyrics-right-panel .result-preview-editor .ui-textarea {
   min-height: 300px;
 }
 

@@ -14,6 +14,21 @@
 /* 深色模式变量 */
 @variant dark (&:where([arco-theme="dark"], [data-theme="dark"]));
 
+/* 全局深色模式样式 */
+body[arco-theme="dark"] .bilibili-music-root {
+  background: var(--graph_bg_regular);
+}
+
+/* 主弹窗深色模式 */
+body[arco-theme="dark"] .step-content {
+  background: var(--color-bg-3) !important;
+  color: var(--color-text-2) !important;
+}
+
+body[arco-theme="dark"] .step-content .arco-form {
+  background: transparent;
+}
+
 /* 自定义组件样式 */
 @layer components {
   .btn {

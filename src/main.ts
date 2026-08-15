@@ -25,7 +25,7 @@ function detectDarkMode(): boolean {
   );
 }
 
-/** 同步深色模式到 Arco 主题 */
+/** 同步深色模式到 body arco-theme */
 function syncDarkMode() {
   if (document.body) {
     document.body.setAttribute("arco-theme", detectDarkMode() ? "dark" : "light");

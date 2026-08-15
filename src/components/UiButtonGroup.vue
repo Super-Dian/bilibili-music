@@ -52,4 +52,19 @@ withDefaults(
   margin-left: 0;
   margin-top: -1px;
 }
+
+</style>
+
+<style>
+/* 深色模式：按钮组边框 */
+body[arco-theme="dark"] .ui-btn-group > :deep(.ui-btn + .ui-btn),
+body[data-theme="dark"] .ui-btn-group > :deep(.ui-btn + .ui-btn) {
+  margin-left: -1px;
+}
+
+body[arco-theme="dark"] .ui-btn-group-vertical > :deep(.ui-btn + .ui-btn),
+body[data-theme="dark"] .ui-btn-group-vertical > :deep(.ui-btn + .ui-btn) {
+  margin-left: 0;
+  margin-top: -1px;
+}
 </style>

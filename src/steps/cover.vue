@@ -170,31 +170,34 @@ function selectCover(url: string | undefined) {
   object-fit: cover;
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .cover-item,
-:global([data-theme="dark"]) .cover-item {
+body[arco-theme="dark"] .cover-item,
+body[data-theme="dark"] .cover-item {
   border-color: #444;
   background: #2a2a2a;
 }
 
-:global([arco-theme="dark"]) .cover-item:hover,
-:global([data-theme="dark"]) .cover-item:hover {
+body[arco-theme="dark"] .cover-item:hover,
+body[data-theme="dark"] .cover-item:hover {
   background: #3a3a3a;
 }
 
-:global([arco-theme="dark"]) .cover-item-checked,
-:global([data-theme="dark"]) .cover-item-checked {
+body[arco-theme="dark"] .cover-item-checked,
+body[data-theme="dark"] .cover-item-checked {
   background: #173344;
   border-color: #00aeec;
 }
 
-:global([arco-theme="dark"]) .cover-checkbox,
-:global([data-theme="dark"]) .cover-checkbox {
+body[arco-theme="dark"] .cover-checkbox,
+body[data-theme="dark"] .cover-checkbox {
   border-color: #555;
 }
 
-:global([arco-theme="dark"]) .cover-title,
-:global([data-theme="dark"]) .cover-title {
+body[arco-theme="dark"] .cover-title,
+body[data-theme="dark"] .cover-title {
   color: #e0e0e0;
 }
 </style>

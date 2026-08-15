@@ -157,30 +157,33 @@ defineExpose({ info, success, warning, error });
   transform: translateY(-20px);
 }
 
+</style>
+
+<style>
 /* 深色模式 */
-:global([arco-theme="dark"]) .ui-message,
-:global([data-theme="dark"]) .ui-message {
+body[arco-theme="dark"] .ui-message,
+body[data-theme="dark"] .ui-message {
   background: #2a2a2a;
   color: #e0e0e0;
 }
 
-:global([arco-theme="dark"]) .ui-message-info,
-:global([data-theme="dark"]) .ui-message-info {
+body[arco-theme="dark"] .ui-message-info,
+body[data-theme="dark"] .ui-message-info {
   border-color: #15395b;
 }
 
-:global([arco-theme="dark"]) .ui-message-success,
-:global([data-theme="dark"]) .ui-message-success {
+body[arco-theme="dark"] .ui-message-success,
+body[data-theme="dark"] .ui-message-success {
   border-color: #274916;
 }
 
-:global([arco-theme="dark"]) .ui-message-warning,
-:global([data-theme="dark"]) .ui-message-warning {
+body[arco-theme="dark"] .ui-message-warning,
+body[data-theme="dark"] .ui-message-warning {
   border-color: #4b3808;
 }
 
-:global([arco-theme="dark"]) .ui-message-error,
-:global([data-theme="dark"]) .ui-message-error {
+body[arco-theme="dark"] .ui-message-error,
+body[data-theme="dark"] .ui-message-error {
   border-color: #58181c;
 }
 </style>

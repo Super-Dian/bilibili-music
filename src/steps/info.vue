@@ -195,4 +195,19 @@ onMounted(() => {
 .icon-btn:hover {
   background: #00a1d6;
 }
+
+</style>
+
+<style>
+/* 深色模式：图标按钮 */
+body[arco-theme="dark"] .icon-btn,
+body[data-theme="dark"] .icon-btn {
+  background: #00aeec;
+  color: #fff;
+}
+
+body[arco-theme="dark"] .icon-btn:hover,
+body[data-theme="dark"] .icon-btn:hover {
+  background: #00a1d6;
+}
 </style>
