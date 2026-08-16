@@ -558,7 +558,6 @@ function showEpisodePicker(
   currentIndex: number,
   pickerMeta: PickerMeta = {},
 ) {
-  console.log("[episode] showEpisodePicker called", { episodes: episodes.length, currentIndex, pickerMeta });
   return new Promise<EpisodeSelection | null>((resolve) => {
     const savedRule = GM_getValue<RecordData | null>("default_rule");
 
@@ -590,18 +589,7 @@ function showEpisodePicker(
         });
       },
     });
-    console.log("[episode] mounting Vue picker app...");
     app.mount(mountEl);
-    console.log("[episode] Vue picker app mounted, mountEl:", mountEl.innerHTML.length, "chars");
-    // Debug: check picker visibility
-    const root = mountEl.querySelector('.picker-root');
-    if (root) {
-      const rect = root.getBoundingClientRect();
-      const style = window.getComputedStyle(root);
-      console.log("[episode] picker-root rect:", rect, "display:", style.display, "visibility:", style.visibility, "opacity:", style.opacity);
-    } else {
-      console.log("[episode] picker-root NOT FOUND, innerHTML preview:", mountEl.innerHTML.substring(0, 200));
-    }
   });
 }
 
@@ -883,13 +871,11 @@ function openLegacyMusicApp() {
 }
 
 export async function openMusicApp() {
-  console.log("[episode] openMusicApp called", { root: !!episodeSession.root, picker: !!episodeSession.picker, opening: episodeSession.opening });
   if (episodeSession.root || episodeSession.picker || episodeSession.opening) {
     Message.warning("已有下载窗口或分集选择窗口正在运行");
     return;
   }
   if (!isEpisodePickerRoute()) {
-    console.log("[episode] not episode picker route, opening legacy app");
     openLegacyMusicApp();
     return;
   }
@@ -897,12 +883,10 @@ export async function openMusicApp() {
   episodeSession.opening = true;
   try {
     const { episodes, currentIndex, pickerMeta } = await loadEpisodeData();
-    console.log("[episode] loaded episodes:", episodes.length, "currentIndex:", currentIndex);
     const selection =
       episodes.length > 1
         ? await showEpisodePicker(episodes, currentIndex, pickerMeta)
         : { indexes: [0], useDefault: false, manualEach: false, titleOverrides: {} };
-    console.log("[episode] picker result:", selection);
     if (!selection || selection.indexes.length === 0) {
       return;
     }

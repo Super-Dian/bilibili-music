@@ -403,16 +403,7 @@ async function main() {
       ffmpeg.off("progress", progressHandler);
     }
     if (exitCode !== 0) {
-      let stderr = "";
-      try {
-        const errData = await ffmpeg.readFile("ffmpeg_err.txt");
-        stderr = typeof errData === "string" ? errData : new TextDecoder().decode(errData as Uint8Array);
-      } catch {
-        // stderr 文件可能不存在
-      }
-      console.error("[audio] FFmpeg 命令:", [...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"].join(" "));
-      if (stderr) console.error("[audio] FFmpeg stderr:", stderr);
-      throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}${stderr ? "\n" + stderr.slice(0, 500) : ""}`);
+      throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}`);
     }
     const fileData = await ffmpeg.readFile("output.m4a");
     if (
