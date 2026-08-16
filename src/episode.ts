@@ -71,6 +71,12 @@ interface EpisodeSession {
   settling: boolean;
   hasMultiplePages: boolean; // 视频是否有多个分P可供选择
   paused: boolean;
+  /** 加载的所有剧集（供 picker 步骤使用） */
+  allEpisodes: EpisodeVideoData[];
+  /** 当前剧集在 allEpisodes 中的索引 */
+  currentEpisodeIndex: number;
+  /** picker 元数据（标题、分类等） */
+  pickerMeta: PickerMeta;
 }
 
 interface BilibiliResponse<T> {
@@ -140,6 +146,9 @@ export const episodeSession: EpisodeSession = {
   settling: false,
   paused: false,
   hasMultiplePages: false,
+  allEpisodes: [],
+  currentEpisodeIndex: 0,
+  pickerMeta: {},
 };
 
 let appLauncher: (() => MountedApp) | null = null;
@@ -784,6 +793,9 @@ export function stopEpisodeSession(showMessage = false, cancelTasks = true) {
   episodeSession.settling = false;
   episodeSession.paused = false;
   episodeSession.opening = false;
+  episodeSession.allEpisodes = [];
+  episodeSession.currentEpisodeIndex = 0;
+  episodeSession.pickerMeta = {};
   if (cancelTasks) {
     cancelDownloadTaskBatch("用户取消");
   }
@@ -870,6 +882,65 @@ function openLegacyMusicApp() {
   appLauncher();
 }
 
+/**
+ * 处理 picker 选择结果：hydrate、创建任务、设置 session 状态。
+ * 供 App.vue picker 步骤和 openMusicApp() 调用。
+ */
+export async function processEpisodeSelection(
+  episodes: EpisodeVideoData[],
+  pickerMeta: PickerMeta,
+  selection: EpisodeSelection,
+) {
+  if (!selection || selection.indexes.length === 0) return;
+
+  let selectedEpisodes = selection.indexes.map((index) => episodes[index]).filter(Boolean);
+  if (selectedEpisodes.some((episode) => !episode._wasmMusicHydrated)) {
+    Message.info(`正在读取所选 ${selectedEpisodes.length} 个视频的完整信息...`);
+    selectedEpisodes = await hydrateSelectedEpisodes(selectedEpisodes);
+  }
+  selectedEpisodes = applyEpisodeTitleOverrides(
+    selectedEpisodes,
+    selection.indexes,
+    selection.titleOverrides,
+  );
+
+  const savedRule = GM_getValue<RecordData | null>("default_rule");
+  const isBatch = selectedEpisodes.length > 1;
+  const manualEach = isBatch && selection.manualEach;
+  const automatic = isBatch && !manualEach && selection.useDefault && Boolean(savedRule);
+  const taskIds = startDownloadTaskBatch(
+    selectedEpisodes.map((episode) => ({
+      bvid: episode.bvid,
+      page: Number(episode.page) || 1,
+      label: getEpisodeTaskLabel(episode),
+      prefix: episode._wasmMusicBatchPrefix,
+      payload: createTaskEpisodePayload(episode),
+    })),
+    {
+      title: pickerMeta.title || selectedEpisodes[0]?.title || "下载任务",
+      automatic,
+      manualEach,
+      rule: automatic ? savedRule : null,
+    },
+  );
+  selectedEpisodes.forEach((episode, index) => {
+    episode._wasmMusicTaskId = taskIds[index];
+  });
+  episodeSession.queue = selectedEpisodes;
+  episodeSession.isBatch = isBatch;
+  episodeSession.hasMultiplePages = episodes.length > 1;
+  episodeSession.auto = automatic;
+  episodeSession.manualEach = manualEach;
+  episodeSession.rule = episodeSession.auto ? clone(savedRule) : null;
+  episodeSession.total = selectedEpisodes.length;
+  episodeSession.completed = 0;
+  episodeSession.succeeded = 0;
+  episodeSession.failed = 0;
+  episodeSession.results = [];
+  episodeSession.settling = false;
+  episodeSession.paused = false;
+}
+
 export async function openMusicApp() {
   if (episodeSession.root || episodeSession.picker || episodeSession.opening) {
     Message.warning("已有下载窗口或分集选择窗口正在运行");
@@ -883,61 +954,24 @@ export async function openMusicApp() {
   episodeSession.opening = true;
   try {
     const { episodes, currentIndex, pickerMeta } = await loadEpisodeData();
-    const selection =
-      episodes.length > 1
-        ? await showEpisodePicker(episodes, currentIndex, pickerMeta)
-        : { indexes: [0], useDefault: false, manualEach: false, titleOverrides: {} };
-    if (!selection || selection.indexes.length === 0) {
-      return;
-    }
+    // 存储剧集数据到 session，供 App.vue 中的 picker 步骤使用
+    episodeSession.allEpisodes = episodes;
+    episodeSession.currentEpisodeIndex = currentIndex;
+    episodeSession.pickerMeta = pickerMeta;
+    episodeSession.hasMultiplePages = episodes.length > 1;
 
-    let selectedEpisodes = selection.indexes.map((index) => episodes[index]).filter(Boolean);
-    if (selectedEpisodes.some((episode) => !episode._wasmMusicHydrated)) {
-      Message.info(`正在读取所选 ${selectedEpisodes.length} 个视频的完整信息...`);
-      selectedEpisodes = await hydrateSelectedEpisodes(selectedEpisodes);
+    if (episodes.length <= 1) {
+      // 单集：直接处理，无需 picker
+      const selection = { indexes: [0], useDefault: false, manualEach: false, titleOverrides: {} };
+      await processEpisodeSelection(episodes, pickerMeta, selection);
+      launchNextEpisode();
+    } else {
+      // 多集：直接挂载 App.vue，由 picker 步骤处理
+      cleanupMountedApp();
+      const { app, root } = appLauncher!();
+      episodeSession.root = root;
+      episodeSession.app = app;
     }
-    selectedEpisodes = applyEpisodeTitleOverrides(
-      selectedEpisodes,
-      selection.indexes,
-      selection.titleOverrides,
-    );
-
-    const savedRule = GM_getValue<RecordData | null>("default_rule");
-    const isBatch = selectedEpisodes.length > 1;
-    const manualEach = isBatch && selection.manualEach;
-    const automatic = isBatch && !manualEach && selection.useDefault && Boolean(savedRule);
-    const taskIds = startDownloadTaskBatch(
-      selectedEpisodes.map((episode) => ({
-        bvid: episode.bvid,
-        page: Number(episode.page) || 1,
-        label: getEpisodeTaskLabel(episode),
-        prefix: episode._wasmMusicBatchPrefix,
-        payload: createTaskEpisodePayload(episode),
-      })),
-      {
-        title: pickerMeta.title || selectedEpisodes[0]?.title || "下载任务",
-        automatic,
-        manualEach,
-        rule: automatic ? savedRule : null,
-      },
-    );
-    selectedEpisodes.forEach((episode, index) => {
-      episode._wasmMusicTaskId = taskIds[index];
-    });
-    episodeSession.queue = selectedEpisodes;
-    episodeSession.isBatch = isBatch;
-    episodeSession.hasMultiplePages = episodes.length > 1; // 视频有多个分P
-    episodeSession.auto = automatic;
-    episodeSession.manualEach = manualEach;
-    episodeSession.rule = episodeSession.auto ? clone(savedRule) : null;
-    episodeSession.total = selectedEpisodes.length;
-    episodeSession.completed = 0;
-    episodeSession.succeeded = 0;
-    episodeSession.failed = 0;
-    episodeSession.results = [];
-    episodeSession.settling = false;
-    episodeSession.paused = false;
-    launchNextEpisode();
   } catch (error) {
     logger.error("打开视频选择器失败", error);
     Message.error(`无法读取视频列表：${error instanceof Error ? error.message : String(error)}`);

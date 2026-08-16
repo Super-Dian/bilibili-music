@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import StepAudio from "@/steps/audio.vue";
 import StepCover from "@/steps/cover.vue";
 import StepInfo from "@/steps/info.vue";
 import StepMontage from "@/steps/clip.vue";
 import StepLyrics from "@/steps/lyrics.vue";
+import StepPicker from "@/steps/picker.vue";
 import UiButton from "@/components/UiButton.vue";
 import UiSteps from "@/components/UiSteps.vue";
 import UiResult from "@/components/UiResult.vue";
@@ -19,16 +20,38 @@ import {
   episodeSession,
   getActiveDefaultRule,
   registerEpisodeAppTransitionHandler,
+  processEpisodeSelection,
   openMusicApp,
   stopEpisodeSession,
 } from "./episode";
-import type { EpisodeVideoData } from "./episode";
+import type { EpisodeVideoData, EpisodeSelection } from "./episode";
+
 const visible = ref(true);
+/** 0=picker(仅多集), 1=clip, 2=info, 3=cover, 4=lyrics, 5=audio */
 const current = ref(1);
 const preparing = ref(true);
 const preparingLabel = ref("正在准备下载信息…");
 const batchStatus = ref("");
-const steps = [StepMontage, StepInfo, StepCover, StepLyrics, StepAudio];
+
+/** 是否显示 picker 步骤（多集时显示） */
+const hasPickerStep = computed(() => episodeSession.allEpisodes.length > 1);
+
+/** 动态步骤数组 */
+const steps = computed(() => {
+  const list = [];
+  if (hasPickerStep.value) list.push(StepPicker);
+  list.push(StepMontage, StepInfo, StepCover, StepLyrics, StepAudio);
+  return list;
+});
+
+/** 动态侧栏标签 */
+const stepLabels = computed(() => {
+  const labels = [];
+  if (hasPickerStep.value) labels.push("选择剧集");
+  labels.push("音频剪辑", "基本信息", "封面获取", "歌词获取", "音频内嵌");
+  return labels;
+});
+
 let initializationSequence = 0;
 let unregisterTransitionHandler: (() => void) | null = null;
 
@@ -60,13 +83,18 @@ const handleCancel = () => {
   setTimeout(() => stopEpisodeSession(true), 0);
 };
 
-const handleBackToPicker = async () => {
-  visible.value = false;
-  // 等待弹窗关闭后再打开选择页面
-  setTimeout(async () => {
-    stopEpisodeSession(false);
-    await openMusicApp();
-  }, 100);
+const handleBackToPicker = () => {
+  if (hasPickerStep.value) {
+    // 多集模式：回到 picker 步骤
+    current.value = 0;
+  } else {
+    // 单集模式：关闭并重新打开
+    visible.value = false;
+    setTimeout(async () => {
+      stopEpisodeSession(false);
+      await openMusicApp();
+    }, 100);
+  }
 };
 
 function setCurrent(v: number) {
@@ -74,11 +102,34 @@ function setCurrent(v: number) {
 }
 
 function onPrev() {
-  current.value = Math.max(1, current.value - 1);
+  current.value = Math.max(0, current.value - 1);
 }
 
 function onNext() {
-  current.value = Math.min(steps.length, current.value + 1);
+  current.value = Math.min(steps.value.length - 1, current.value + 1);
+}
+
+/** picker 步骤确认选择 */
+async function onPickerConfirm(selection: EpisodeSelection) {
+  try {
+    await processEpisodeSelection(
+      episodeSession.allEpisodes,
+      episodeSession.pickerMeta,
+      selection,
+    );
+    current.value = 1; // 进入 clip 步骤
+    // 触发 initializeEpisode 设置 fromData
+    void initializeEpisode(episodeSession.queue[0] || null);
+  } catch (error) {
+    logger.error("处理剧集选择失败", error);
+    Message.error("处理选择失败");
+  }
+}
+
+/** picker 步骤取消 */
+function onPickerCancel() {
+  visible.value = false;
+  setTimeout(() => stopEpisodeSession(true), 0);
 }
 
 const sideShow = ref(true);
@@ -114,7 +165,8 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   await nextTick();
   if (sequence !== initializationSequence) return;
   reset();
-  current.value = 1;
+  // 多集且未选择时停在 picker 步骤(0)，否则从 clip(1) 开始
+  current.value = hasPickerStep.value && !episodeSession.queue.length ? 0 : 1;
   const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
     ? null
     : document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
@@ -207,18 +259,12 @@ function onOpen() {
       style="display: flex; justify-content: space-between; align-items: center; max-height: 75vh"
     >
       <UiSteps
-        :current="current"
+        :current="current + 1"
         @change="setCurrent"
         direction="vertical"
         size="small"
         v-show="sideShow"
-        :items="[
-          { title: '音频剪辑' },
-          { title: '基本信息' },
-          { title: '封面获取' },
-          { title: '歌词获取' },
-          { title: '音频内嵌' }
-        ]"
+        :items="stepLabels.map(title => ({ title }))"
       />
       <div
         class="step-content"
@@ -243,10 +289,18 @@ function onOpen() {
         />
         <component
           v-else
-          :is="steps[current - 1]"
+          :is="steps[current]"
+          v-bind="current === 0 && hasPickerStep ? {
+            episodes: episodeSession.allEpisodes,
+            currentIndex: episodeSession.currentEpisodeIndex,
+            pickerMeta: episodeSession.pickerMeta,
+            savedRule: getActiveDefaultRule(),
+          } : {}"
           @prev="onPrev"
           @next="onNext"
           @backToPicker="handleBackToPicker"
+          @confirm="onPickerConfirm"
+          @cancel="onPickerCancel"
         />
       </div>
     </div>
