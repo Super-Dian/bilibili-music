@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-withDefaults(
+const props = withDefaults(
   defineProps<{
     visible?: boolean;
     title?: string;
@@ -36,13 +36,13 @@ function handleCancel() {
 }
 
 function handleMaskClick() {
-  if (maskClosable) {
+  if (props.maskClosable) {
     close();
   }
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (escToClose && event.key === "Escape") {
+  if (props.escToClose && event.key === "Escape") {
     close();
   }
 }

@@ -1,5 +1,7 @@
 import { GM_getValue, unsafeWindow } from "$";
 import { Message } from "@/utils/message";
+import { createApp, h } from "vue";
+import PickerComponent from "@/steps/picker.vue";
 
 import { fromData, type RecordData } from "@/data";
 import {
@@ -77,7 +79,7 @@ interface BilibiliResponse<T> {
   data?: T;
 }
 
-interface PickerMeta {
+export interface PickerMeta {
   title?: string;
   subtitle?: string;
   itemLabel?: string;
@@ -91,7 +93,7 @@ interface EpisodeLoadResult {
   pickerMeta: PickerMeta;
 }
 
-interface EpisodeSelection {
+export interface EpisodeSelection {
   indexes: number[];
   useDefault: boolean;
   manualEach: boolean;
@@ -211,7 +213,7 @@ function getPlayerVideoData() {
   return playerWrap?.__vue__?.videoData || pageWindow.__INITIAL_STATE__?.videoData || null;
 }
 
-function formatEpisodeDuration(duration: number) {
+export function formatEpisodeDuration(duration: number) {
   const total = Math.max(0, Number(duration) || 0);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
@@ -556,473 +558,50 @@ function showEpisodePicker(
   currentIndex: number,
   pickerMeta: PickerMeta = {},
 ) {
+  console.log("[episode] showEpisodePicker called", { episodes: episodes.length, currentIndex, pickerMeta });
   return new Promise<EpisodeSelection | null>((resolve) => {
     const savedRule = GM_getValue<RecordData | null>("default_rule");
-    const itemLabel = pickerMeta.itemLabel || "分集";
-    const currentLabel = pickerMeta.currentLabel || `当前${itemLabel}`;
-    const pageSize = 20;
-    const nativeCategories = Array.from(
-      new Set(
-        (Array.isArray(pickerMeta.categories) ? pickerMeta.categories : [])
-          .map((category) => `${category}`.trim())
-          .filter(Boolean),
-      ),
-    );
-    const selectedIndexes = new Set(
-      currentIndex >= 0 && currentIndex < episodes.length ? [currentIndex] : [],
-    );
-    const titleOverrides = new Map<number, string>();
-    let activePage = Math.floor(Math.max(0, currentIndex) / pageSize) + 1;
-    let renameVisible = false;
 
-    const mask = document.createElement("div");
-    mask.className = "wasm-music-episode-mask";
-    mask.setAttribute("role", "dialog");
-    mask.setAttribute("aria-modal", "true");
-    const dialog = document.createElement("div");
-    dialog.className = "wasm-music-episode-dialog";
+    // Mount Vue picker component
+    const mountEl = document.createElement("div");
+    mountEl.id = "bilibili-music-vue-picker";
+    document.body.appendChild(mountEl);
+    episodeSession.picker = mountEl;
 
-    const header = document.createElement("div");
-    header.className = "wasm-music-episode-header";
-    const title = document.createElement("h2");
-    title.className = "wasm-music-episode-title";
-    title.textContent = `选择要下载的${itemLabel}`;
-    const subtitle = document.createElement("p");
-    subtitle.className = "wasm-music-episode-subtitle";
-    subtitle.textContent = `${pickerMeta.title ? `《${pickerMeta.title}》：` : ""}${
-      pickerMeta.subtitle || "勾选一个就是单项下载；勾选多个会按列表顺序逐个下载。"
-    }`;
-    header.append(title, subtitle);
-
-    const tools = document.createElement("div");
-    tools.className = "wasm-music-episode-tools";
-    const currentButton = document.createElement("button");
-    currentButton.className = "wasm-music-episode-btn";
-    currentButton.type = "button";
-    currentButton.textContent = `只选${currentLabel}`;
-    const allButton = document.createElement("button");
-    allButton.className = "wasm-music-episode-btn";
-    allButton.type = "button";
-    allButton.textContent = "全选结果";
-    const clearButton = document.createElement("button");
-    clearButton.className = "wasm-music-episode-btn";
-    clearButton.type = "button";
-    clearButton.textContent = "清空选择";
-    const renameButton = document.createElement("button");
-    renameButton.className = "wasm-music-episode-btn";
-    renameButton.type = "button";
-    renameButton.textContent = "编辑所选标题";
-    tools.append(currentButton, allButton, clearButton, renameButton);
-
-    const query = document.createElement("div");
-    query.className = "wasm-music-episode-query";
-    const searchInput = document.createElement("input");
-    searchInput.type = "search";
-    searchInput.className = "wasm-music-episode-search";
-    searchInput.placeholder = "搜索标题 / BV号";
-    searchInput.setAttribute("aria-label", "搜索视频");
-    query.appendChild(searchInput);
-    let filterSelect: HTMLSelectElement | null = null;
-    if (nativeCategories.length > 1) {
-      filterSelect = document.createElement("select");
-      filterSelect.className = "wasm-music-episode-filter";
-      filterSelect.setAttribute("aria-label", "合集分类");
-      const allOption = document.createElement("option");
-      allOption.value = "";
-      allOption.textContent = "全部分类";
-      filterSelect.appendChild(allOption);
-      nativeCategories.forEach((category) => {
-        const option = document.createElement("option");
-        option.value = category;
-        option.textContent = category;
-        filterSelect?.appendChild(option);
-      });
-      query.appendChild(filterSelect);
-    }
-
-    const list = document.createElement("div");
-    list.className = "wasm-music-episode-list";
-    const pagination = document.createElement("div");
-    pagination.className = "wasm-music-episode-pagination";
-    const previousButton = document.createElement("button");
-    previousButton.className = "wasm-music-episode-btn";
-    previousButton.type = "button";
-    previousButton.textContent = "上一页";
-    const pageInfo = document.createElement("span");
-    pageInfo.className = "wasm-music-episode-page-info";
-    const nextButton = document.createElement("button");
-    nextButton.className = "wasm-music-episode-btn";
-    nextButton.type = "button";
-    nextButton.textContent = "下一页";
-    pagination.append(previousButton, pageInfo, nextButton);
-
-    const renamePanel = document.createElement("section");
-    renamePanel.className = "wasm-music-episode-rename-panel";
-    renamePanel.hidden = true;
-    const renameHeader = document.createElement("div");
-    renameHeader.className = "wasm-music-episode-rename-header";
-    const renameHeading = document.createElement("strong");
-    renameHeading.textContent = "批量编辑下载标题";
-    const renameHint = document.createElement("span");
-    renameHint.textContent = "默认保留每个视频自己的标题，只修改你想改的项目即可。";
-    renameHeader.append(renameHeading, renameHint);
-    const renameBulk = document.createElement("div");
-    renameBulk.className = "wasm-music-episode-rename-bulk";
-    const prefixInput = document.createElement("input");
-    prefixInput.type = "text";
-    prefixInput.placeholder = "批量添加前缀";
-    prefixInput.setAttribute("aria-label", "批量标题前缀");
-    const prefixButton = document.createElement("button");
-    prefixButton.className = "wasm-music-episode-btn";
-    prefixButton.type = "button";
-    prefixButton.textContent = "添加前缀";
-    const suffixInput = document.createElement("input");
-    suffixInput.type = "text";
-    suffixInput.placeholder = "批量添加后缀";
-    suffixInput.setAttribute("aria-label", "批量标题后缀");
-    const suffixButton = document.createElement("button");
-    suffixButton.className = "wasm-music-episode-btn";
-    suffixButton.type = "button";
-    suffixButton.textContent = "添加后缀";
-    const resetTitlesButton = document.createElement("button");
-    resetTitlesButton.className = "wasm-music-episode-btn";
-    resetTitlesButton.type = "button";
-    resetTitlesButton.textContent = "全部恢复默认";
-    renameBulk.append(prefixInput, prefixButton, suffixInput, suffixButton, resetTitlesButton);
-    const renameList = document.createElement("div");
-    renameList.className = "wasm-music-episode-rename-list";
-    renamePanel.append(renameHeader, renameBulk, renameList);
-
-    const options = document.createElement("div");
-    options.className = "wasm-music-episode-options";
-    const manualEachLabel = document.createElement("label");
-    const manualEachInput = document.createElement("input");
-    manualEachInput.type = "checkbox";
-    const manualEachText = document.createElement("span");
-    manualEachText.textContent = "每个项目分别手动确认（可单独修改标题、作者、文件名、封面和字幕）";
-    manualEachLabel.append(manualEachInput, manualEachText);
-    const autoLabel = document.createElement("label");
-    const autoInput = document.createElement("input");
-    autoInput.type = "checkbox";
-    autoInput.checked = Boolean(savedRule);
-    autoInput.disabled = !savedRule;
-    const autoText = document.createElement("span");
-    autoText.textContent = savedRule
-      ? "使用已保存规则（作者、封面、字幕、剪辑范围与倍速）自动完成；标题和文件名使用所选列表"
-      : "尚未保存默认规则：先手动设置第一项，其余项目复用作者、封面、字幕、剪辑范围与倍速";
-    autoLabel.append(autoInput, autoText);
-    const hint = document.createElement("p");
-    hint.className = "wasm-music-episode-hint";
-    hint.textContent =
-      "每项默认使用分集列表里的自带标题；进入“编辑所选标题”可逐项修改或批量加前后缀。手动模式会在同一个窗口逐项停下来确认。";
-    options.append(manualEachLabel, autoLabel, hint);
-
-    manualEachInput.addEventListener("change", () => {
-      if (manualEachInput.checked) {
-        autoInput.checked = false;
-        autoInput.disabled = true;
-      } else {
-        autoInput.checked = Boolean(savedRule);
-        autoInput.disabled = !savedRule;
-      }
-    });
-
-    const footer = document.createElement("div");
-    footer.className = "wasm-music-episode-footer";
-    const count = document.createElement("span");
-    count.className = "wasm-music-episode-count";
-    const actions = document.createElement("div");
-    actions.className = "wasm-music-episode-actions";
-    const cancelButton = document.createElement("button");
-    cancelButton.className = "wasm-music-episode-btn";
-    cancelButton.type = "button";
-    cancelButton.textContent = "取消";
-    const confirmButton = document.createElement("button");
-    confirmButton.className = "wasm-music-episode-btn wasm-music-episode-btn-primary";
-    confirmButton.type = "button";
-    actions.append(cancelButton, confirmButton);
-    footer.append(count, actions);
-    dialog.append(header, tools, query, list, pagination, renamePanel, options, footer);
-    mask.appendChild(dialog);
-    document.body.appendChild(mask);
-    episodeSession.picker = mask;
-
-    const getSelectedIndexes = () =>
-      Array.from(selectedIndexes).sort((left, right) => left - right);
-    const getDefaultTitle = (index: number) => {
-      const episode = episodes[index];
-      return `${episode?._wasmMusicPickerTitle || episode?.part || episode?.title || episode?.bvid || `未命名${itemLabel}`}`;
-    };
-    const getEditedTitle = (index: number) =>
-      titleOverrides.has(index) ? titleOverrides.get(index)! : getDefaultTitle(index);
-    const setTitleOverride = (index: number, value: string) => {
-      if (value === getDefaultTitle(index)) {
-        titleOverrides.delete(index);
-      } else {
-        titleOverrides.set(index, value);
-      }
-    };
-    const getTitleOverrides = () =>
-      Object.fromEntries(
-        getSelectedIndexes().flatMap((index) => {
-          const value = getEditedTitle(index).trim();
-          return value ? [[index, value]] : [];
-        }),
-      );
-    const getFilteredIndexes = () => {
-      const keyword = searchInput.value.trim().toLowerCase();
-      const category = filterSelect ? filterSelect.value : "";
-      return episodes
-        .map((episode, index) => ({ episode, index }))
-        .filter(({ episode }) => !category || episode._wasmMusicSectionTitle === category)
-        .filter(({ episode }) => {
-          if (!keyword) {
-            return true;
-          }
-          return [
-            episode._wasmMusicPickerTitle,
-            episode.part,
-            episode.title,
-            episode.bvid,
-            episode._wasmMusicSectionTitle,
-            episode._wasmMusicPickerLabel,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLowerCase()
-            .includes(keyword);
-        })
-        .map(({ index }) => index);
-    };
-    const renderRenameList = () => {
-      renameList.replaceChildren();
-      const indexes = getSelectedIndexes();
-      if (indexes.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "wasm-music-episode-empty";
-        empty.textContent = `请先选择要下载的${itemLabel}`;
-        renameList.appendChild(empty);
-        return;
-      }
-
-      indexes.forEach((index) => {
-        const episode = episodes[index];
-        const row = document.createElement("div");
-        row.className = "wasm-music-episode-rename-row";
-        const meta = document.createElement("span");
-        meta.className = "wasm-music-episode-rename-meta";
-        meta.textContent = episode._wasmMusicPickerLabel || `P${episode.page || index + 1}`;
-        meta.title = episode.bvid || "";
-        const input = document.createElement("input");
-        input.type = "text";
-        input.value = getEditedTitle(index);
-        input.dataset.episodeIndex = `${index}`;
-        input.setAttribute("aria-label", `${meta.textContent} 下载标题`);
-        input.addEventListener("input", () => {
-          setTitleOverride(index, input.value);
-          updateCount();
+    const app = createApp({
+      render() {
+        return h(PickerComponent, {
+          episodes,
+          currentIndex,
+          pickerMeta,
+          savedRule,
+          onConfirm(selection: EpisodeSelection) {
+            episodeSession.picker = null;
+            app.unmount();
+            mountEl.remove();
+            resolve(selection);
+          },
+          onCancel() {
+            episodeSession.picker = null;
+            app.unmount();
+            mountEl.remove();
+            resolve(null);
+          },
         });
-        const resetButton = document.createElement("button");
-        resetButton.className = "wasm-music-episode-btn";
-        resetButton.type = "button";
-        resetButton.textContent = "恢复";
-        resetButton.title = "恢复该项目的默认标题";
-        resetButton.addEventListener("click", () => {
-          titleOverrides.delete(index);
-          input.value = getDefaultTitle(index);
-          updateCount();
-        });
-        row.append(meta, input, resetButton);
-        renameList.appendChild(row);
-      });
-    };
-    const updateCount = (resultCount = getFilteredIndexes().length) => {
-      const selectedCount = selectedIndexes.size;
-      const hasEmptyTitle = getSelectedIndexes().some((index) => !getEditedTitle(index).trim());
-      const countText =
-        resultCount === episodes.length
-          ? `已选择 ${selectedCount}/${episodes.length} 个${itemLabel}`
-          : `已选择 ${selectedCount}/${episodes.length} 个${itemLabel} · 当前结果 ${resultCount}`;
-      count.textContent = hasEmptyTitle ? `${countText} · 请补全空标题` : countText;
-      confirmButton.textContent =
-        selectedCount > 1 ? `批量下载（${selectedCount}）` : `下载所选${itemLabel}`;
-      confirmButton.disabled = selectedCount === 0 || hasEmptyTitle;
-      options.style.display = selectedCount > 1 ? "block" : "none";
-      renameButton.disabled = selectedCount === 0;
-      if (selectedCount === 0) {
-        renameVisible = false;
-      }
-      renameButton.textContent = renameVisible
-        ? "返回选择列表"
-        : `编辑所选标题${selectedCount ? `（${selectedCount}）` : ""}`;
-      query.hidden = renameVisible;
-      list.hidden = renameVisible;
-      renamePanel.hidden = !renameVisible;
-    };
-    const renderList = () => {
-      const filteredIndexes = getFilteredIndexes();
-      const totalPages = Math.max(1, Math.ceil(filteredIndexes.length / pageSize));
-      activePage = Math.min(Math.max(1, activePage), totalPages);
-      const start = (activePage - 1) * pageSize;
-      const pageIndexes = filteredIndexes.slice(start, start + pageSize);
-      list.replaceChildren();
-
-      if (pageIndexes.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "wasm-music-episode-empty";
-        empty.textContent = "没有符合条件的视频";
-        list.appendChild(empty);
-      } else {
-        pageIndexes.forEach((index) => {
-          const episode = episodes[index];
-          const row = document.createElement("label");
-          row.className = "wasm-music-episode-row";
-          const input = document.createElement("input");
-          input.type = "checkbox";
-          input.value = index.toString();
-          input.checked = selectedIndexes.has(index);
-          input.addEventListener("change", () => {
-            if (input.checked) {
-              selectedIndexes.add(index);
-            } else {
-              selectedIndexes.delete(index);
-            }
-            renderRenameList();
-            updateCount(filteredIndexes.length);
-          });
-          const pageIndex = document.createElement("span");
-          pageIndex.className = "wasm-music-episode-index";
-          pageIndex.textContent = episode._wasmMusicPickerLabel || `P${episode.page}`;
-          const name = document.createElement("span");
-          name.className = "wasm-music-episode-name";
-          name.textContent = episode._wasmMusicPickerTitle || episode.part || episode.title;
-          if (episode.bvid) {
-            name.title = `${episode._wasmMusicPickerTitle || episode.part || episode.title} · ${episode.bvid}`;
-          }
-          if (index === currentIndex) {
-            const badge = document.createElement("span");
-            badge.className = "wasm-music-episode-current";
-            badge.textContent = "当前";
-            name.appendChild(badge);
-          }
-          const time = document.createElement("span");
-          time.className = "wasm-music-episode-time";
-          time.textContent = formatEpisodeDuration(episode.duration);
-          row.append(input, pageIndex, name, time);
-          list.appendChild(row);
-        });
-      }
-
-      pagination.hidden = renameVisible || totalPages <= 1;
-      pageInfo.textContent = `第 ${activePage}/${totalPages} 页 · 共 ${filteredIndexes.length} 项`;
-      previousButton.disabled = activePage <= 1;
-      nextButton.disabled = activePage >= totalPages;
-      allButton.disabled = filteredIndexes.length === 0;
-      renderRenameList();
-      updateCount(filteredIndexes.length);
-    };
-
-    function close(result: EpisodeSelection | null) {
-      document.removeEventListener("keydown", onKeyDown, true);
-      mask.remove();
-      episodeSession.picker = null;
-      resolve(result);
+      },
+    });
+    console.log("[episode] mounting Vue picker app...");
+    app.mount(mountEl);
+    console.log("[episode] Vue picker app mounted, mountEl:", mountEl.innerHTML.length, "chars");
+    // Debug: check picker visibility
+    const root = mountEl.querySelector('.picker-root');
+    if (root) {
+      const rect = root.getBoundingClientRect();
+      const style = window.getComputedStyle(root);
+      console.log("[episode] picker-root rect:", rect, "display:", style.display, "visibility:", style.visibility, "opacity:", style.opacity);
+    } else {
+      console.log("[episode] picker-root NOT FOUND, innerHTML preview:", mountEl.innerHTML.substring(0, 200));
     }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close(null);
-      }
-    }
-
-    currentButton.addEventListener("click", () => {
-      selectedIndexes.clear();
-      if (currentIndex >= 0 && currentIndex < episodes.length) {
-        selectedIndexes.add(currentIndex);
-      }
-      searchInput.value = "";
-      if (filterSelect) {
-        filterSelect.value = "";
-      }
-      activePage = Math.floor(Math.max(0, currentIndex) / pageSize) + 1;
-      renderList();
-    });
-    allButton.addEventListener("click", () => {
-      getFilteredIndexes().forEach((index) => selectedIndexes.add(index));
-      renderList();
-    });
-    clearButton.addEventListener("click", () => {
-      selectedIndexes.clear();
-      renderList();
-    });
-    renameButton.addEventListener("click", () => {
-      if (selectedIndexes.size === 0) {
-        return;
-      }
-      renameVisible = !renameVisible;
-      renderList();
-      if (renameVisible) {
-        renameList.querySelector<HTMLInputElement>("input")?.focus();
-      }
-    });
-    const applyAffix = (position: "prefix" | "suffix", value: string) => {
-      if (!value) {
-        return;
-      }
-      getSelectedIndexes().forEach((index) => {
-        const title = getEditedTitle(index);
-        setTitleOverride(index, position === "prefix" ? `${value}${title}` : `${title}${value}`);
-      });
-      renderRenameList();
-      updateCount();
-    };
-    prefixButton.addEventListener("click", () => applyAffix("prefix", prefixInput.value));
-    suffixButton.addEventListener("click", () => applyAffix("suffix", suffixInput.value));
-    prefixInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        applyAffix("prefix", prefixInput.value);
-      }
-    });
-    suffixInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        event.preventDefault();
-        applyAffix("suffix", suffixInput.value);
-      }
-    });
-    resetTitlesButton.addEventListener("click", () => {
-      getSelectedIndexes().forEach((index) => titleOverrides.delete(index));
-      renderRenameList();
-      updateCount();
-    });
-    searchInput.addEventListener("input", () => {
-      activePage = 1;
-      renderList();
-    });
-    filterSelect?.addEventListener("change", () => {
-      activePage = 1;
-      renderList();
-    });
-    previousButton.addEventListener("click", () => {
-      activePage--;
-      renderList();
-    });
-    nextButton.addEventListener("click", () => {
-      activePage++;
-      renderList();
-    });
-    cancelButton.addEventListener("click", () => close(null));
-    confirmButton.addEventListener("click", () =>
-      close({
-        indexes: getSelectedIndexes(),
-        useDefault: !manualEachInput.checked && autoInput.checked && !autoInput.disabled,
-        manualEach: manualEachInput.checked,
-        titleOverrides: getTitleOverrides(),
-      }),
-    );
-    document.addEventListener("keydown", onKeyDown, true);
-    renderList();
   });
 }
 
@@ -1304,11 +883,13 @@ function openLegacyMusicApp() {
 }
 
 export async function openMusicApp() {
+  console.log("[episode] openMusicApp called", { root: !!episodeSession.root, picker: !!episodeSession.picker, opening: episodeSession.opening });
   if (episodeSession.root || episodeSession.picker || episodeSession.opening) {
     Message.warning("已有下载窗口或分集选择窗口正在运行");
     return;
   }
   if (!isEpisodePickerRoute()) {
+    console.log("[episode] not episode picker route, opening legacy app");
     openLegacyMusicApp();
     return;
   }
@@ -1316,10 +897,12 @@ export async function openMusicApp() {
   episodeSession.opening = true;
   try {
     const { episodes, currentIndex, pickerMeta } = await loadEpisodeData();
+    console.log("[episode] loaded episodes:", episodes.length, "currentIndex:", currentIndex);
     const selection =
       episodes.length > 1
         ? await showEpisodePicker(episodes, currentIndex, pickerMeta)
         : { indexes: [0], useDefault: false, manualEach: false, titleOverrides: {} };
+    console.log("[episode] picker result:", selection);
     if (!selection || selection.indexes.length === 0) {
       return;
     }
