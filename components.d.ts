@@ -13,6 +13,7 @@ declare module 'vue' {
     Cover: typeof import('./src/steps/cover.vue')['default']
     Info: typeof import('./src/steps/info.vue')['default']
     Lyrics: typeof import('./src/steps/lyrics.vue')['default']
+    Picker: typeof import('./src/steps/picker.vue')['default']
     UiAlert: typeof import('./src/components/UiAlert.vue')['default']
     UiButton: typeof import('./src/components/UiButton.vue')['default']
     UiButtonGroup: typeof import('./src/components/UiButtonGroup.vue')['default']

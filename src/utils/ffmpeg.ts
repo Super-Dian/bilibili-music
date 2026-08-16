@@ -8,6 +8,10 @@ const CORE_VERSION = "0.12.10";
 const CACHE_NAME = `wasm-music-ffmpeg-core-${CORE_VERSION}`;
 const ASSET_TIMEOUT_MS = 45_000;
 
+const ffmpegLog = (...args: unknown[]) => console.log("%c[ffmpeg]", "color:#00aeec;font-weight:bold", ...args);
+const ffmpegWarn = (...args: unknown[]) => console.warn("%c[ffmpeg]", "color:#faad14;font-weight:bold", ...args);
+const ffmpegErr = (...args: unknown[]) => console.error("%c[ffmpeg]", "color:#ff4d4f;font-weight:bold", ...args);
+
 export interface FFmpegProvider {
   name: string;
   singleThreadBase: string;
@@ -55,6 +59,7 @@ export function preflightFFmpegEnvironment(): FFmpegPreflightResult {
   const cacheAvailable = typeof caches !== "undefined";
   const isolated = typeof window !== "undefined" && Boolean(window.crossOriginIsolated);
   const supported = webAssembly && worker && blobUrl;
+  ffmpegLog("环境检测:", { webAssembly, worker, blobUrl, cacheAvailable, crossOriginIsolated: isolated, supported });
   return {
     supported,
     webAssembly,
@@ -84,17 +89,29 @@ export async function tryFFmpegProviders<T>(
   shouldStop: () => boolean = () => false,
 ) {
   const failures: string[] = [];
+  ffmpegLog(`开始尝试 ${providers.length} 个 CDN 源:`, providers.map((p) => p.name).join(", "));
   for (let index = 0; index < providers.length; index++) {
     const provider = providers[index];
+    ffmpegLog(`[${index + 1}/${providers.length}] 尝试 ${provider.name}...`);
     try {
-      return await attempt(provider, index);
+      const result = await attempt(provider, index);
+      ffmpegLog(`✅ ${provider.name} 加载成功`);
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      const detail = error instanceof Error ? error.stack : "";
+      ffmpegErr(`❌ ${provider.name} 失败:`, message);
+      if (detail) ffmpegWarn(`   堆栈:`, detail);
       failures.push(`${provider.name}: ${message}`);
-      if (shouldStop()) throw error;
+      if (shouldStop()) {
+        ffmpegWarn("已取消（任务取消或实例过期），停止重试");
+        throw error;
+      }
     }
   }
-  throw new Error(`所有 FFmpeg CDN 均不可用（${failures.join("；")}）`);
+  const errorMsg = `所有 FFmpeg CDN 均不可用（${failures.join("；")}）`;
+  ffmpegErr(errorMsg);
+  throw new Error(errorMsg);
 }
 
 function createAbortError(message = "任务已取消") {
@@ -115,12 +132,21 @@ async function fetchWithTimeout(url: string, signal?: AbortSignal) {
     () => controller.abort(new Error(`下载超时（${Math.round(ASSET_TIMEOUT_MS / 1000)} 秒）`)),
     ASSET_TIMEOUT_MS,
   );
+  const startTime = Date.now();
+  ffmpegLog(`   fetch 开始: ${url}`);
   try {
     const response = await fetch(url, { signal: controller.signal, cache: "no-cache" });
+    const elapsed = Date.now() - startTime;
+    ffmpegLog(`   fetch 响应: ${response.status} ${response.statusText} (${elapsed}ms) url=${url}`);
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} ${response.statusText}`);
     }
+    const contentLength = response.headers.get("content-length");
+    ffmpegLog(`   下载中... content-length=${contentLength ? `${(Number(contentLength) / 1024 / 1024).toFixed(1)}MB` : "未知"}`);
     const bytes = await response.arrayBuffer();
+    const totalElapsed = Date.now() - startTime;
+    const sizeMB = (bytes.byteLength / 1024 / 1024).toFixed(2);
+    ffmpegLog(`   下载完成: ${sizeMB}MB, 耗时 ${totalElapsed}ms`);
     return {
       bytes,
       responseInit: {
@@ -129,6 +155,11 @@ async function fetchWithTimeout(url: string, signal?: AbortSignal) {
         headers: response.headers,
       } satisfies ResponseInit,
     };
+  } catch (error) {
+    const elapsed = Date.now() - startTime;
+    const message = error instanceof Error ? error.message : String(error);
+    ffmpegErr(`   fetch 失败 (${elapsed}ms): ${message} url=${url}`);
+    throw error;
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", abort);
@@ -145,14 +176,21 @@ async function readAsset(
   let bytes: ArrayBuffer;
   let fromCache = false;
   let cache: Cache | undefined;
+  const fileName = url.split("/").pop() || url;
+  // 用文件名+版本号作为统一缓存 key，不同 CDN 源共享同一份缓存
+  const cacheKey = `ffmpeg-core/${CORE_VERSION}/${fileName}`;
+  ffmpegLog(`   readAsset: ${fileName} (${mimeType})`);
   if (typeof caches !== "undefined") {
     try {
       cache = await caches.open(CACHE_NAME);
-      response = (await cache.match(url)) || undefined;
+      response = (await cache.match(cacheKey)) || undefined;
       fromCache = Boolean(response);
+      ffmpegLog(`   缓存状态: ${fromCache ? "命中缓存 ✅" : "未命中，需联网下载"} (key=${cacheKey})`);
     } catch (error) {
-      logger.warn("FFmpeg Cache Storage 不可用，将直接联网加载", error);
+      ffmpegWarn("   Cache Storage 不可用，将直接联网加载", error);
     }
+  } else {
+    ffmpegLog("   浏览器不支持 Cache Storage，直接联网下载");
   }
 
   if (!response) {
@@ -161,7 +199,7 @@ async function readAsset(
     if (cache) {
       const cachedBytes = bytes.slice(0);
       void cache
-        .put(url, new Response(cachedBytes, downloaded.responseInit))
+        .put(cacheKey, new Response(cachedBytes, downloaded.responseInit))
         .catch((error) => logger.warn("写入 FFmpeg 缓存失败", error));
     }
   } else {
@@ -176,7 +214,8 @@ async function readAsset(
 
 function createFFmpegInstance() {
   const instance = new FFmpeg();
-  instance.on("log", ({ message }) => logger.debug("[ffmpeg]", message));
+  instance.on("log", ({ message }) => ffmpegLog("[内部]", message));
+  instance.on("progress", ({ progress, time }) => ffmpegLog("[进度]", `progress=${(progress * 100).toFixed(1)}% time=${time}ms`));
   return instance;
 }
 
@@ -195,9 +234,17 @@ function revokeBlobUrls() {
 }
 
 export async function ffmpegLoad(onProgress?: (message: string) => void, signal?: AbortSignal) {
-  if (diagnostics.loaded) return ffmpeg;
-  if (loadPromise) return loadPromise;
+  if (diagnostics.loaded) {
+    ffmpegLog("已加载，跳过重复初始化");
+    return ffmpeg;
+  }
+  if (loadPromise) {
+    ffmpegLog("正在加载中，返回现有 Promise");
+    return loadPromise;
+  }
 
+  ffmpegLog("====== 开始加载 FFmpeg ======");
+  const loadStartTime = Date.now();
   const preflight = preflightFFmpegEnvironment();
   diagnostics = { ...preflight, loaded: false };
   if (!preflight.supported) {
@@ -284,11 +331,15 @@ export async function ffmpegLoad(onProgress?: (message: string) => void, signal?
       provider: result.provider,
       loadedFromCache: result.fromCache,
     };
+    const totalMs = Date.now() - loadStartTime;
+    ffmpegLog(`====== FFmpeg 加载完成 (${totalMs}ms) ======`, { provider: result.provider, fromCache: result.fromCache });
     onProgress?.(
       `FFmpeg 就绪（${result.provider} / ${modeText}${result.fromCache ? " / 本地缓存" : ""}）`,
     );
     return loadingInstance;
   })().catch((error) => {
+    const totalMs = Date.now() - loadStartTime;
+    ffmpegErr(`====== FFmpeg 加载失败 (${totalMs}ms) ======`, error);
     if (!isStale()) {
       diagnostics = {
         ...preflight,
