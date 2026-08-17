@@ -23,6 +23,7 @@ import {
   processEpisodeSelection,
   openMusicApp,
   stopEpisodeSession,
+  launchNextEpisode,
 } from "./episode";
 import type { EpisodeVideoData, EpisodeSelection } from "./episode";
 
@@ -65,6 +66,11 @@ function applyProcessingRule(rule: RecordData) {
 
 const handleOk = () => {
   const defaultRule = getActiveDefaultRule();
+  logger.info("[App] handleOk 调用", {
+    hasDefaultRule: Boolean(defaultRule),
+    isBatch: episodeSession.isBatch,
+    hasActiveVideoData: Boolean(episodeSession.activeVideoData),
+  });
   console.log("默认规则:", defaultRule);
   //return false;
   if (!defaultRule) {
@@ -106,6 +112,11 @@ function onPrev() {
 }
 
 function onNext() {
+  logger.info("[App] onNext 调用", {
+    current: current.value,
+    stepsLength: steps.value.length,
+    nextValue: Math.min(steps.value.length - 1, current.value + 1),
+  });
   current.value = Math.min(steps.value.length - 1, current.value + 1);
 }
 
@@ -117,9 +128,10 @@ async function onPickerConfirm(selection: EpisodeSelection) {
       episodeSession.pickerMeta,
       selection,
     );
-    current.value = 1; // 进入 clip 步骤
-    // 触发 initializeEpisode 设置 fromData
-    void initializeEpisode(episodeSession.queue[0] || null);
+    // 调用 launchNextEpisode 处理第一个剧集
+    // launchNextEpisode 会设置 activeVideoData 并调用 appTransitionHandler
+    // appTransitionHandler 会调用 initializeEpisode 来初始化第一个剧集
+    launchNextEpisode();
   } catch (error) {
     logger.error("处理剧集选择失败", error);
     Message.error("处理选择失败");
@@ -153,6 +165,13 @@ function getEpisodeLabel(videoData: EpisodeVideoData | null) {
 async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   const sequence = ++initializationSequence;
   const episodeLabel = getEpisodeLabel(activeEpisode);
+  logger.info("[App] initializeEpisode 开始", {
+    episodeLabel,
+    isBatch: episodeSession.isBatch,
+    auto: episodeSession.auto,
+    completed: episodeSession.completed,
+    total: episodeSession.total,
+  });
   preparing.value = true;
   preparingLabel.value = episodeSession.isBatch
     ? `正在准备 ${episodeSession.completed + 1}/${episodeSession.total}：${episodeLabel}`
@@ -166,7 +185,10 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   if (sequence !== initializationSequence) return;
   reset();
   // 多集且未选择时停在 picker 步骤(0)，否则从 clip(1) 开始
-  current.value = hasPickerStep.value && !episodeSession.queue.length ? 0 : 1;
+  // 批量模式下，如果已经选择过剧集（isBatch为true），则不再显示picker步骤
+  // 单个下载时，如果已经有 activeVideoData，也不再显示 picker 步骤
+  const shouldShowPicker = hasPickerStep.value && !episodeSession.isBatch && !episodeSession.activeVideoData && !episodeSession.queue.length;
+  current.value = shouldShowPicker ? 0 : 1;
   const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
     ? null
     : document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
@@ -201,6 +223,10 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   if (sequence !== initializationSequence) return;
 
   if (episodeSession.auto) {
+    logger.info("[App] 自动模式处理", {
+      completed: episodeSession.completed,
+      total: episodeSession.total,
+    });
     const defaultRule = getActiveDefaultRule();
     if (defaultRule) {
       applyProcessingRule(defaultRule);
@@ -210,6 +236,12 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
     Message.info(
       `正在自动处理 ${episodeSession.completed + 1}/${episodeSession.total}：${episodeSession.activeVideoData?.part}`,
     );
+    // 自动模式下，延迟调用 handleOk 进入下一步
+    setTimeout(() => {
+      if (sequence !== initializationSequence) return;
+      logger.info("[App] 自动模式调用 handleOk");
+      handleOk();
+    }, 100);
   } else if (activeEpisode?._wasmMusicSkipMontage) {
     current.value = 2;
     Message.info("所选视频不是当前正在播放的视频，已跳过音频剪辑步骤");
