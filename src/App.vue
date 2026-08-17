@@ -148,7 +148,11 @@ const sideShow = ref(true);
 const fullscreen = ref(false);
 
 /** picker 步骤时使用更大的窗口宽度 */
-const modalWidth = computed(() => current.value === 0 ? 900 : 520);
+const modalWidth = computed(() => {
+  // 只有在 picker 步骤时使用 900px，否则使用 520px
+  if (hasPickerStep.value && current.value === 0) return 900;
+  return 520;
+});
 
 function checkSide() {
   sideShow.value = !sideShow.value;
@@ -191,7 +195,9 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   // 批量模式下，如果已经选择过剧集（isBatch为true），则不再显示picker步骤
   // 单个下载时，如果已经有 activeVideoData，也不再显示 picker 步骤
   const shouldShowPicker = hasPickerStep.value && !episodeSession.isBatch && !episodeSession.activeVideoData && !episodeSession.queue.length;
-  current.value = shouldShowPicker ? 0 : 1;
+  // 动态步骤数组：有picker时 [picker, clip, info, ...]，无picker时 [clip, info, ...]
+  // picker步骤=0，clip步骤=1（有picker时）或0（无picker时）
+  current.value = shouldShowPicker ? 0 : (hasPickerStep.value ? 1 : 0);
   const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
     ? null
     : document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
@@ -282,7 +288,7 @@ function onOpen() {
   >
     <template #footer>
       <!-- picker 步骤时不显示 App 的 footer，由 picker 组件自己的 footer 替代 -->
-      <div v-if="current !== 0" style="display: flex; justify-content: space-between">
+      <div v-if="!(hasPickerStep && current === 0)" style="display: flex; justify-content: space-between">
         <div style="display: flex; gap: 8px">
           <UiButton @click="checkSide"> 侧栏 </UiButton>
         </div>
@@ -300,7 +306,7 @@ function onOpen() {
         @change="setCurrent"
         direction="vertical"
         size="small"
-        v-show="sideShow && current !== 0"
+        v-show="sideShow && !(hasPickerStep && current === 0)"
         :items="stepLabels.map(title => ({ title }))"
       />
       <div

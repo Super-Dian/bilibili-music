@@ -585,4 +585,18 @@ body[arco-theme="dark"] .deleted-list-item a,
 body[data-theme="dark"] .deleted-list-item a {
   color: #00aeec;
 }
+
+/* 深色模式：删除按钮（x按钮）- 红色危险按钮在深色模式下使用透明背景 */
+body[arco-theme="dark"] .ui-btn-secondary.ui-btn-danger,
+body[data-theme="dark"] .ui-btn-secondary.ui-btn-danger {
+  background: transparent;
+  color: #ff4d4f;
+  border-color: #ff4d4f;
+}
+
+body[arco-theme="dark"] .ui-btn-secondary.ui-btn-danger:hover:not(.ui-btn-disabled),
+body[data-theme="dark"] .ui-btn-secondary.ui-btn-danger:hover:not(.ui-btn-disabled) {
+  background: #ff4d4f;
+  color: #fff;
+}
 </style>
