@@ -71,7 +71,7 @@ const handleOk = () => {
     isBatch: episodeSession.isBatch,
     hasActiveVideoData: Boolean(episodeSession.activeVideoData),
   });
-  console.log("默认规则:", defaultRule);
+  logger.info("默认规则:", { hasRule: Boolean(defaultRule) });
   //return false;
   if (!defaultRule) {
     Message.error("未找到默认规则");

@@ -194,7 +194,7 @@ onMounted(() => {
           lyricsRecord.label = _subtitles[0].lan_doc;
         }
       }
-      console.log(_subtitles);
+      logger.info("[lyrics] 字幕数据加载完成:", { count: _subtitles.length });
     })
     .catch((err) => {
       if (fromData.usedefaultconfig) {
@@ -541,14 +541,14 @@ const onlineLyricsIndex = ref<string>("");
 
 watch(onlineLyricsIndex, async (value) => {
   logger.debug("watch onlineLyricsIndex", value);
-  console.log("[lyrics] 选择在线歌词:", value);
+  logger.info("[lyrics] 选择在线歌词:", { value });
   if (!value) return;
 
   const [label] = value.split(".");
   const api = onlineLyricsApis.find((item) => item.label === label);
   const songId = lyricsIdMap.value[value];
   if (!api || !songId) {
-    console.warn("[lyrics] 在线歌词详情参数无效:", { value, label, songId });
+    logger.warn("[lyrics] 在线歌词详情参数无效:", { value, label, songId });
     return;
   }
 
@@ -556,11 +556,11 @@ watch(onlineLyricsIndex, async (value) => {
   try {
     const lrc = await fetchOnlineLyrics(api, songId);
     if (onlineLyricsIndex.value !== value) return;
-    console.log("[lyrics] 歌词详情加载成功:", { value, length: lrc.length });
+    logger.info("[lyrics] 歌词详情加载成功:", { value, length: lrc.length });
     onlineLyrics.value = lrc;
   } catch (err) {
     if (onlineLyricsIndex.value !== value) return;
-    console.error("[lyrics] 歌词详情请求失败:", err);
+    logger.error("[lyrics] 歌词详情请求失败:", err);
     Message.error("获取歌词失败");
   } finally {
     if (onlineLyricsIndex.value === value) onlineLyricsLoading2.value = false;
@@ -722,13 +722,13 @@ async function fetchOnlineSearch(api: (typeof onlineLyricsApis)[number], word: s
   if (pending) return pending;
 
   const url = api.url + new URLSearchParams({ word: word.trim() });
-  console.log("[lyrics] 请求搜索接口:", url);
+  logger.info("[lyrics] 请求搜索接口:", { url });
   const task = Promise.race([
     request.get<any>({ url, cookie: false, timeout: 5 }),
     new Promise<never>((_, reject) => setTimeout(() => reject(new Error("搜索请求超时")), 8000)),
   ])
     .then((res: any) => {
-      console.log("[lyrics] 搜索接口响应:", res);
+      logger.info("[lyrics] 搜索接口响应:", { code: res?.code, dataLength: res?.data?.length });
       const list = Array.isArray(res?.data)
         ? res.data
             .filter((song: any) => song?.id != null && (song?.name || song?.song))
@@ -778,7 +778,7 @@ const lyricsIdMap = ref<Record<string, string>>({});
 
 async function searchOnlineLyrics() {
   const word = onlineSearch.value.trim();
-  console.log("[lyrics] 开始搜索在线歌词:", word);
+  logger.info("[lyrics] 开始搜索在线歌词:", { word });
   if (!word) {
     Message.warning("请输入歌名");
     return;
@@ -801,15 +801,15 @@ async function searchOnlineLyrics() {
             opt.options.push({ label: song.name, value });
             lyricsIdMap.value[value] = song.id;
           }
-          console.log("[lyrics] 搜索结果:", item.label, result.songs.length);
+          logger.info("[lyrics] 搜索结果:", { source: item.label, count: result.songs.length });
           onlineLyricsOptions.value.push(opt);
           if (!onlineLyricsIndex.value && result.songs.length > 0) {
             const firstValue = `${item.label}.${result.songs[0].id}`;
-            console.log("[lyrics] 自动选择搜索结果:", firstValue);
+            logger.info("[lyrics] 自动选择搜索结果:", { firstValue });
             onlineLyricsIndex.value = firstValue;
           }
         } catch (err) {
-          console.error("[lyrics] 搜索请求失败 [" + item.label + "]:", err);
+          logger.error("[lyrics] 搜索请求失败 [" + item.label + "]:", err);
           throw err;
         }
       }),
@@ -824,7 +824,7 @@ async function searchOnlineLyrics() {
 function editLyrics(item: SubTitle) {
   editLyricsData.value = JSON.parse(JSON.stringify(item)) as Subtitle2;
   // [DEBUG] 打开工作台时的初始状态
-  console.log("[lyrics-debug] editLyrics() 打开工作台", {
+  logger.debug("[lyrics] editLyrics() 打开工作台", {
     _lyricsBody: editLyricsData.value?.data?._lyricsBody,
     _editBody: editLyricsData.value?.data?._editBody,
     hasClipRanges: !!(fromData.clipRanges && fromData.clipRanges.length > 0),

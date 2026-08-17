@@ -1,5 +1,6 @@
 import { diffChars } from "diff";
 import type { Lyrics } from "@/data";
+import { logger } from "./logger";
 
 type DiffPart = { value: string; added?: boolean; removed?: boolean };
 
@@ -273,7 +274,7 @@ export function correctLyrics(
     result.push([Math.round(aiBody[lineIdx].from * 1000), currentLine]);
   }
 
-  console.log("[lyricsCorrector] 修改 " + diffCount + " 个字符");
+  logger.info("[lyricsCorrector] 修改 " + diffCount + " 个字符");
 
   return { lyrics: result, diffCount };
 }

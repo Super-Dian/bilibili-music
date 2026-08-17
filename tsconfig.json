@@ -15,8 +15,7 @@
     "paths": {
       "@": ["./src"],
       "@/*": ["./src/*"]
-    },
-    "types": ["@arco-design/web-vue/es/components"]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue", "auto-imports.d.ts"]
 }

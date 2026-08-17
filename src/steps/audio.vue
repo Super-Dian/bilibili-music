@@ -43,7 +43,7 @@ const error = ref<string | null>();
 
 const fileBlob = ref<string | Blob>();
 const loadMsg = ref("");
-const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : null));
+const status = computed(() => (error.value ? "error" : fileBlob.value ? "success" : undefined));
 const downloadTriggered = ref(false);
 const processing = ref(false);
 const settled = ref(false);
