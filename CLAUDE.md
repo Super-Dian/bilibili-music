@@ -171,12 +171,12 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 - `UiTabs.vue` — 标签页
 - `UiSteps.vue` — 步骤条
 - `UiDropdown.vue` — 下拉菜单
-- `UiModal.vue` — 模态框
+- `UiModal.vue` — 模态框（支持拖动功能）
 
 ### 构建结果
 
 ```
-dist/wasm-music.user.js  357.16 kB │ gzip: 79.69 kB
+dist/wasm-music.user.js  379.42 kB │ gzip: 83.63 kB
 ```
 
 ### 深色模式支持
@@ -190,9 +190,47 @@ dist/wasm-music.user.js  357.16 kB │ gzip: 79.69 kB
 }
 ```
 
+### 迁移完成的工作
+
+#### 1. 歌词工作台（lyrics.vue）
+- 智能去除元信息：新增"智能去除元信息（纯文本）"选项，用于智能纠错对比
+- `cleanOriginalLyricsPlain()` 函数：返回纯文本格式（无时间戳）
+- `correctLyrics()` 函数：支持纯文本或带时间戳格式输入
+- 在线歌词处理：智能纠错使用右侧编辑框内容（可能来自智能去除算法和用户手动修改）
+- 成功提示：从"共修正 X 行"改为"共替换 X 个字符"
+
+#### 2. 音频处理（ffmpeg.ts）
+- 缓存日志：添加缓存命中/未命中日志输出
+- 下载日志：添加下载开始/完成日志（含文件大小）
+- CDN 日志：添加 CDN 源尝试/成功/失败日志
+- 初始化日志：添加环境预检、加载模式、初始化状态日志
+
+#### 3. 消息提示（message.ts）
+- 深色模式适配：检测 `body` 的 `arco-theme` 或 `data-theme` 属性
+- 样式变化：背景色 `#fff` → `#2a2a2a`，文字颜色 `#18191c` → `#e0e0e0`
+
+#### 4. 剧集选择（picker.vue + App.vue）
+- 接入主程序窗口：移除自定义弹窗，嵌入 App.vue 的 UiModal
+- 动态宽度：picker 步骤时 900px，其他步骤 520px
+- 侧栏隐藏：picker 步骤时隐藏侧栏步骤条
+- Footer 替换：picker 步骤时用 picker 的 footer 替代 App 的 footer
+- 高度优化：容器 `max-height: 75vh`，剧集列表可滚动
+- 默认页码：打开 picker 时默认显示当前视频所在的页
+- 样式统一：使用 UiAlert 替代 picker-hint
+
+#### 5. 批量下载（episode.ts）
+- 自动模式修复：修复 `activeVideoData` 未设置导致批量下载停止的问题
+- 手动模式修复：修复多剧集手动模式下重复显示 picker 步骤的问题
+- 日志输出：添加 `launchNextEpisode`、`finishEpisodeItem`、`finishEpisodeDownload` 等函数的日志
+
+#### 6. 拖动功能（UiModal.vue）
+- Header 拖动：按住 header 可以拖动窗口
+- 状态管理：`isDragging`、`dragOffset`、`modalPosition`
+- 鼠标事件：`mousedown`、`mousemove`、`mouseup`
+
 ### 下一步计划
 
 1. ~~移除 Arco Design 依赖~~ ✅ 已完成
-2. 完善深色模式适配
-3. 测试所有功能
+2. ~~完善深色模式适配~~ ✅ 已完成
+3. ~~测试所有功能~~ ✅ 已完成
 4. 优化 CSS，减少包体积
