@@ -1,63 +1,76 @@
-# Bilibili🎶 音乐姬
+# 🎵 平台音乐下载助手
 
-## 项目简介
+> 一站式音频下载与处理工具，支持封面嵌入、ID3 标签、歌词字幕
 
-**Bilibili🎶 音乐姬** 是一个油猴脚本，旨在帮助用户从哔哩哔哩（Bilibili）视频网站下载音频。此脚本支持下载音频封面、标签（Tags）、歌词和字幕并写入音频文件。用户可以选择使用视频封面或 UP 主的头像作为音频封面。
+## ✨ 主要特性
 
-## 主要功能和特点
+### 🎧 智能下载
 
-- **音频下载**: 直接从哔哩哔哩视频中提取并下载音频。
-- **封面选择**: 可以选择使用视频封面或 UP 主的头像作为音频封面。
-- **标签和元数据**: 自动添加标签（Tags）和元数据到下载的音频文件。
-- **歌词嵌入**: 支持将 AI 字幕当作歌词嵌入到音频文件中。
+- 一键提取视频音频，支持多音质选择
+- 自动嵌入封面、ID3 标签、歌词字幕
+- 支持批量下载合集/分P视频
 
-### v0.0.4
+### 🎬 音频剪辑
 
-- **歌词工作台**: 支持编辑歌词，联网修正歌词，歌词样式, AI 修正
-- **音频工作台**: 简易的片段选择，去除不需要的片段
+- 可视化时间轴，精准裁剪音频片段
+- 支持多段删除，保留精华部分
+- 倍速播放预览，一键导出
 
-### v0.0.5
+### 📝 歌词工作台
 
-- **音频拖拽**: 支持拖拽音频文件到 B 站任意位置即可打开对应的视频
+- AI 智能纠错，自动修正字幕错误
+- 在线歌词搜索，支持多种语言
+- 实时预览编辑，支持 LRC 格式导出
 
-## 预览图
+### 🎨 封面定制
 
-- 椒盐音乐(安卓)
-  [![pAXi28S.jpg](https://s21.ax1x.com/2024/12/21/pAXi28S.jpg)](https://imgse.com/i/pAXi28S)
+- 多封面源选择：视频封面、音乐封面、UP 主头像
+- 自定义裁剪，完美适配播放器
 
-- MusicPlayer2(Windows)
-  [![pAXiDHI.png](https://s21.ax1x.com/2024/12/21/pAXiDHI.png)](https://imgse.com/i/pAXiDHI)
+### 🌙 深色模式
 
-- 下载页面
-  [![pkrWLb8.md.png](https://s21.ax1x.com/2024/06/23/pkrWLb8.md.png)](https://imgse.com/i/pkrWLb8)
+- 完整的深色模式支持
+- 跟随系统主题自动切换
 
-- Mini 剪辑
-  [![pAvDzPH.md.png](https://s21.ax1x.com/2024/12/27/pAvDzPH.md.png)](https://imgse.com/i/pAvDzPH)
+## 📸 预览
 
-- 歌词工作台
-  [![pAvDvIe.md.png](https://s21.ax1x.com/2024/12/27/pAvDvIe.md.png)](https://imgse.com/i/pAvDvIe)
+- 主界面<br>
+  ![主界面](./docs/img/MainPage.png)
 
-## 已知问题
+- 歌词工作台<br>
+  ![歌词工作台](./docs/img/LyricsPage.png)
 
-1. 使用了`WASM`技术,低版本浏览器可能会导致下载失败。
-2. 不同应用程序读取歌词的逻辑各不相同,无法确定是否支持。
-3. 转码音频页面卡死
-4. 音频文件较大
-5. 不支持 Hi-Res无损
+- 批量下载<br>
+  ![批量下载](./docs/img/BVpage.png)
 
-## TODO (欢迎 PR)
+## 🚀 安装使用
 
-1. 使用`WASM`进行转码
-2. 后端错误处理优化
-3. 歌词工作台，支持确认后再编辑，重置编辑内容等
-4. 允许调整歌词时间轴，让歌词显示更加和谐
+1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
+2. 点击安装脚本：[GreasyFork](https://greasyfork.org/zh-CN/scripts/) 或 [GitHub](https://github.com/ocyss/bilibili-music)
+3. 访问平台视频页面，点击播放器下方的下载按钮
 
-5. 部分音频无法拖拽，使用 WASM 快速解码
+## 🔧 技术栈
 
-- **脚本模板**: 根据预设一键下载音频，跳过繁琐步骤
-- **额外标签嵌入**: 支持更多标签，自定义内容嵌入
+- **前端**: Vue 3 + Vite
+- **音频处理**: FFmpeg WASM（支持多线程）
+- **歌词修正**: AI 智能纠错算法
+- **存储**: Tampermonkey 持久化 API
 
-## 安全声明
+## 📋 功能清单
+
+| 功能         | 状态 |
+| ------------ | ---- |
+| 音频下载     | ✅   |
+| 封面嵌入     | ✅   |
+| ID3 标签     | ✅   |
+| 歌词字幕     | ✅   |
+| 音频剪辑     | ✅   |
+| 批量下载     | ✅   |
+| 深色模式     | ✅   |
+| 歌词纠错     | ✅   |
+| 在线歌词搜索 | ✅   |
+
+## ⚠️ 安全声明
 
 使用本脚本下载音频文件时，请注意以下几点：
 
@@ -65,26 +78,21 @@
 2. **尊重版权**: 请尊重视频和音频的原始创作者的版权。下载的音频文件仅供个人收藏，请勿进行再分发或商业化。
 3. **风险提示**: 使用本脚本可能会违反哔哩哔哩网站的服务条款，请自行承担使用本脚本可能带来的风险。
 
-## 相关链接
+## 🤝 贡献
 
-Github 开源地址: <https://github.com/ocyss/bilibili-music>
+欢迎提交 Issue 和 Pull Request！
 
-greasyfork 地址: <https://greasyfork.org/zh-CN/scripts/>
+## 🔗 相关链接
 
-## 鸣谢
+- [GitHub 仓库](https://github.com/ocyss/bilibili-music)
+- [GreasyFork](https://greasyfork.org/zh-CN/scripts/)
 
-- <https://github.com/lisonge/vite-plugin-monkey>
+## 🙏 致谢
 
-歌词 Api 提供商:
+- [vite-plugin-monkey](https://github.com/lisonge/vite-plugin-monkey)
+- [FFmpeg WASM](https://github.com/ffmpegwasm/ffmpeg.wasm)
 
-- <https://api.aa1.cn/doc/qqmusic_geci.html>
-- <https://api.aa1.cn/doc/geci.html>
-
-## 最后
-
-嗯...
-
-## Star 趋势
+## 📊 Star 趋势
 
 <a href="https://star-history.com/#ocyss/bilibili-music&Date">
  <picture>
