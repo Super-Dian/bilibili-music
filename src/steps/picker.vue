@@ -7,6 +7,7 @@ import UiSelect from "@/components/UiSelect.vue";
 import UiButton from "@/components/UiButton.vue";
 import UiCheckbox from "@/components/UiCheckbox.vue";
 import UiAlert from "@/components/UiAlert.vue";
+import UiSteps from "@/components/UiSteps.vue";
 
 interface PickerMeta {
   title?: string;
@@ -249,8 +250,7 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
 </script>
 
 <template>
-  <div class="picker-root">
-    <div class="picker-dialog">
+  <div class="picker-container">
     <!-- Header -->
     <div class="picker-header">
       <h2 class="picker-title">选择要下载的{{ itemLabel }}</h2>
@@ -380,38 +380,22 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
         </UiButton>
       </div>
     </div>
-    </div>
   </div>
 </template>
 
 <style scoped>
-.picker-root {
-  position: fixed;
-  inset: 0;
-  z-index: 10050;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  background: rgba(0, 0, 0, 0.55);
-  font-family: Arial, "Microsoft YaHei", sans-serif;
-}
-
-.picker-dialog {
+.picker-container {
   display: flex;
   flex-direction: column;
-  width: min(760px, 92vw);
-  max-height: min(820px, 90vh);
-  overflow: hidden;
-  color: #18191c;
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  height: 100%;
+  max-height: 75vh;
 }
 
 .picker-header {
-  padding: 20px 22px 12px;
+  padding: 0 0 12px;
   border-bottom: 1px solid #e3e5e7;
+  flex-shrink: 0;
 }
 
 .picker-title {
@@ -433,17 +417,19 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 12px 22px;
+  padding: 12px 0;
   border-bottom: 1px solid #e3e5e7;
+  flex-shrink: 0;
 }
 
 .picker-query {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 22px;
+  padding: 10px 0;
   background: #f6f7f8;
   border-bottom: 1px solid #e3e5e7;
+  flex-shrink: 0;
 }
 
 .picker-list {
@@ -451,9 +437,8 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
   flex-direction: column;
   gap: 8px;
   min-height: 120px;
-  padding: 12px 22px;
-  overflow-y: auto;
   flex: 1;
+  overflow-y: auto;
 }
 
 .picker-empty {
@@ -616,8 +601,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px 22px;
+  padding: 16px 0;
+  margin-top: auto;
   border-top: 1px solid #e3e5e7;
+  flex-shrink: 0;
 }
 
 .picker-count {
@@ -631,10 +618,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
 }
 
 /* 深色模式 */
-body[arco-theme="dark"] .picker-dialog,
-body[data-theme="dark"] .picker-dialog {
+body[arco-theme="dark"] .picker-container,
+body[data-theme="dark"] .picker-container {
   color: #f1f2f3;
-  background: #1f1f1f;
 }
 
 body[arco-theme="dark"] .picker-header,

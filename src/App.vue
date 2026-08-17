@@ -147,6 +147,9 @@ function onPickerCancel() {
 const sideShow = ref(true);
 const fullscreen = ref(false);
 
+/** picker 步骤时使用更大的窗口宽度 */
+const modalWidth = computed(() => current.value === 0 ? 700 : 520);
+
 function checkSide() {
   sideShow.value = !sideShow.value;
   GM_setValue("sideShow", sideShow.value);
@@ -272,12 +275,14 @@ function onOpen() {
   <UiModal
     v-model:visible="visible"
     title="音乐姬 >_< 下载服务🎶"
+    :width="modalWidth"
     :fullscreen="fullscreen"
     :maskClosable="false"
     :escToClose="false"
   >
     <template #footer>
-      <div style="display: flex; justify-content: space-between">
+      <!-- picker 步骤时不显示 App 的 footer，由 picker 组件自己的 footer 替代 -->
+      <div v-if="current !== 0" style="display: flex; justify-content: space-between">
         <div style="display: flex; gap: 8px">
           <UiButton @click="checkSide"> 侧栏 </UiButton>
         </div>
@@ -288,14 +293,14 @@ function onOpen() {
       </div>
     </template>
     <div
-      style="display: flex; justify-content: space-between; align-items: center; max-height: 75vh"
+      style="display: flex; justify-content: space-between; align-items: center; max-height: 80vh"
     >
       <UiSteps
         :current="current + 1"
         @change="setCurrent"
         direction="vertical"
         size="small"
-        v-show="sideShow"
+        v-show="sideShow && current !== 0"
         :items="stepLabels.map(title => ({ title }))"
       />
       <div
