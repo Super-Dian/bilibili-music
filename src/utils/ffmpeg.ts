@@ -86,11 +86,15 @@ export async function tryFFmpegProviders<T>(
   const failures: string[] = [];
   for (let index = 0; index < providers.length; index++) {
     const provider = providers[index];
+    logger.info(`[FFmpeg] 尝试 CDN 源 ${index + 1}/${providers.length}: ${provider.name}`);
     try {
-      return await attempt(provider, index);
+      const result = await attempt(provider, index);
+      logger.info(`[FFmpeg] CDN 源 ${provider.name} 加载成功`);
+      return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       failures.push(`${provider.name}: ${message}`);
+      logger.warn(`[FFmpeg] CDN 源 ${provider.name} 加载失败: ${message}`);
       if (shouldStop()) throw error;
     }
   }
@@ -148,28 +152,40 @@ async function readAsset(
   const fileName = url.split("/").pop() || url;
   // 用文件名+版本号作为统一缓存 key，不同 CDN 源共享同一份缓存
   const cacheKey = `ffmpeg-core/${CORE_VERSION}/${fileName}`;
+  logger.info(`[FFmpeg] 读取资源: ${fileName} (${url})`);
   if (typeof caches !== "undefined") {
     try {
       cache = await caches.open(CACHE_NAME);
       response = (await cache.match(cacheKey)) || undefined;
       fromCache = Boolean(response);
+      logger.info(`[FFmpeg] 缓存检查: ${fromCache ? "命中缓存" : "未命中缓存"} (key: ${cacheKey})`);
     } catch (error) {
       logger.warn("FFmpeg Cache Storage 不可用，将直接联网加载", error);
     }
+  } else {
+    logger.info("[FFmpeg] Cache Storage 不可用，跳过缓存检查");
   }
 
   if (!response) {
+    logger.info(`[FFmpeg] 开始下载: ${fileName}`);
     const downloaded = await fetchWithTimeout(url, signal);
     bytes = downloaded.bytes;
+    logger.info(
+      `[FFmpeg] 下载完成: ${fileName} (${(bytes.byteLength / 1024 / 1024).toFixed(2)} MB)`,
+    );
     if (cache) {
       const cachedBytes = bytes.slice(0);
       void cache
         .put(cacheKey, new Response(cachedBytes, downloaded.responseInit))
+        .then(() => logger.info(`[FFmpeg] 缓存写入成功: ${fileName}`))
         .catch((error) => logger.warn("写入 FFmpeg 缓存失败", error));
     }
   } else {
     if (signal?.aborted) throw createAbortError();
     bytes = await response.arrayBuffer();
+    logger.info(
+      `[FFmpeg] 从缓存读取: ${fileName} (${(bytes.byteLength / 1024 / 1024).toFixed(2)} MB)`,
+    );
   }
   if (signal?.aborted) throw createAbortError();
   onProgress?.(fromCache ? "命中本地缓存" : "下载完成，写入缓存");
@@ -198,11 +214,18 @@ function revokeBlobUrls() {
 }
 
 export async function ffmpegLoad(onProgress?: (message: string) => void, signal?: AbortSignal) {
-  if (diagnostics.loaded) return ffmpeg;
-  if (loadPromise) return loadPromise;
+  if (diagnostics.loaded) {
+    logger.info("[FFmpeg] 已加载，跳过重复加载");
+    return ffmpeg;
+  }
+  if (loadPromise) {
+    logger.info("[FFmpeg] 正在加载中，等待现有加载完成");
+    return loadPromise;
+  }
 
   const preflight = preflightFFmpegEnvironment();
   diagnostics = { ...preflight, loaded: false };
+  logger.info(`[FFmpeg] 环境预检: ${preflight.message}`);
   if (!preflight.supported) {
     diagnostics.lastError = preflight.message;
     throw new Error(preflight.message);
@@ -217,6 +240,7 @@ export async function ffmpegLoad(onProgress?: (message: string) => void, signal?
   const pending = (async () => {
     const multiThread = preflight.mode === "multi-thread";
     const modeText = multiThread ? "多线程" : "单线程";
+    logger.info(`[FFmpeg] 开始加载 (${modeText}模式)`);
     onProgress?.(`${modeText}模式，检查 FFmpeg 缓存...`);
     const result = await tryFFmpegProviders(
       FFMPEG_CDN_PROVIDERS,
@@ -265,12 +289,15 @@ export async function ffmpegLoad(onProgress?: (message: string) => void, signal?
           }
           ensureCurrent();
           onProgress?.(`正在初始化 FFmpeg（${provider.name} / ${modeText}）...`);
+          logger.info(`[FFmpeg] 初始化 FFmpeg 实例 (${provider.name} / ${modeText})`);
           await loadingInstance.load(loadOptions);
           ensureCurrent();
           blobUrls = providerUrls;
+          const fromCache = core.fromCache && wasm.fromCache && workerFromCache;
+          logger.info(`[FFmpeg] 加载完成 (fromCache: ${fromCache})`);
           return {
             provider: provider.name,
-            fromCache: core.fromCache && wasm.fromCache && workerFromCache,
+            fromCache,
           };
         } catch (error) {
           providerUrls.forEach((url) => URL.revokeObjectURL(url));

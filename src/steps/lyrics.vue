@@ -29,7 +29,11 @@ import { callOpenAI, ChatCompletionMessageParam } from "@/utils/gpt";
 import { diffChars, diffWords, diffLines, Change } from "diff";
 import { logger } from "@/utils/logger";
 import { getActiveDefaultRule } from "@/episode";
-import { correctLyrics, cleanOriginalLyrics } from "@/utils/lyricsCorrector";
+import {
+  correctLyrics,
+  cleanOriginalLyrics,
+  cleanOriginalLyricsPlain,
+} from "@/utils/lyricsCorrector";
 import { selectSubtitleForAuto, subtitleToLyrics } from "@/utils/lyrics";
 
 const emits = defineEmits(["next", "prev"]);
@@ -239,14 +243,15 @@ const useOnlineLyrics = ref(false);
 const originalParsedLyrics = ref<Array<[number, string]>>([]);
 
 /**
- * 当"使用在线歌词"开关变化时，自动替换或撤销歌词
+ * 切换使用在线歌词状态
  */
-function onUseOnlineLyricsChange(value: boolean | Array<string | number | boolean>) {
-  const enabled = Array.isArray(value) ? value.length > 0 : value;
-  if (enabled) {
-    replaceWithOnlineLyrics();
-  } else {
+let isReplacingLyrics = false;
+function toggleUseOnlineLyrics() {
+  if (isReplacingLyrics) return;
+  if (useOnlineLyrics.value) {
     undoReplaceLyrics();
+  } else {
+    replaceWithOnlineLyrics();
   }
 }
 
@@ -335,6 +340,7 @@ const lyricsBodySwitch = reactive({
   blankChar: true,
   metaInfo: false,
   stripMeta: false,
+  stripMetaPlain: false,
 
   note: true,
 
@@ -414,6 +420,9 @@ function onlineLyricsContentFormat({
 }
 
 const onlineLyricsContent = computed(() => {
+  if (lyricsBodySwitch.stripMetaPlain) {
+    return cleanOriginalLyricsPlain(onlineLyrics.value);
+  }
   if (lyricsBodySwitch.stripMeta) {
     return cleanOriginalLyrics(onlineLyrics.value);
   }
@@ -568,30 +577,36 @@ function replaceWithOnlineLyrics() {
     return;
   }
 
-  const parsedLyrics = parseLrcToLyrics(editableOnlineLyrics.value);
-  if (parsedLyrics.length === 0) {
-    Message.warning("在线歌词中没有有效时间轴，请开启时间轴后再使用");
-    useOnlineLyrics.value = false;
-    editLyricsData.value.data._lyricsBody = [];
-    originalParsedLyrics.value = [];
-    return;
+  isReplacingLyrics = true;
+  try {
+    const parsedLyrics = parseLrcToLyrics(editableOnlineLyrics.value);
+    if (parsedLyrics.length === 0) {
+      Message.warning("在线歌词中没有有效时间轴，请开启时间轴后再使用");
+      useOnlineLyrics.value = false;
+      editLyricsData.value.data._lyricsBody = [];
+      originalParsedLyrics.value = [];
+      return;
+    }
+
+    originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
+    originalParsedLyrics.value = parsedLyrics.map(([time, text]) => [time, text]);
+    lyricsMode.value = "online";
+    subtitleEditMode.value = "online";
+
+    editLyricsData.value.data._lyricsBody = parsedLyrics;
+    editLyricsData.value.data._editBody = parsedLyrics.map(([, text]) => text).join("\n");
+
+    const firstTimeMs = parsedLyrics[0][0];
+    const minutes = Math.floor(firstTimeMs / 60000);
+    const seconds = Math.floor((firstTimeMs % 60000) / 1000);
+    const milliseconds = firstTimeMs % 1000;
+    lyricsStartTime.value = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
+    lyricsStartTimeError.value = false;
+    useOnlineLyrics.value = true;
+    Message.success("已替换为在线歌词（含时间轴）");
+  } finally {
+    isReplacingLyrics = false;
   }
-
-  originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
-  originalParsedLyrics.value = parsedLyrics.map(([time, text]) => [time, text]);
-  lyricsMode.value = "online";
-  subtitleEditMode.value = "online";
-
-  editLyricsData.value.data._lyricsBody = parsedLyrics;
-  editLyricsData.value.data._editBody = parsedLyrics.map(([, text]) => text).join("\n");
-
-  const firstTimeMs = parsedLyrics[0][0];
-  const minutes = Math.floor(firstTimeMs / 60000);
-  const seconds = Math.floor((firstTimeMs % 60000) / 1000);
-  const milliseconds = firstTimeMs % 1000;
-  lyricsStartTime.value = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(3, "0")}`;
-  lyricsStartTimeError.value = false;
-  Message.success("已替换为在线歌词（含时间轴）");
 }
 
 /** 撤销：一键恢复为原始 AI 歌词状态（不论当前处于何种中间状态） */
@@ -621,6 +636,7 @@ function smartCorrectLyrics() {
     return;
   }
   const aiBody = editLyricsData.value.data.body;
+  // 使用右侧编辑框的内容（可能来自智能去除算法和用户手动修改的结果）
   const onlineText = editableOnlineLyrics.value;
 
   const corrected = correctLyrics(aiBody, onlineText);
@@ -629,15 +645,16 @@ function smartCorrectLyrics() {
     return;
   }
 
+  const { lyrics, diffCount } = corrected;
   originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
-  editLyricsData.value.data._lyricsBody = corrected;
-  editLyricsData.value.data._editBody = corrected.map((item) => item[1]).join("\n");
+  editLyricsData.value.data._lyricsBody = lyrics;
+  editLyricsData.value.data._editBody = lyrics.map((item) => item[1]).join("\n");
   lyricsMode.value = "ai-corrected";
   subtitleEditMode.value = "ai-corrected";
   originalParsedLyrics.value = [];
   lyricsStartTime.value = "";
   useOnlineLyrics.value = false;
-  Message.success("智能纠错完成，共修正 " + corrected.length + " 行");
+  Message.success("智能纠错完成，共替换 " + diffCount + " 个字符");
 }
 
 function handleOk() {
@@ -971,16 +988,18 @@ function editLyrics(item: SubTitle) {
               <UiCheckbox v-model="lyricsBodySwitch.timeAxis">时间轴</UiCheckbox>
               <UiCheckbox v-model="lyricsBodySwitch.blankChar">空白字符</UiCheckbox>
               <UiCheckbox v-model="lyricsBodySwitch.metaInfo">元信息</UiCheckbox>
-              <UiCheckbox v-model="lyricsBodySwitch.stripMeta">智能去除元信息</UiCheckbox>
+              <UiCheckbox v-model="lyricsBodySwitch.stripMeta"
+                >智能去除元信息（保留时间轴）</UiCheckbox
+              >
             </div>
             <div style="margin: 10px 0; display: flex; align-items: center; gap: 10px">
-              <UiCheckbox
-                v-model="useOnlineLyrics"
+              <UiButton
+                :type="useOnlineLyrics ? 'primary' : 'outline'"
                 :disabled="!onlineLyrics"
-                @change="onUseOnlineLyricsChange"
+                @click="toggleUseOnlineLyrics"
               >
-                使用在线歌词
-              </UiCheckbox>
+                {{ useOnlineLyrics ? "✓ 已使用在线歌词" : "使用在线歌词" }}
+              </UiButton>
               <span>开始时间：</span>
               <UiInput
                 v-model="lyricsStartTime"
@@ -996,9 +1015,9 @@ function editLyrics(item: SubTitle) {
             </div>
             <UiAlert type="info" style="margin-bottom: 10px">
               💡
-              使用在线歌词：勾选后会自动替换歌词并使用在线歌词的时间轴。开始时间指的是在线字幕在视频中应当开始的时间，为了方便对齐可以删掉在线歌词中的非正文部分（如标题，歌手），可以使用去除元数据快速删除。
+              使用在线歌词：勾选后会自动替换歌词并使用在线歌词的时间轴。需要设置开始时间（即在线歌词中第一行在视频中出现的时间），为了方便对齐，可以勾选「智能去除元信息（保留时间轴）」快速删除在线歌词中的非正文部分（如标题，歌手）。若提示无时间轴，应当勾选「时间轴」选项。
             </UiAlert>
-            <div style="margin: 10px 0; display: flex; gap: 8px">
+            <div style="margin: 10px 0; display: flex; align-items: center; gap: 8px">
               <UiButton
                 type="outline"
                 :disabled="!onlineLyrics || useOnlineLyrics"
@@ -1006,10 +1025,13 @@ function editLyrics(item: SubTitle) {
               >
                 智能纠错
               </UiButton>
+              <UiCheckbox v-model="lyricsBodySwitch.stripMetaPlain"
+                >智能去除元信息（纯文本）</UiCheckbox
+              >
             </div>
             <UiAlert type="info" style="margin-bottom: 10px">
               💡
-              使用智能纠错前，建议勾选「去除元信息」，并手动删除规则无法去除的元信息，确保在线歌词编辑框的第一句就是歌词正文，智能纠错会保留AI字幕的时间轴
+              智能纠错：勾选后会保留AI的时间轴，使用在线歌词与AI歌词进行差异比对和自动纠错，为了方便可以勾选「智能去除元信息（纯文本）」快速删除在线歌词中的非正文部分（如标题，歌手）。
             </UiAlert>
             <div style="flex: 1; overflow: auto; display: flex; flex-direction: column">
               <div style="display: flex; gap: 8px; margin-bottom: 10px">
@@ -1136,7 +1158,7 @@ function editLyrics(item: SubTitle) {
           </UiSpin>
         </div>
         <div v-if="activeTab === '3'">
-          <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="15" />
+          <UiTextarea class="result-preview-editor" :model-value="lyricsBodyContent" :rows="25" />
         </div>
       </UiTabs>
     </div>

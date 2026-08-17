@@ -86,57 +86,108 @@ function stripMusicNotes(text: string): string {
 }
 
 /**
- * 去除 LRC 标签 [key:value] 和时间戳 [00:08.00]。
+ * 判断一行是否是元信息（key:value / key-value 格式或标题行）。
  */
-function stripLrcTags(text: string): string {
-  return text.replace(/\[[^\]]*\]/g, "");
+function isMetaLine(content: string): boolean {
+  const trimmed = content.trim();
+  // 空行
+  if (!trimmed) return true;
+  // 标题行：歌名 - 歌手
+  if (/^[^\n]+\s*-\s*[^\n]+$/.test(trimmed)) return true;
+  // key:value / key-value 格式的元信息
+  if (/^[a-zA-Z一-鿿/\s]+[:\-：－].*$/.test(trimmed)) return true;
+  return false;
 }
 
 /**
- * 去除元信息文本（key:value / key-value 格式）。
- * 支持中英文混合 key（如 "音乐总监Music Director"、"和声编写/和声Backing Vocal"），
- * 分隔符支持冒号/横线，value 部分支持斜杠（如 "张靓颖/DaHua"）。
+ * 清理单行歌词：去除音乐符号，保留时间戳和歌词内容。
  */
-function stripMetaText(text: string): string {
-  // key: 中英文、斜杠、空格；分隔符: : ： - －；value: 到行尾
-  return text.replace(/[a-zA-Z一-鿿/\s]+[:\-：－][^\n]*/g, "");
+function cleanLyricsLine(line: string): string {
+  let result = line.trim();
+  // 去除音乐符号
+  result = stripMusicNotes(result);
+  return result.trim();
 }
 
 /**
- * 去除 "歌名 - 歌手" 格式的标题（可能在行首或独立一行）。
- */
-function stripTitleLine(text: string): string {
-  return text.replace(/^[^\n]+\s*-\s*[^\n]+\n?/gm, "");
-}
-
-/**
- * 预处理原曲歌词：去除所有元信息和时间戳，返回纯歌词文本。
- * 支持单行（无换行）和多行两种格式。
+ * 预处理原曲歌词：只保留带时间戳的歌词行，去除所有元信息、空白行和非歌词行。
+ * 返回带时间戳的歌词文本，格式：[xx:xx]歌词\n[xx:xx]歌词\n
  */
 export function cleanOriginalLyrics(text: string): string {
-  let result = text;
-  result = stripLrcTags(result);       // [ti:xxx] [00:08.00] 等
-  result = stripMetaText(result);       // 词：xxx 编曲 - xxx 等
-  result = stripTitleLine(result);      // 姑娘别哭泣 - 柯柯柯啊
-  return result.trim();
+  const lines = text.split("\n");
+  const lyricsLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // 匹配 [mm:ss.fff] 后面有内容
+    const match = trimmed.match(/^(\[\d{2}:\d{2}\.\d{2,3}\])(.+)/);
+    if (match) {
+      const timestamp = match[1];
+      const content = match[2];
+      // 跳过元信息行
+      if (!isMetaLine(content)) {
+        lyricsLines.push(`${timestamp}${cleanLyricsLine(content)}`);
+      }
+    }
+  }
+
+  return lyricsLines.join("\n");
+}
+
+/**
+ * 预处理原曲歌词为纯文本格式：去除所有时间戳、元信息、空白行。
+ * 返回纯歌词文本，用于智能纠错对比。
+ * 格式：歌词1\n歌词2\n
+ */
+export function cleanOriginalLyricsPlain(text: string): string {
+  const lines = text.split("\n");
+  const lyricsLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // 匹配 [mm:ss.fff] 后面有内容
+    const match = trimmed.match(/^\[\d{2}:\d{2}\.\d{2,3}\](.+)/);
+    if (match) {
+      const content = match[1];
+      // 跳过元信息行
+      if (!isMetaLine(content)) {
+        const cleaned = stripMusicNotes(content);
+        if (cleaned) {
+          lyricsLines.push(cleaned);
+        }
+      }
+    }
+  }
+
+  return lyricsLines.join("\n");
 }
 
 /**
  * 智能纠错主函数。
  *
  * @param aiBody     - AI 字幕 body（带时间戳）
- * @param onlineText - 在线原曲歌词（可含 LRC 标签、元信息头部、时间戳）
- * @returns 纠正后的 Lyrics，或 null
+ * @param onlineText - 在线原曲歌词（支持纯文本或带时间戳的 LRC 格式）
+ * @returns { lyrics: Lyrics, diffCount: number } 或 null
  */
 export function correctLyrics(
   aiBody: Array<{ from: number; content: string }>,
   onlineText: string,
-): Lyrics | null {
+): { lyrics: Lyrics; diffCount: number } | null {
   if (!aiBody.length || !onlineText) return null;
 
   const aiLines = aiBody.map((item) => stripMusicNotes(item.content));
   const aiText = aiLines.join("");
-  const origText = cleanOriginalLyrics(onlineText).replace(/\n/g, "");
+
+  // 清理原曲歌词，去除时间戳，只保留纯文本用于对比
+  // 支持两种输入格式：纯文本或带时间戳的 LRC 格式
+  let origText = onlineText;
+  if (/\[\d{2}:\d{2}\.\d{2,3}\]/.test(origText)) {
+    // 带时间戳格式：清理后去除时间戳
+    origText = cleanOriginalLyrics(origText).replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, "").replace(/\n/g, "");
+  } else {
+    // 纯文本格式：去除音乐符号和空白
+    origText = stripMusicNotes(origText).replace(/\n/g, "");
+  }
   if (!origText) return null;
 
   // 计算每行在 AI 拼接文本中的累积字符边界
@@ -224,5 +275,5 @@ export function correctLyrics(
 
   console.log("[lyricsCorrector] 修改 " + diffCount + " 个字符");
 
-  return result;
+  return { lyrics: result, diffCount };
 }

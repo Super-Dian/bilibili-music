@@ -21,11 +21,17 @@ function ensureContainer() {
   return container;
 }
 
+function isDarkMode(): boolean {
+  return document.body.hasAttribute("arco-theme") && document.body.getAttribute("arco-theme") === "dark"
+    || document.body.hasAttribute("data-theme") && document.body.getAttribute("data-theme") === "dark";
+}
+
 function showMessage(options: MessageOptions) {
   const containerEl = ensureContainer();
   if (!containerEl) return;
 
   const { type, content, duration = 3000 } = options;
+  const dark = isDarkMode();
 
   const icons: Record<MessageType, string> = {
     info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>',
@@ -47,12 +53,12 @@ function showMessage(options: MessageOptions) {
     align-items: center;
     gap: 8px;
     padding: 10px 16px;
-    background: #fff;
+    background: ${dark ? "#2a2a2a" : "#fff"};
     border: 1px solid ${colors[type]}20;
     border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, ${dark ? "0.3" : "0.15"});
     font-size: 14px;
-    color: #18191c;
+    color: ${dark ? "#e0e0e0" : "#18191c"};
     pointer-events: auto;
     opacity: 0;
     transform: translateY(-10px);
