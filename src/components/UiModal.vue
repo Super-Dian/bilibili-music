@@ -31,6 +31,7 @@ const modalRef = ref<HTMLDivElement | null>(null);
 function close() {
   emit("update:visible", false);
   emit("close");
+  emit("cancel");
 }
 
 function handleOk() {

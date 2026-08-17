@@ -285,6 +285,7 @@ function onOpen() {
     :fullscreen="fullscreen"
     :maskClosable="false"
     :escToClose="false"
+    @cancel="handleCancel"
   >
     <template #footer>
       <!-- picker 步骤时不显示 App 的 footer，由 picker 组件自己的 footer 替代 -->
