@@ -148,7 +148,7 @@ const sideShow = ref(true);
 const fullscreen = ref(false);
 
 /** picker 步骤时使用更大的窗口宽度 */
-const modalWidth = computed(() => current.value === 0 ? 700 : 520);
+const modalWidth = computed(() => current.value === 0 ? 900 : 520);
 
 function checkSide() {
   sideShow.value = !sideShow.value;

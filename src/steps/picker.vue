@@ -42,7 +42,12 @@ const currentLabel = computed(() => props.pickerMeta?.currentLabel || `当前${i
 // --- State ---
 const searchText = ref("");
 const activeCategory = ref("");
-const activePage = ref(1);
+// 默认显示当前视频所在的页
+const activePage = ref(
+  props.currentIndex >= 0
+    ? Math.floor(Math.max(0, props.currentIndex) / 20) + 1
+    : 1
+);
 const selectedIndexes = ref<Set<number>>(
   new Set(
     props.currentIndex >= 0 && props.currentIndex < props.episodes.length
@@ -361,9 +366,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
           : "尚未保存默认规则：先手动设置第一项，其余项目复用作者、封面、字幕、剪辑范围与倍速"
         }}
       </UiCheckbox>
-      <p class="picker-hint">
+      <UiAlert type="info" style="margin-top: 10px">
+        💡
         每项默认使用分集列表里的自带标题；进入"编辑所选标题"可逐项修改或批量加前后缀。手动模式会在同一个窗口逐项停下来确认。
-      </p>
+      </UiAlert>
     </div>
 
     <!-- Footer -->
@@ -589,11 +595,6 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
 
 .picker-options label + label {
   margin-top: 8px;
-}
-
-.picker-hint {
-  margin: 6px 0 0 24px;
-  line-height: 1.5;
 }
 
 .picker-footer {

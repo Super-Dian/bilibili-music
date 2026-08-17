@@ -1,4 +1,6 @@
 <script lang="ts" setup>
+import { ref, onMounted, onUnmounted } from "vue";
+
 const props = withDefaults(
   defineProps<{
     visible?: boolean;
@@ -19,6 +21,12 @@ const props = withDefaults(
 );
 
 const emit = defineEmits(["update:visible", "close", "ok", "cancel"]);
+
+// 拖动相关状态
+const isDragging = ref(false);
+const dragOffset = ref({ x: 0, y: 0 });
+const modalPosition = ref({ x: 0, y: 0 });
+const modalRef = ref<HTMLDivElement | null>(null);
 
 function close() {
   emit("update:visible", false);
@@ -46,18 +54,75 @@ function handleKeydown(event: KeyboardEvent) {
     close();
   }
 }
+
+// 拖动功能
+function handleHeaderMouseDown(event: MouseEvent) {
+  if (props.fullscreen) return;
+  // 只允许左键拖动
+  if (event.button !== 0) return;
+
+  const target = event.target as HTMLElement;
+  // 排除按钮点击
+  if (target.closest('.ui-modal-close')) return;
+
+  isDragging.value = true;
+  const modal = modalRef.value;
+  if (modal) {
+    const rect = modal.getBoundingClientRect();
+    dragOffset.value = {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    };
+    modalPosition.value = {
+      x: rect.left,
+      y: rect.top,
+    };
+    modal.style.position = 'fixed';
+    modal.style.left = `${rect.left}px`;
+    modal.style.top = `${rect.top}px`;
+    modal.style.margin = '0';
+  }
+  event.preventDefault();
+}
+
+function handleMouseMove(event: MouseEvent) {
+  if (!isDragging.value) return;
+
+  const modal = modalRef.value;
+  if (modal) {
+    const newX = event.clientX - dragOffset.value.x;
+    const newY = event.clientY - dragOffset.value.y;
+    modal.style.left = `${newX}px`;
+    modal.style.top = `${newY}px`;
+  }
+}
+
+function handleMouseUp() {
+  isDragging.value = false;
+}
+
+onMounted(() => {
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+});
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', handleMouseMove);
+  document.removeEventListener('mouseup', handleMouseUp);
+});
 </script>
 
 <template>
   <Teleport to="body">
     <div v-if="visible" class="ui-modal-mask" @click="handleMaskClick" @keydown="handleKeydown">
       <div
+        ref="modalRef"
         class="ui-modal"
         :class="{ 'ui-modal-fullscreen': fullscreen }"
         :style="{ width: fullscreen ? '100%' : (typeof width === 'number' ? `${width}px` : width) }"
         @click.stop
       >
-        <div class="ui-modal-header">
+        <div class="ui-modal-header" @mousedown="handleHeaderMouseDown" :style="{ cursor: fullscreen ? 'default' : 'move' }">
           <span class="ui-modal-title">{{ title }}</span>
           <button class="ui-modal-close" @click="close">×</button>
         </div>
