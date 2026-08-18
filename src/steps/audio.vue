@@ -14,6 +14,7 @@ import {
   setFFmpegDebugLog,
   getFFmpegDebugLog,
 } from "@/utils/ffmpeg";
+import type { FFmpeg } from "@ffmpeg/ffmpeg";
 import { Message } from "@/utils/message";
 import {
   episodeSession,
@@ -31,6 +32,74 @@ import {
 } from "@/taskCenter";
 import { downloadBinary, isAbortError } from "@/utils/download";
 import { saveDownload } from "@/utils/save";
+
+/** 将 Uint8Array 转换为 base64 字符串 */
+function uint8ToBase64(bytes: Uint8Array): string {
+  const CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+  let result = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i];
+    const b1 = i + 1 < bytes.length ? bytes[i + 1] : 0;
+    const b2 = i + 2 < bytes.length ? bytes[i + 2] : 0;
+    result += CHARS[b0 >> 2];
+    result += CHARS[((b0 & 3) << 4) | (b1 >> 4)];
+    result += i + 1 < bytes.length ? CHARS[((b1 & 15) << 2) | (b2 >> 6)] : "=";
+    result += i + 2 < bytes.length ? CHARS[b2 & 63] : "=";
+  }
+  return result;
+}
+
+/** 从 JPEG 二进制数据中解析宽高（SOF0/SOF2 标记） */
+function parseJpegDimensions(data: Uint8Array): { width: number; height: number } {
+  let offset = 2; // 跳过 SOI 标记 (0xFF 0xD8)
+  while (offset < data.length - 1) {
+    if (data[offset] !== 0xff) break;
+    const marker = data[offset + 1];
+    if (marker === 0xd8 || marker === 0xd9) break; // SOI / EOI
+    if (marker === 0x00) { offset += 2; continue; }
+    // SOF0 (0xC0) 或 SOF2 (0xC2)：包含宽高
+    if (marker === 0xc0 || marker === 0xc2) {
+      const height = (data[offset + 5] << 8) | data[offset + 6];
+      const width = (data[offset + 7] << 8) | data[offset + 8];
+      return { width, height };
+    }
+    // 跳过其他标记段
+    const segLen = (data[offset + 2] << 8) | data[offset + 3];
+    offset += 2 + segLen;
+  }
+  return { width: 0, height: 0 };
+}
+
+/**
+ * 构造 FLAC METADATA_BLOCK_PICTURE 二进制块并返回 base64 编码。
+ * 格式：https://xiph.org/flac/format.html#metadata_block_picture
+ */
+async function buildFlacPictureBase64(ffmpegInstance: FFmpeg, fileName: string): Promise<string> {
+  const coverData = await ffmpegInstance.readFile(fileName);
+  const coverBytes =
+    typeof coverData === "string" ? new TextEncoder().encode(coverData) : new Uint8Array(coverData);
+  const { width, height } = parseJpegDimensions(coverBytes);
+  const mime = "image/jpeg";
+  const desc = "";
+  // Picture type 3 = Front cover
+  const header = new Uint8Array(4 + 4 + mime.length + 4 + desc.length + 4 * 6);
+  const view = new DataView(header.buffer);
+  let off = 0;
+  view.setUint32(off, 3); off += 4; // picture type: Front cover
+  view.setUint32(off, mime.length); off += 4;
+  header.set(new TextEncoder().encode(mime), off); off += mime.length;
+  view.setUint32(off, desc.length); off += 4; off += desc.length;
+  view.setUint32(off, width); off += 4;
+  view.setUint32(off, height); off += 4;
+  view.setUint32(off, 24); off += 4; // color depth
+  view.setUint32(off, 0); off += 4;  // indexed colors
+  view.setUint32(off, coverBytes.length); off += 4;
+  // 拼接：header + cover image data
+  const block = new Uint8Array(header.length + coverBytes.length);
+  block.set(header, 0);
+  block.set(coverBytes, header.length);
+  return uint8ToBase64(block);
+}
 
 const FORMAT_CONFIG: Record<
   OutputFormat,
@@ -380,6 +449,7 @@ async function main() {
       if (fromData.outputFormat === "ogg") {
         // OGG Vorbis 对内嵌封面支持较差，跳过以避免编码错误
       } else {
+        // m4a / mp3 / flac: 使用视频流方式嵌入封面
         inputArgs.push("-i", "cover.jpg");
         processArgs.push("-map", "1:0");
         processArgs.push("-c:v", "copy");
