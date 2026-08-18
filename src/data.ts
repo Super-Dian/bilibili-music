@@ -26,6 +26,7 @@ watch(userConfig, (newVal) => {
 
 export type Lyrics = Array<[number, string]>;
 export type ClipRanges = Array<[number, number]>;
+export type OutputFormat = "m4a" | "mp3" | "flac" | "ogg";
 export type RecordData = typeof defaultRecordData;
 
 export const defaultRecordData = {
@@ -38,6 +39,7 @@ export const defaultRecordData = {
   lyrics: undefined as string | undefined,
   clipRanges: null as ClipRanges | null,
   speed: 1,
+  outputFormat: "" as string,
 };
 
 export function normalizeRecordProcessingRule(
@@ -84,6 +86,8 @@ export const defaultData = {
   title: "",
   author: "",
   file: "",
+  // 输出格式：m4a | mp3 | flac | ogg
+  outputFormat: "m4a" as OutputFormat,
   // 下载/播放倍速
   speed: 1,
   record: defaultRecordData,

@@ -1,10 +1,11 @@
 <script lang="ts" setup>
-import { fromData } from "@/data";
+import { fromData, type OutputFormat } from "@/data";
 import Btn from "@/components/btn.vue";
 import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
 import UiFormItem from "@/components/UiFormItem.vue";
 import UiDropdown from "@/components/UiDropdown.vue";
+import UiSelect from "@/components/UiSelect.vue";
 import { GM_getValue, GM_setValue } from "$";
 import { getActiveDefaultRule, type EpisodeVideoData } from "@/episode";
 import { applyMetadataFormat } from "@/utils/format";
@@ -31,6 +32,31 @@ const infoRecord = {
   file: "",
 };
 
+const FORMAT_EXT_MAP: Record<OutputFormat, string> = {
+  m4a: "m4a",
+  mp3: "mp3",
+  flac: "flac",
+  ogg: "ogg",
+};
+
+const formatOptions: { label: string; value: OutputFormat }[] = [
+  { label: "M4A (AAC)", value: "m4a" },
+  { label: "MP3", value: "mp3" },
+  { label: "FLAC (无损)", value: "flac" },
+  { label: "OGG (Vorbis)", value: "ogg" },
+];
+
+const getFileExt = () => FORMAT_EXT_MAP[fromData.outputFormat] || "m4a";
+
+const handleFormatChange = () => {
+  // 同步文件名扩展名
+  const dotIndex = fromData.file.lastIndexOf(".");
+  if (dotIndex > 0) {
+    fromData.file = `${fromData.file.substring(0, dotIndex)}.${getFileExt()}`;
+  }
+  fromData.record.outputFormat = fromData.outputFormat;
+};
+
 function next() {
   fromData.record.format = infoRecord;
   emits("next");
@@ -55,7 +81,7 @@ const handleAuthorSelect = (value: any) => {
 const handleFileSelect = (value: any) => {
   if (!value || typeof value != "string") return;
   const title = handleSelect("file", value);
-  fromData.file = `${title.replaceAll(invalidFileNameRegex, "")}.m4a`;
+  fromData.file = `${title.replaceAll(invalidFileNameRegex, "")}.${getFileExt()}`;
 };
 
 const applyBatchTitleOverride = () => {
@@ -64,7 +90,7 @@ const applyBatchTitleOverride = () => {
   )?._wasmMusicCustomTitle?.trim();
   if (!customTitle) return;
   fromData.title = customTitle;
-  fromData.file = `${customTitle.replaceAll(invalidFileNameRegex, "")}.m4a`;
+  fromData.file = `${customTitle.replaceAll(invalidFileNameRegex, "")}.${getFileExt()}`;
 };
 
 onMounted(() => {
@@ -99,10 +125,7 @@ onMounted(() => {
         <UiInput v-model="fromData.videoData.title" />
       </UiFormItem>
       <UiFormItem label="简介(2)">
-        <UiTextarea
-          v-model="fromData.videoData.desc"
-          :rows="3"
-        />
+        <UiTextarea v-model="fromData.videoData.desc" :rows="3" />
       </UiFormItem>
       <UiFormItem label="Up主(3)">
         <UiInput v-model="fromData.videoData.owner.name" />
@@ -120,10 +143,15 @@ onMounted(() => {
     <UiFormItem label="内嵌标题">
       <div class="input-with-btn">
         <UiInput v-model="fromData.title" />
-        <UiDropdown :options="titleSelects.map(item => ({ label: item, value: item }))" @select="handleTitleSelect">
+        <UiDropdown
+          :options="titleSelects.map((item) => ({ label: item, value: item }))"
+          @select="handleTitleSelect"
+        >
           <button class="icon-btn">
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
             </svg>
           </button>
         </UiDropdown>
@@ -132,10 +160,15 @@ onMounted(() => {
     <UiFormItem label="内嵌作者">
       <div class="input-with-btn">
         <UiInput v-model="fromData.author" />
-        <UiDropdown :options="authorSelects.map(item => ({ label: item, value: item }))" @select="handleAuthorSelect">
+        <UiDropdown
+          :options="authorSelects.map((item) => ({ label: item, value: item }))"
+          @select="handleAuthorSelect"
+        >
           <button class="icon-btn">
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
             </svg>
           </button>
         </UiDropdown>
@@ -144,14 +177,31 @@ onMounted(() => {
     <UiFormItem label="下载文件名">
       <div class="input-with-btn">
         <UiInput v-model="fromData.file" />
-        <UiDropdown :options="fileSelects.map(item => ({ label: item, value: item }))" @select="handleFileSelect">
+        <UiDropdown
+          :options="fileSelects.map((item) => ({ label: item, value: item }))"
+          @select="handleFileSelect"
+        >
           <button class="icon-btn">
             <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
             </svg>
           </button>
         </UiDropdown>
       </div>
+    </UiFormItem>
+    <UiFormItem label="输出格式">
+      <UiSelect
+        :model-value="fromData.outputFormat"
+        :options="formatOptions"
+        @update:model-value="
+          (v: string) => {
+            fromData.outputFormat = v as OutputFormat;
+            handleFormatChange();
+          }
+        "
+      />
     </UiFormItem>
     <Btn @next="next" @prev="$emit('prev')" />
   </div>
@@ -195,7 +245,6 @@ onMounted(() => {
 .icon-btn:hover {
   background: #00a1d6;
 }
-
 </style>
 
 <style>

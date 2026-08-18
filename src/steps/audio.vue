@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ClipRanges, fromData, Lyrics } from "@/data";
+import { ClipRanges, fromData, Lyrics, type OutputFormat } from "@/data";
 import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
@@ -11,6 +11,8 @@ import {
   ffmpegLoad,
   getFFmpegDiagnostics,
   terminateFFmpeg,
+  setFFmpegDebugLog,
+  getFFmpegDebugLog,
 } from "@/utils/ffmpeg";
 import { Message } from "@/utils/message";
 import {
@@ -30,6 +32,17 @@ import {
 import { downloadBinary, isAbortError } from "@/utils/download";
 import { saveDownload } from "@/utils/save";
 
+const FORMAT_CONFIG: Record<
+  OutputFormat,
+  { ext: string; codec: string; mime: string; copyCodec: boolean }
+> = {
+  // copyCodec: 仅当源音频 AAC 可直接 copy 进容器时为 true（只有 M4A 的 MP4 容器兼容 AAC）
+  m4a: { ext: "m4a", codec: "aac", mime: "audio/m4a", copyCodec: true },
+  mp3: { ext: "mp3", codec: "libmp3lame", mime: "audio/mpeg", copyCodec: false },
+  flac: { ext: "flac", codec: "flac", mime: "audio/flac", copyCodec: false },
+  ogg: { ext: "ogg", codec: "libvorbis", mime: "audio/ogg", copyCodec: false },
+};
+
 const steps = [
   "获取音频",
   "下载音频",
@@ -40,6 +53,12 @@ const steps = [
 ];
 const stepIndex = ref(0);
 const error = ref<string | null>();
+const ffmpegDebug = ref(getFFmpegDebugLog());
+
+const toggleFFmpegDebug = () => {
+  ffmpegDebug.value = !ffmpegDebug.value;
+  setFFmpegDebugLog(ffmpegDebug.value);
+};
 
 const fileBlob = ref<string | Blob>();
 const loadMsg = ref("");
@@ -186,6 +205,8 @@ async function main() {
   processing.value = true;
   settled.value = false;
   stepIndex.value = 0;
+  const formatConfig = FORMAT_CONFIG[fromData.outputFormat] || FORMAT_CONFIG.m4a;
+  const outputFile = `output.${formatConfig.ext}`;
   const avid = fromData.playerData?.aid || fromData.videoData?.aid;
   const cid = fromData.playerData?.cid || fromData.videoData?.cid;
   error.value = null;
@@ -271,7 +292,7 @@ async function main() {
       },
     });
     if (controller.signal.aborted) return;
-    await cleanupFFmpegFiles(ffmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
+    await cleanupFFmpegFiles(ffmpeg, ["input.m4s", "cover.jpg", outputFile]);
     await ffmpeg.writeFile("input.m4s", audioBytes);
     stepIndex.value++;
     reportTask("分析剪辑、倍速与元数据", 58);
@@ -311,13 +332,21 @@ async function main() {
       const speedLabel = "[final_a]";
       filterChains.push(`${lastStreamLabel}atempo=${fromData.speed}${speedLabel}`);
       lastStreamLabel = speedLabel;
-      processArgs.push("-c:a", "aac", "-q:a", "2");
-    } else {
-      if (filterChains.length > 0) {
+    }
+    // 根据格式和是否需要滤镜选择编解码器
+    const needReencode = fromData.speed !== 1 || filterChains.length > 0 || !formatConfig.copyCodec;
+    if (needReencode) {
+      if (formatConfig.codec === "aac") {
         processArgs.push("-c:a", "aac", "-q:a", "2");
+      } else if (formatConfig.codec === "libmp3lame") {
+        processArgs.push("-c:a", "libmp3lame", "-q:a", "2");
+      } else if (formatConfig.codec === "libvorbis") {
+        processArgs.push("-c:a", "libvorbis", "-q:a", "6");
       } else {
-        processArgs.push("-c:a", "copy");
+        processArgs.push("-c:a", formatConfig.codec);
       }
+    } else {
+      processArgs.push("-c:a", "copy");
     }
     if (filterChains.length > 0) {
       processArgs.push("-filter_complex", filterChains.join(";"));
@@ -347,10 +376,20 @@ async function main() {
           reportTask("下载封面", percent === null ? 64 : 62 + percent * 0.04),
       });
       await ffmpeg.writeFile("cover.jpg", coverBytes);
-      inputArgs.push("-i", "cover.jpg");
-      processArgs.push("-map", "1:0");
-      processArgs.push("-c:v", "copy");
-      processArgs.push("-disposition:v", "attached_pic");
+      // 不同格式的封面嵌入方式
+      if (fromData.outputFormat === "ogg") {
+        // OGG Vorbis 对内嵌封面支持较差，跳过以避免编码错误
+      } else {
+        inputArgs.push("-i", "cover.jpg");
+        processArgs.push("-map", "1:0");
+        processArgs.push("-c:v", "copy");
+        if (fromData.outputFormat === "mp3") {
+          // MP3: ID3v2 APIC 帧，无需 disposition
+        } else {
+          // m4a / flac: 使用 attached_pic
+          processArgs.push("-disposition:v", "attached_pic");
+        }
+      }
     }
 
     if (fromData.lyricsData && fromData.lyricsData.length > 0) {
@@ -398,14 +437,14 @@ async function main() {
     ffmpeg.on("progress", progressHandler);
     let exitCode: number;
     try {
-      exitCode = await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, "output.m4a"]);
+      exitCode = await ffmpeg.exec([...inputArgs, ...processArgs, ...metadataArgs, outputFile]);
     } finally {
       ffmpeg.off("progress", progressHandler);
     }
     if (exitCode !== 0) {
-      throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}`);
+      throw new Error(`FFmpeg 处理失败，退出码 ${exitCode}。请开启 FFmpeg 日志查看详细错误`);
     }
-    const fileData = await ffmpeg.readFile("output.m4a");
+    const fileData = await ffmpeg.readFile(outputFile);
     if (
       (typeof fileData === "string" && fileData.length === 0) ||
       (typeof fileData !== "string" && fileData.byteLength === 0)
@@ -416,7 +455,7 @@ async function main() {
     fileBlob.value =
       typeof fileData === "string"
         ? fileData
-        : new Blob([fileData as BlobPart], { type: "audio/m4a" });
+        : new Blob([fileData as BlobPart], { type: formatConfig.mime });
     stepIndex.value = steps.length - 1;
     reportTask("音频已生成，等待保存", 98);
     if (episodeSession.isBatch && episodeSession.auto) {
@@ -447,7 +486,7 @@ async function main() {
     handleAudioFailure(reason);
   } finally {
     if (operationFFmpeg) {
-      await cleanupFFmpegFiles(operationFFmpeg, ["input.m4s", "cover.jpg", "output.m4a"]);
+      await cleanupFFmpegFiles(operationFFmpeg, ["input.m4s", "cover.jpg", outputFile]);
     }
     if (operationController === controller) {
       operationController = null;
@@ -478,7 +517,8 @@ const download = async () => {
   const controller = new AbortController();
   downloadController = controller;
   claimActiveOperationCanceller();
-  const baseFileName = fromData.file || "bilibili_music.m4a";
+  const baseFileName =
+    fromData.file || `bilibili_music.${FORMAT_CONFIG[fromData.outputFormat]?.ext || "m4a"}`;
   const pagePrefix =
     episodeSession.activeVideoData?._wasmMusicBatchPrefix ||
     `P${String(episodeSession.activeVideoData?.page || 1).padStart(2, "0")}`;
@@ -591,7 +631,12 @@ const saveDefault = () => {
       </template>
     </UiResult>
     <div v-if="loadMsg" class="load-msg">{{ loadMsg }}</div>
-    <UiButton @click="saveDefault">保存为默认规则</UiButton>
+    <div class="audio-actions">
+      <UiButton @click="saveDefault">保存为默认规则</UiButton>
+      <UiButton @click="toggleFFmpegDebug">
+        {{ ffmpegDebug ? "🔊 FFmpeg日志:开" : "🔇 FFmpeg日志:关" }}
+      </UiButton>
+    </div>
     <Btn
       @prev="$emit('prev')"
       @next="main"
@@ -612,6 +657,11 @@ const saveDefault = () => {
   display: flex;
   align-items: center;
   flex-direction: column;
+}
+.audio-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
 }
 .load-msg {
   font-size: 12px;

@@ -193,9 +193,29 @@ async function readAsset(
   return { objectUrl, fromCache };
 }
 
+/** FFmpeg 内部日志开关，开启后所有 ffmpeg log 输出到 console.info */
+let ffmpegDebugLog = false;
+
+/** 快捷控制 FFmpeg 内部日志打印，开启后输出到 console.info（不受 localStorage 日志级别限制） */
+export function setFFmpegDebugLog(enabled: boolean) {
+  ffmpegDebugLog = enabled;
+  logger.info(`[FFmpeg] 内部日志已${enabled ? "开启" : "关闭"}`);
+}
+
+/** 获取当前 FFmpeg 内部日志开关状态 */
+export function getFFmpegDebugLog() {
+  return ffmpegDebugLog;
+}
+
 function createFFmpegInstance() {
   const instance = new FFmpeg();
-  instance.on("log", ({ message }) => logger.debug("[ffmpeg]", message));
+  instance.on("log", ({ message }) => {
+    if (ffmpegDebugLog) {
+      logger.info("[ffmpeg]", message);
+    } else {
+      logger.debug("[ffmpeg]", message);
+    }
+  });
   return instance;
 }
 
