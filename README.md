@@ -25,7 +25,6 @@
 ### 🎨 封面定制
 
 - 多封面源选择：视频封面、音乐封面、UP 主头像
-- 自定义裁剪，完美适配播放器
 
 ### 🌙 深色模式
 
@@ -91,6 +90,10 @@
 
 - [vite-plugin-monkey](https://github.com/lisonge/vite-plugin-monkey)
 - [FFmpeg WASM](https://github.com/ffmpegwasm/ffmpeg.wasm)
+
+## 🎵歌词APi提供商
+
+- [落月API](https://doc.vkeys.cn/)
 
 ## 📊 Star 趋势
 

@@ -176,7 +176,7 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 ### 构建结果
 
 ```
-dist/wasm-music.user.js  379.42 kB │ gzip: 83.63 kB
+dist/wasm-music.user.js  367.19 kB │ gzip: 81.80 kB
 ```
 
 ### 深色模式支持
@@ -228,9 +228,16 @@ dist/wasm-music.user.js  379.42 kB │ gzip: 83.63 kB
 - 状态管理：`isDragging`、`dragOffset`、`modalPosition`
 - 鼠标事件：`mousedown`、`mousemove`、`mouseup`
 
-### 下一步计划
+### CSS 精简与维护约定
+
+- Tailwind CSS v4 通过 `@tailwindcss/vite` 接入，入口为 `src/style.css`；自定义 UI 组件主要使用 `.ui-*` 样式，不要重新引入已删除的通用 `.btn`/`.input` 工具类。
+- 多 BV 剧集选择界面的有效样式位于 `src/steps/picker.vue` 的 scoped `.picker-*` 规则；旧的 `.wasm-music-episode-*` 选择器已清理，不应恢复。
+- Arco 组件已由自定义组件替换；删除 Arco 选择器前必须先做全仓引用检查。`body[arco-theme="dark"]` 仍是宿主页面主题同步的兼容桥接，不应当作无效代码整体删除。
+- CSS 清理须保持单集/批量流程、侧栏导航、歌词工作台、Modal 拖动和深色模式行为；至少执行 `npm run build:tsc`、`npm test`（需要 Bun 运行时）、`npm run lint`、`npm run fmt:check` 并比较构建体积。
+- 当前 Code Review 已修复 `UiSteps` 零基导航契约和消息正文的 HTML 注入问题；后续维护应继续优先保证状态机和宿主页面安全。
+
 
 1. ~~移除 Arco Design 依赖~~ ✅ 已完成
 2. ~~完善深色模式适配~~ ✅ 已完成
 3. ~~测试所有功能~~ ✅ 已完成
-4. 优化 CSS，减少包体积
+4. ~~优化 CSS，减少包体积~~ ✅ 已完成

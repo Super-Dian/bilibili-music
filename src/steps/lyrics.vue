@@ -1328,7 +1328,7 @@ body[arco-theme="dark"] .lyrics-preview-text {
   color: #b0b5bb;
 }
 
-.lyrics-left-textarea .arco-textarea {
+.lyrics-left-textarea .ui-textarea {
   resize: none;
 }
 
@@ -1382,23 +1382,14 @@ body[arco-theme="dark"] .lyrics-preview-text {
   min-height: 0;
   overflow-y: auto;
 }
-.lyrics-right-panel .arco-tabs-header {
+.lyrics-right-panel .ui-tabs-nav {
   flex-shrink: 0;
 }
-.lyrics-right-panel .arco-tabs-content {
+.lyrics-right-panel .ui-tabs-content {
   flex: 1;
   min-height: 0;
+  height: auto !important;
   overflow: visible !important;
-}
-.lyrics-right-panel .arco-tabs-content-list {
-  height: auto !important;
-}
-.lyrics-right-panel .arco-tabs-content-item-active,
-.lyrics-right-panel .arco-tabs-content-item {
-  height: auto !important;
-}
-.lyrics-right-panel .arco-tabs-pane {
-  height: auto !important;
 }
 
 /* 在线歌词编辑框和 diff 容器 */

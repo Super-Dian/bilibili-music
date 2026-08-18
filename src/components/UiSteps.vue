@@ -31,7 +31,7 @@ defineEmits(["change"]);
         (index + 1) < current && 'ui-steps-item-finish',
         (index + 1) === current && 'ui-steps-item-active',
       ]"
-      @click="$emit('change', index + 1)"
+      @click="$emit('change', index)"
     >
       <div class="ui-steps-icon">
         <span v-if="(index + 1) < current">✓</span>

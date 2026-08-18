@@ -352,17 +352,6 @@ function onOpen() {
 </template>
 
 <style>
-.arco-modal-container,
-.arco-modal-wrapper {
-  pointer-events: none;
-}
-.arco-modal {
-  pointer-events: auto;
-  box-shadow: 0 0 20px 0 rgba(0, 0, 0, 0.1);
-}
-.step-content .arco-spin {
-  width: 100%;
-}
 .wasm-music-batch-status {
   margin: 0 0 12px;
   padding: 7px 12px;

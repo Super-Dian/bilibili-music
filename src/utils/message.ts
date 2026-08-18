@@ -64,7 +64,14 @@ function showMessage(options: MessageOptions) {
     transform: translateY(-10px);
     transition: all 0.3s ease;
   `;
-  el.innerHTML = `<span style="color: ${colors[type]}">${icons[type]}</span><span>${content}</span>`;
+  const icon = document.createElement("span");
+  icon.style.color = colors[type];
+  icon.innerHTML = icons[type];
+
+  const message = document.createElement("span");
+  message.textContent = content;
+
+  el.append(icon, message);
 
   containerEl.appendChild(el);
 
