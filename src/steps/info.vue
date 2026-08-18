@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { fromData, type OutputFormat } from "@/data";
+import { fromData } from "@/data";
+import type { OutputFormat } from "@/data";
 import Btn from "@/components/btn.vue";
 import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
@@ -7,7 +8,8 @@ import UiFormItem from "@/components/UiFormItem.vue";
 import UiDropdown from "@/components/UiDropdown.vue";
 import UiSelect from "@/components/UiSelect.vue";
 import { GM_getValue, GM_setValue } from "$";
-import { getActiveDefaultRule, type EpisodeVideoData } from "@/episode";
+import { getActiveDefaultRule } from "@/episode";
+import type { EpisodeVideoData } from "@/episode";
 import { applyMetadataFormat } from "@/utils/format";
 
 const emits = defineEmits(["next", "prev"]);
@@ -43,7 +45,7 @@ const formatOptions: { label: string; value: OutputFormat }[] = [
   { label: "M4A (AAC)", value: "m4a" },
   { label: "MP3", value: "mp3" },
   { label: "FLAC (无损)", value: "flac" },
-  { label: "OGG (Vorbis)", value: "ogg" },
+  { label: "OGG (Vorbis)(暂不支持封面嵌入)", value: "ogg" },
 ];
 
 const getFileExt = () => FORMAT_EXT_MAP[fromData.outputFormat] || "m4a";

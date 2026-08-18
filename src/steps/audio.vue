@@ -1,5 +1,6 @@
 <script lang="ts" setup>
 import { ClipRanges, fromData, Lyrics, type OutputFormat } from "@/data";
+import { processEnhancedLrc } from "@/utils/yrcParser";
 import { request } from "@/utils/requests";
 import { logger } from "@/utils/logger";
 import Btn from "@/components/btn.vue";
@@ -56,7 +57,10 @@ function parseJpegDimensions(data: Uint8Array): { width: number; height: number 
     if (data[offset] !== 0xff) break;
     const marker = data[offset + 1];
     if (marker === 0xd8 || marker === 0xd9) break; // SOI / EOI
-    if (marker === 0x00) { offset += 2; continue; }
+    if (marker === 0x00) {
+      offset += 2;
+      continue;
+    }
     // SOF0 (0xC0) 或 SOF2 (0xC2)：包含宽高
     if (marker === 0xc0 || marker === 0xc2) {
       const height = (data[offset + 5] << 8) | data[offset + 6];
@@ -85,15 +89,25 @@ async function buildFlacPictureBase64(ffmpegInstance: FFmpeg, fileName: string):
   const header = new Uint8Array(4 + 4 + mime.length + 4 + desc.length + 4 * 6);
   const view = new DataView(header.buffer);
   let off = 0;
-  view.setUint32(off, 3); off += 4; // picture type: Front cover
-  view.setUint32(off, mime.length); off += 4;
-  header.set(new TextEncoder().encode(mime), off); off += mime.length;
-  view.setUint32(off, desc.length); off += 4; off += desc.length;
-  view.setUint32(off, width); off += 4;
-  view.setUint32(off, height); off += 4;
-  view.setUint32(off, 24); off += 4; // color depth
-  view.setUint32(off, 0); off += 4;  // indexed colors
-  view.setUint32(off, coverBytes.length); off += 4;
+  view.setUint32(off, 3);
+  off += 4; // picture type: Front cover
+  view.setUint32(off, mime.length);
+  off += 4;
+  header.set(new TextEncoder().encode(mime), off);
+  off += mime.length;
+  view.setUint32(off, desc.length);
+  off += 4;
+  off += desc.length;
+  view.setUint32(off, width);
+  off += 4;
+  view.setUint32(off, height);
+  off += 4;
+  view.setUint32(off, 24);
+  off += 4; // color depth
+  view.setUint32(off, 0);
+  off += 4; // indexed colors
+  view.setUint32(off, coverBytes.length);
+  off += 4;
   // 拼接：header + cover image data
   const block = new Uint8Array(header.length + coverBytes.length);
   block.set(header, 0);
@@ -477,10 +491,20 @@ async function main() {
         `[url: ${episodeSourceUrl}]`,
       ].filter((line) => !line.includes(": ]"));
 
-      const lrcString = [
-        ...header,
-        ...finalLyrics.map((item) => `${formatLrc(item[0])} ${item[1]}`),
-      ].join("\n");
+      // 逐字歌词：使用 Enhanced LRC 格式（含 <mm:ss.xx> 标签）
+      const useEnhanced = fromData.useEnhancedLyrics && fromData.enhancedLrc;
+      let lyricsBody: string;
+      if (useEnhanced) {
+        // 对 Enhanced LRC 应用剪辑范围和倍速的时间偏移
+        lyricsBody = processEnhancedLrc(
+          fromData.enhancedLrc,
+          fromData.clipRanges || [],
+          fromData.speed || 1,
+        );
+      } else {
+        lyricsBody = finalLyrics.map((item) => `${formatLrc(item[0])} ${item[1]}`).join("\n");
+      }
+      const lrcString = [...header, lyricsBody].join("\n");
 
       if (fromData.externalLyrics) {
         // 外置歌词延后到音频保存阶段，并与音频一起等待可观测的下载结果。

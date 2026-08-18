@@ -27,6 +27,13 @@ watch(userConfig, (newVal) => {
 export type Lyrics = Array<[number, string]>;
 export type ClipRanges = Array<[number, number]>;
 export type OutputFormat = "m4a" | "mp3" | "flac" | "ogg";
+
+/** 逐字歌词：每个字/词的起始时间和持续时间 */
+export type WordTiming = { startMs: number; durMs: number; text: string };
+/** 逐字歌词行：行起始时间 + 行文本 + 逐字数据 */
+export type WordLyricLine = { startMs: number; text: string; words: WordTiming[] };
+export type WordLyrics = WordLyricLine[];
+
 export type RecordData = typeof defaultRecordData;
 
 export const defaultRecordData = {
@@ -94,6 +101,10 @@ export const defaultData = {
   usedefaultconfig: false,
   // 外置歌词：不嵌入音频，单独保存为 .lrc 文件
   externalLyrics: false,
+  // Enhanced LRC 字符串（逐字歌词格式）
+  enhancedLrc: "",
+  // 是否使用逐字歌词
+  useEnhancedLyrics: false,
 };
 
 export const fromData = reactive(clone(defaultData));

@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { fromData, Lyrics, userConfig } from "@/data";
+import { fromData, Lyrics, userConfig, type WordLyrics } from "@/data";
+import { parseYrc, wordLyricsToEnhancedLrc, wordLyricsToStandardLrc } from "@/utils/yrcParser";
 import { onMounted, ref, computed, reactive } from "vue";
 import { request } from "@/utils/requests";
 import Btn from "@/components/btn.vue";
@@ -225,6 +226,8 @@ const originalAiBody = ref<Body[]>([]);
 const originalAiText = ref("");
 
 const onlineLyrics = ref<string>("");
+/** 在线 YRC 逐字歌词原始文本 */
+const onlineYrc = ref<string>("");
 
 /** 当前激活的 tab */
 const activeTab = ref("1");
@@ -296,6 +299,18 @@ function onLyricsStartTimeChange(value: string) {
       Math.max(0, time + offset),
       text,
     ]);
+    // 同步更新 Enhanced LRC 时间偏移
+    if (fromData.enhancedLrc && onlineYrc.value) {
+      const wordLyrics = parseYrc(onlineYrc.value);
+      if (wordLyrics.length > 0) {
+        const adjusted: WordLyrics = wordLyrics.map((line) => ({
+          ...line,
+          startMs: Math.max(0, line.startMs + offset),
+          words: line.words.map((w) => ({ ...w, startMs: Math.max(0, w.startMs + offset) })),
+        }));
+        fromData.enhancedLrc = wordLyricsToEnhancedLrc(adjusted);
+      }
+    }
   }
 }
 
@@ -553,11 +568,19 @@ watch(onlineLyricsIndex, async (value) => {
   }
 
   onlineLyricsLoading2.value = true;
+  // 清除旧的逐字歌词状态
+  fromData.enhancedLrc = "";
+  fromData.useEnhancedLyrics = false;
   try {
-    const lrc = await fetchOnlineLyrics(api, songId);
+    const { lrc, yrc } = await fetchOnlineLyrics(api, songId);
     if (onlineLyricsIndex.value !== value) return;
-    logger.info("[lyrics] 歌词详情加载成功:", { value, length: lrc.length });
+    logger.info("[lyrics] 歌词详情加载成功:", {
+      value,
+      lrcLength: lrc.length,
+      yrcLength: yrc.length,
+    });
     onlineLyrics.value = lrc;
+    onlineYrc.value = yrc;
   } catch (err) {
     if (onlineLyricsIndex.value !== value) return;
     logger.error("[lyrics] 歌词详情请求失败:", err);
@@ -622,7 +645,55 @@ function undoReplaceLyrics() {
   lyricsStartTimeError.value = false;
   useOnlineLyrics.value = false;
   aiRewriteContent.value = "";
+  fromData.enhancedLrc = "";
+  fromData.useEnhancedLyrics = false;
   Message.success("已恢复原始歌词");
+}
+
+/** 使用在线逐字歌词：解析 YRC → Enhanced LRC，显示在右侧编辑框并嵌入音频 */
+function applyEnhancedLyrics() {
+  if (!editLyricsData.value?.data) return;
+
+  if (!onlineYrc.value) {
+    Message.warning("当前歌曲无逐字歌词数据");
+    return;
+  }
+
+  const wordLyrics = parseYrc(onlineYrc.value);
+  if (wordLyrics.length === 0) {
+    Message.warning("逐字歌词解析失败或为空");
+    return;
+  }
+
+  const enhancedLrc = wordLyricsToEnhancedLrc(wordLyrics);
+
+  // 保存原始状态用于撤销
+  if (!originalEditBody.value) {
+    originalEditBody.value = editLyricsData.value.data._editBody ?? originalAiText.value;
+  }
+
+  // Enhanced LRC 显示在右侧在线歌词编辑框
+  editableOnlineLyrics.value = enhancedLrc;
+  // 左侧编辑框保持纯文本（供用户查看/编辑歌词内容）
+  editLyricsData.value.data._editBody = wordLyrics.map((line) => line.text).join("\n");
+  // 行级歌词用于音频嵌入时的兼容处理
+  editLyricsData.value.data._lyricsBody = wordLyrics.map((line) => [line.startMs, line.text]);
+
+  fromData.enhancedLrc = enhancedLrc;
+  fromData.useEnhancedLyrics = true;
+  lyricsMode.value = "online";
+  subtitleEditMode.value = "online";
+  useOnlineLyrics.value = true;
+
+  // 设置开始时间
+  const firstTimeMs = wordLyrics[0].startMs;
+  const minutes = Math.floor(firstTimeMs / 60000);
+  const seconds = Math.floor((firstTimeMs % 60000) / 1000);
+  const ms = firstTimeMs % 1000;
+  lyricsStartTime.value = `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${ms.toString().padStart(3, "0")}`;
+  lyricsStartTimeError.value = false;
+
+  Message.success(`已启用逐字歌词（${wordLyrics.length} 行）`);
 }
 
 /** 智能纠错：用在线歌词纠正 AI 字幕的错别字 */
@@ -705,8 +776,8 @@ const SEARCH_CACHE_TTL = 15 * 60 * 1000;
 const DETAIL_CACHE_TTL = 24 * 60 * 60 * 1000;
 const onlineSearchCache = new Map<string, CachedSearch>();
 const onlineSearchPending = new Map<string, Promise<CachedSearch>>();
-const onlineLyricsCache = new Map<string, { lrc: string; expiresAt: number }>();
-const onlineLyricsPending = new Map<string, Promise<string>>();
+const onlineLyricsCache = new Map<string, { lrc: string; yrc: string; expiresAt: number }>();
+const onlineLyricsPending = new Map<string, Promise<{ lrc: string; yrc: string }>>();
 
 function cacheKey(value: string) {
   return value.trim().toLocaleLowerCase();
@@ -750,7 +821,7 @@ async function fetchOnlineSearch(api: (typeof onlineLyricsApis)[number], word: s
 async function fetchOnlineLyrics(api: (typeof onlineLyricsApis)[number], songId: string) {
   const key = `${api.label}:${songId}`;
   const cached = onlineLyricsCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.lrc;
+  if (cached && cached.expiresAt > Date.now()) return { lrc: cached.lrc, yrc: cached.yrc };
   if (cached) onlineLyricsCache.delete(key);
 
   const pending = onlineLyricsPending.get(key);
@@ -764,8 +835,10 @@ async function fetchOnlineLyrics(api: (typeof onlineLyricsApis)[number], songId:
     .then((res) => {
       const lrc = res?.data?.lrc;
       if (typeof lrc !== "string" || !lrc) throw new Error("响应中未找到歌词");
-      onlineLyricsCache.set(key, { lrc, expiresAt: Date.now() + DETAIL_CACHE_TTL });
-      return lrc;
+      const yrc = typeof res?.data?.yrc === "string" ? res.data.yrc : "";
+      logger.info("[lyrics] 歌词详情:", { lrcLength: lrc.length, yrcLength: yrc.length });
+      onlineLyricsCache.set(key, { lrc, yrc, expiresAt: Date.now() + DETAIL_CACHE_TTL });
+      return { lrc, yrc };
     })
     .finally(() => onlineLyricsPending.delete(key));
 
@@ -999,6 +1072,13 @@ function editLyrics(item: SubTitle) {
                 @click="toggleUseOnlineLyrics"
               >
                 {{ useOnlineLyrics ? "✓ 已使用在线歌词" : "使用在线歌词" }}
+              </UiButton>
+              <UiButton
+                :type="fromData.useEnhancedLyrics ? 'primary' : 'outline'"
+                :disabled="!useOnlineLyrics || !onlineLyricsIndex"
+                @click="applyEnhancedLyrics"
+              >
+                {{ fromData.useEnhancedLyrics ? "✓ 使用在线逐字歌词" : "使用在线逐字歌词" }}
               </UiButton>
               <span>开始时间：</span>
               <UiInput

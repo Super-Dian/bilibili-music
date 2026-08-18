@@ -1,0 +1,191 @@
+/**
+ * YRC（逐字歌词）解析器与 Enhanced LRC 转换工具。
+ *
+ * 标准 YRC 格式（QQ 音乐）：
+ *   [lineStartMs,lineDurMs]char(startMs,durMs)char(startMs,durMs)...
+ *   例：[30370,6360]陪(30370,440)伴(30810,468)三(31278,414)个(31693,361)
+ *
+ * Enhanced LRC 格式（卡拉 OK 播放器）：
+ *   [mm:ss.sss] <mm:ss.sss>char1 <mm:ss.sss>char2 ...
+ *   例：[00:30.370] <00:30.370>陪 <00:30.810>伴 <00:31.278>三 <00:31.693>个
+ */
+
+import type { WordLyrics, WordTiming } from "@/data";
+
+/** 将毫秒转换为 LRC 时间戳格式 [mm:ss.sss] */
+function formatLrcTimestamp(ms: number): string {
+  const m = Math.floor(ms / 60000)
+    .toString()
+    .padStart(2, "0");
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
+  return `[${m}:${s}]`;
+}
+
+/** 将毫秒转换为 Enhanced LRC 内联标签 <mm:ss.sss> */
+function formatWordTag(ms: number): string {
+  const m = Math.floor(ms / 60000)
+    .toString()
+    .padStart(2, "0");
+  const s = ((ms % 60000) / 1000).toFixed(3).padStart(6, "0");
+  return `<${m}:${s}>`;
+}
+
+/**
+ * 解析 YRC 逐字歌词为结构化数据。
+ *
+ * YRC 行格式：[lineStartMs,lineDurMs]char(startMs,durMs)char(startMs,durMs)...
+ * 例：[30370,6360]陪(30370,440)伴(30810,468)三(31278,414)
+ */
+export function parseYrc(yrcText: string): WordLyrics {
+  const result: WordLyrics = [];
+
+  for (const line of yrcText.split(/\r?\n/)) {
+    // 用 indexOf 分离行时间戳 [startMs,durMs]，避免正则回溯问题
+    const bracketEnd = line.indexOf("]");
+    if (bracketEnd === -1) continue;
+    const bracket = line.substring(1, bracketEnd);
+    const commaIdx = bracket.indexOf(",");
+    if (commaIdx === -1) continue;
+    const lineStartMs = Number(bracket.substring(0, commaIdx));
+    const rest = line.substring(bracketEnd + 1);
+    if (!rest.trim()) continue;
+
+    const words: WordTiming[] = [];
+    let lineText = "";
+    // 匹配 char(startMs,durMs) — 每个字及其时间信息
+    const charPattern = /([^(]+)\((\d+),(\d+)\)/g;
+    let match;
+    let lastEnd = 0;
+
+    while ((match = charPattern.exec(rest)) !== null) {
+      const text = match[1];
+      const startMs = Number(match[2]);
+      const durMs = Number(match[3]);
+      for (const ch of text) {
+        words.push({ startMs, durMs, text: ch });
+        lineText += ch;
+      }
+      lastEnd = match.index + match[0].length;
+    }
+
+    // 处理末尾没有 (startMs,durMs) 的剩余文本
+    if (lastEnd < rest.length) {
+      const trailing = rest.slice(lastEnd);
+      for (const ch of trailing) {
+        words.push({ startMs: lineStartMs, durMs: 0, text: ch });
+        lineText += ch;
+      }
+    }
+
+    if (words.length > 0) {
+      result.push({ startMs: lineStartMs, text: lineText, words });
+    }
+  }
+
+  return result.sort((a, b) => a.startMs - b.startMs);
+}
+
+/**
+ * 将 WordLyrics 转换为 Enhanced LRC 字符串。
+ *
+ * 输出格式（逐字级）：
+ *   [mm:ss.sss] <mm:ss.sss>char1 <mm:ss.sss>char2 ...
+ */
+export function wordLyricsToEnhancedLrc(wordLyrics: WordLyrics): string {
+  return wordLyrics
+    .map((line) => {
+      const lineTag = formatLrcTimestamp(line.startMs);
+      const charTags = line.words.map((w) => `${formatWordTag(w.startMs)}${w.text}`).join("");
+      return `${lineTag}${charTags}`;
+    })
+    .join("\n");
+}
+
+/**
+ * 将 WordLyrics 转换为标准 LRC（降级，仅行级时间戳）。
+ */
+export function wordLyricsToStandardLrc(wordLyrics: WordLyrics): string {
+  return wordLyrics.map((line) => `${formatLrcTimestamp(line.startMs)} ${line.text}`).join("\n");
+}
+
+/**
+ * 处理 Enhanced LRC 的时间偏移（用于剪辑范围和倍速调整）。
+ * 逻辑与 audio.vue 的 processLyrics 相同，但操作 Enhanced LRC 字符串。
+ */
+export function processEnhancedLrc(
+  enhancedLrc: string,
+  deleteRanges: Array<[number, number]>,
+  speed: number,
+): string {
+  if (!deleteRanges || deleteRanges.length === 0) {
+    if (speed === 1) return enhancedLrc;
+    return adjustEnhancedLrcTimestamps(enhancedLrc, speed);
+  }
+
+  // 合并删除区间
+  const sorted = [...deleteRanges]
+    .map(([s, e]) => [Math.max(0, s), Math.max(0, e)] as [number, number])
+    .filter(([s, e]) => e > s)
+    .sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const range of sorted) {
+    if (merged.length > 0 && range[0] <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], range[1]);
+    } else {
+      merged.push([...range]);
+    }
+  }
+
+  const lines = enhancedLrc.split(/\r?\n/);
+  const result: string[] = [];
+
+  for (const line of lines) {
+    const lineMatch = line.match(/^\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]/);
+    if (!lineMatch) {
+      result.push(line);
+      continue;
+    }
+    const lineMs =
+      Number(lineMatch[1]) * 60000 +
+      Number(lineMatch[2]) * 1000 +
+      Number((lineMatch[3] ?? "0").padEnd(3, "0").slice(0, 3));
+
+    const isInDeleted = merged.some(([s, e]) => lineMs >= s && lineMs < e);
+    if (isInDeleted) continue;
+
+    const deletedBefore = merged
+      .filter(([s]) => lineMs >= s)
+      .reduce((sum, [s, e]) => sum + (Math.min(lineMs, e) - s), 0);
+    const adjustedLineMs = Math.max(0, (lineMs - deletedBefore) / speed);
+
+    const restOfLine = line.substring(lineMatch[0].length);
+    let newLine = `${formatLrcTimestamp(adjustedLineMs)}${restOfLine}`;
+
+    // 替换所有 <mm:ss.sss> 内联标签
+    newLine = newLine.replace(/<(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?>/g, (_, m, s, f) => {
+      const tagMs =
+        Number(m) * 60000 + Number(s) * 1000 + Number((f ?? "0").padEnd(3, "0").slice(0, 3));
+      const adjustedTagMs = Math.max(0, (tagMs - deletedBefore) / speed);
+      return formatWordTag(adjustedTagMs);
+    });
+
+    result.push(newLine);
+  }
+
+  return result.join("\n");
+}
+
+/** 替换 Enhanced LRC 中所有时间戳（用于纯调速场景） */
+function adjustEnhancedLrcTimestamps(enhancedLrc: string, speed: number): string {
+  return enhancedLrc.replace(
+    /(?:^|\s)(\[(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?\]|<(\d{1,3}):(\d{2})(?:\.(\d{1,3}))?>)/gm,
+    (match, _full, m1, s1, f1, m2, s2, f2) => {
+      const ms =
+        m2 !== undefined
+          ? Number(m2) * 60000 + Number(s2) * 1000 + Number((f2 ?? "0").padEnd(3, "0").slice(0, 3))
+          : Number(m1) * 60000 + Number(s1) * 1000 + Number((f1 ?? "0").padEnd(3, "0").slice(0, 3));
+      const adjusted = Math.max(0, ms / speed);
+      return m2 !== undefined ? formatWordTag(adjusted) : formatLrcTimestamp(adjusted);
+    },
+  );
+}
