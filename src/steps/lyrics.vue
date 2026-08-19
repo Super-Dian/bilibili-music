@@ -92,6 +92,7 @@ function skipLyrics() {
 
 function next() {
   fromData.record.lyrics = lyricsRecord.label;
+  fromData.record.externalLyrics = fromData.externalLyrics;
   let lyricsData: Lyrics = [];
 
   if (noSubtitle.value) {
