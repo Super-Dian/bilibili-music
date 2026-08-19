@@ -571,6 +571,8 @@ const aiRewrite = async () => {
         timeAxis: false,
         blankChar: false,
         metaInfo: false,
+        stripMeta: false,
+        stripMetaPlain: false,
       },
       cachedNormalLyrics.value,
     ),
@@ -1111,6 +1113,9 @@ function editLyrics(item: SubTitle) {
       <UiCheckbox v-model="fromData.externalLyrics" style="margin-top: 8px">
         外置歌词（保存为独立 .lrc 文件，不嵌入音频）
       </UiCheckbox>
+      <UiAlert type="warning" style="margin-top: 8px; margin-left: 12px; margin-right: 12px;">
+        ⚠️ 歌词工作台内的操作（如在线歌词、智能纠错、AI 改写等）无法被保存至默认规则。批量下载时请使用手工下载模式。
+      </UiAlert>
       <Btn @next="next" @prev="$emit('prev')" />
     </form>
   </UiSpin>

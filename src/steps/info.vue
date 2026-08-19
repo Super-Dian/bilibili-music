@@ -197,6 +197,7 @@ onMounted(() => {
       <UiSelect
         :model-value="fromData.outputFormat"
         :options="formatOptions"
+        placeholder="选择输出格式"
         @update:model-value="
           (v: string) => {
             fromData.outputFormat = v as OutputFormat;

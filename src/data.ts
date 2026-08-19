@@ -46,12 +46,14 @@ export const defaultRecordData = {
   lyrics: undefined as string | undefined,
   clipRanges: null as ClipRanges | null,
   speed: 1,
-  outputFormat: "" as string,
+  outputFormat: "" as OutputFormat,
+  // 外置歌词：不嵌入音频，单独保存为 .lrc 文件
+  externalLyrics: false,
 };
 
 export function normalizeRecordProcessingRule(
   rule: Partial<RecordData> | null | undefined,
-): Pick<RecordData, "clipRanges" | "speed"> {
+): Pick<RecordData, "clipRanges" | "speed" | "outputFormat" | "externalLyrics"> {
   const clipRanges = Array.isArray(rule?.clipRanges)
     ? rule.clipRanges
         .filter(
@@ -74,9 +76,21 @@ export function normalizeRecordProcessingRule(
   const speed =
     Number.isFinite(storedSpeed) && storedSpeed >= 0.5 && storedSpeed <= 2 ? storedSpeed : 1;
 
+  // 输出格式：验证是否为支持的格式
+  const supportedFormats = ["m4a", "mp3", "flac", "ogg"];
+  const outputFormat =
+    rule?.outputFormat && supportedFormats.includes(rule.outputFormat)
+      ? rule.outputFormat
+      : "m4a";
+
+  // 外置歌词：布尔值，默认 false
+  const externalLyrics = Boolean(rule?.externalLyrics);
+
   return {
     clipRanges: clipRanges && clipRanges.length > 0 ? clipRanges : null,
     speed,
+    outputFormat,
+    externalLyrics,
   };
 }
 

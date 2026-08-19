@@ -60,8 +60,12 @@ function applyProcessingRule(rule: RecordData) {
   const processing = normalizeRecordProcessingRule(rule);
   fromData.clipRanges = clone(processing.clipRanges);
   fromData.speed = processing.speed;
+  fromData.outputFormat = processing.outputFormat;
+  fromData.externalLyrics = processing.externalLyrics;
   fromData.record.clipRanges = clone(processing.clipRanges);
   fromData.record.speed = processing.speed;
+  fromData.record.outputFormat = processing.outputFormat;
+  fromData.record.externalLyrics = processing.externalLyrics;
 }
 
 const handleOk = () => {
