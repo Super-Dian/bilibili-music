@@ -5,7 +5,6 @@ import Btn from "@/components/btn.vue";
 import UiInput from "@/components/UiInput.vue";
 import UiTextarea from "@/components/UiTextarea.vue";
 import UiFormItem from "@/components/UiFormItem.vue";
-import UiDropdown from "@/components/UiDropdown.vue";
 import UiSelect from "@/components/UiSelect.vue";
 import { GM_getValue, GM_setValue } from "$";
 import { getActiveDefaultRule } from "@/episode";
@@ -24,9 +23,52 @@ const infoMaps = computed(() => [
   fromData.data?.origin_artist || "",
 ]);
 
+// 标签名映射
+const labelMap: Record<string, string> = {
+  "1": "标题",
+  "2": "简介",
+  "3": "Up主",
+  "4": "音乐名",
+  "5": "原唱",
+};
+
+// 将格式字符串转换为带标签的格式
+const formatToLabel = (format: string): string => {
+  // 处理 "3(原:5)" 这种特殊格式
+  const specialMatch = format.match(/^(\d+)\(原:(\d+)\)$/);
+  if (specialMatch) {
+    const [, main, sub] = specialMatch;
+    return `${labelMap[main] || main}(${labelMap[sub] || sub})(${format})`;
+  }
+
+  // 处理 "4-3" 这种连接格式
+  if (format.includes("-")) {
+    const parts = format.split("-");
+    const labels = parts.map((p) => labelMap[p] || p).join("-");
+    return `${labels}(${format})`;
+  }
+
+  // 单个数字
+  return `${labelMap[format] || format}(${format})`;
+};
+
 const titleSelects = fromData.data ? ["4-3", "4-5", "1-3", "4", "1"] : ["1-3", "1"];
 const authorSelects = fromData.data ? ["3(原:5)", "3-5", "3", "5"] : ["3"];
 const fileSelects = fromData.data ? ["4-3", "4-5", "1-3", "4", "1"] : ["1-3", "1"];
+
+// 生成带标签的选项
+const titleSelectOptions = titleSelects.map((item) => ({
+  label: formatToLabel(item),
+  value: item,
+}));
+const authorSelectOptions = authorSelects.map((item) => ({
+  label: formatToLabel(item),
+  value: item,
+}));
+const fileSelectOptions = fileSelects.map((item) => ({
+  label: formatToLabel(item),
+  value: item,
+}));
 
 const infoRecord = {
   title: "",
@@ -143,54 +185,36 @@ onMounted(() => {
     </template>
 
     <UiFormItem label="内嵌标题">
-      <div class="input-with-btn">
+      <div class="input-with-select">
         <UiInput v-model="fromData.title" />
-        <UiDropdown
-          :options="titleSelects.map((item) => ({ label: item, value: item }))"
-          @select="handleTitleSelect"
-        >
-          <button class="icon-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path
-                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-              />
-            </svg>
-          </button>
-        </UiDropdown>
+        <UiSelect
+          :model-value="infoRecord.title"
+          :options="titleSelectOptions"
+          placeholder="内嵌标题格式选择"
+          @update:model-value="handleTitleSelect"
+        />
       </div>
     </UiFormItem>
     <UiFormItem label="内嵌作者">
-      <div class="input-with-btn">
+      <div class="input-with-select">
         <UiInput v-model="fromData.author" />
-        <UiDropdown
-          :options="authorSelects.map((item) => ({ label: item, value: item }))"
-          @select="handleAuthorSelect"
-        >
-          <button class="icon-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path
-                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-              />
-            </svg>
-          </button>
-        </UiDropdown>
+        <UiSelect
+          :model-value="infoRecord.author"
+          :options="authorSelectOptions"
+          placeholder="内嵌作者格式选择"
+          @update:model-value="handleAuthorSelect"
+        />
       </div>
     </UiFormItem>
     <UiFormItem label="下载文件名">
-      <div class="input-with-btn">
+      <div class="input-with-select">
         <UiInput v-model="fromData.file" />
-        <UiDropdown
-          :options="fileSelects.map((item) => ({ label: item, value: item }))"
-          @select="handleFileSelect"
-        >
-          <button class="icon-btn">
-            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-              <path
-                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-              />
-            </svg>
-          </button>
-        </UiDropdown>
+        <UiSelect
+          :model-value="infoRecord.file"
+          :options="fileSelectOptions"
+          placeholder="下载文件名格式选择"
+          @update:model-value="handleFileSelect"
+        />
       </div>
     </UiFormItem>
     <UiFormItem label="输出格式">
@@ -217,49 +241,19 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-.input-with-btn {
+.input-with-select {
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
-.input-with-btn .ui-input,
-.input-with-btn > :first-child {
+.input-with-select .ui-input {
   flex: 1;
   min-width: 0;
 }
 
-.icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  background: #00aeec;
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.2s ease;
+.input-with-select .ui-select {
+  width: 100px;
   flex-shrink: 0;
-}
-
-.icon-btn:hover {
-  background: #00a1d6;
-}
-</style>
-
-<style>
-/* 深色模式：图标按钮 */
-body[arco-theme="dark"] .icon-btn,
-body[data-theme="dark"] .icon-btn {
-  background: #00aeec;
-  color: #fff;
-}
-
-body[arco-theme="dark"] .icon-btn:hover,
-body[data-theme="dark"] .icon-btn:hover {
-  background: #00a1d6;
 }
 </style>

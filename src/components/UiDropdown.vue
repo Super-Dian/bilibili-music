@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { ref, nextTick } from "vue";
+import { ref, nextTick, onBeforeUnmount } from "vue";
 
 interface DropdownOption {
   label: string;
@@ -21,46 +21,100 @@ withDefaults(
 const emit = defineEmits(["select"]);
 const isVisible = ref(false);
 const menuRef = ref<HTMLDivElement | null>(null);
-const menuStyle = ref<{ right?: string; left?: string }>({});
+const menuStyle = ref<{ right?: string | number; left?: string | number; top?: string; bottom?: string }>({});
+
+// 全局状态：记录当前打开的下拉菜单实例，确保同时只有一个打开
+let currentOpenDropdown: { close: () => void } | null = null;
 
 function handleSelect(option: DropdownOption) {
   if (option.disabled) return;
   emit("select", option.value);
-  isVisible.value = false;
+  close();
 }
 
 function handleClickOutside(event: MouseEvent) {
   const target = event.target as HTMLElement;
   if (!target.closest(".ui-dropdown")) {
-    isVisible.value = false;
+    close();
+  }
+}
+
+function close() {
+  isVisible.value = false;
+  document.removeEventListener("mousedown", handleClickOutside);
+  if (currentOpenDropdown?.close === close) {
+    currentOpenDropdown = null;
   }
 }
 
 async function toggle() {
+  // 如果有其他下拉菜单打开，先关闭它
+  if (currentOpenDropdown && currentOpenDropdown.close !== close) {
+    currentOpenDropdown.close();
+  }
+
   isVisible.value = !isVisible.value;
   if (isVisible.value) {
     await nextTick();
     updateMenuPosition();
-    setTimeout(() => {
-      document.addEventListener("click", handleClickOutside);
-    }, 0);
+    document.addEventListener("mousedown", handleClickOutside);
+    currentOpenDropdown = { close };
   } else {
-    document.removeEventListener("click", handleClickOutside);
+    document.removeEventListener("mousedown", handleClickOutside);
+    if (currentOpenDropdown?.close === close) {
+      currentOpenDropdown = null;
+    }
   }
 }
 
 function updateMenuPosition() {
   if (!menuRef.value) return;
-  const rect = menuRef.value.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
+  const parent = menuRef.value.parentElement;
+  if (!parent) return;
 
-  // 如果菜单超出右边界，则向左对齐
-  if (rect.right > viewportWidth) {
-    menuStyle.value = { right: "0", left: "auto" };
+  const parentRect = parent.getBoundingClientRect();
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+  const margin = 12; // 边距，避免菜单贴边
+
+  // 计算菜单位置
+  const menuWidth = menuRef.value.offsetWidth;
+  const menuHeight = menuRef.value.offsetHeight;
+
+  // 默认在父元素下方左对齐
+  let left: string | number = 0;
+  let right: string | number = "auto";
+
+  // 如果菜单超出右边界，则右对齐
+  if (parentRect.left + menuWidth > viewportWidth - margin) {
+    left = "auto";
+    right = 0;
+  }
+  // 如果菜单超出左边界，则左对齐（保持默认）
+  else if (parentRect.left < margin) {
+    left = 0;
+    right = "auto";
+  }
+
+  // 检查下方空间是否足够，如果不够则向上弹出
+  const spaceBelow = viewportHeight - parentRect.bottom;
+  const spaceAbove = parentRect.top;
+
+  if (spaceBelow < menuHeight + margin && spaceAbove > spaceBelow) {
+    // 上方空间更多，向上弹出
+    menuStyle.value = { left, right, bottom: "100%", top: "auto" };
   } else {
-    menuStyle.value = { left: "0", right: "auto" };
+    // 默认向下弹出
+    menuStyle.value = { left, right, top: "100%", bottom: "auto" };
   }
 }
+
+onBeforeUnmount(() => {
+  document.removeEventListener("mousedown", handleClickOutside);
+  if (currentOpenDropdown?.close === close) {
+    currentOpenDropdown = null;
+  }
+});
 </script>
 
 <template>
@@ -88,7 +142,6 @@ function updateMenuPosition() {
 
 .ui-dropdown-menu {
   position: absolute;
-  top: 100%;
   min-width: 80px;
   padding: 4px 0;
   background: #fff;
