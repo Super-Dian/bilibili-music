@@ -1388,15 +1388,9 @@ function editLyrics(item: SubTitle) {
   border-color: #00aeec;
   background: #f5f5f5;
 }
-.lyrics-card:hover .lyrics-card-preview {
-  background: #f5f5f5;
-}
 
 .lyrics-card-checked {
   border-color: #00aeec;
-  background: #e6f7ff;
-}
-.lyrics-card-checked .lyrics-card-preview {
   background: #e6f7ff;
 }
 
@@ -1470,7 +1464,7 @@ function editLyrics(item: SubTitle) {
   color: #666;
   font-size: 13px;
   line-height: 1.6;
-  background: #f9f9f9;
+  background: transparent;
   border-radius: 4px;
   padding: 8px;
 }
@@ -1492,19 +1486,11 @@ body[arco-theme="dark"] .lyrics-card:hover,
 body[data-theme="dark"] .lyrics-card:hover {
   background: #3a3a3a;
 }
-body[arco-theme="dark"] .lyrics-card:hover .lyrics-card-preview,
-body[data-theme="dark"] .lyrics-card:hover .lyrics-card-preview {
-  background: #3a3a3a;
-}
 
 body[arco-theme="dark"] .lyrics-card-checked,
 body[data-theme="dark"] .lyrics-card-checked {
   background: #173344;
   border-color: #00aeec;
-}
-body[arco-theme="dark"] .lyrics-card-checked .lyrics-card-preview,
-body[data-theme="dark"] .lyrics-card-checked .lyrics-card-preview {
-  background: #173344;
 }
 
 body[arco-theme="dark"] .lyrics-card-checkbox,
@@ -1519,7 +1505,6 @@ body[data-theme="dark"] .lyrics-card-title {
 
 body[arco-theme="dark"] .lyrics-card-preview,
 body[data-theme="dark"] .lyrics-card-preview {
-  background: #1f1f1f;
   color: #999;
 }
 
