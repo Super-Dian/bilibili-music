@@ -4,6 +4,7 @@ import { onMounted, onUnmounted, ref, computed, watch } from "vue";
 import Btn from "@/components/btn.vue";
 import UiButton from "@/components/UiButton.vue";
 import UiSpin from "@/components/UiSpin.vue";
+import UiAlert from "@/components/UiAlert.vue";
 import { episodeSession } from "@/episode";
 
 interface DeletedSection {
@@ -174,6 +175,18 @@ const endRecording = () => {
 const removeSection = (id: number) => {
   deletedSections.value = deletedSections.value.filter((section) => section.id !== id);
 };
+
+// 一键重置：清除所有剪辑
+const resetAll = () => {
+  deletedSections.value = [];
+};
+
+// 预计剪辑后时长
+const estimatedDuration = computed(() => {
+  if (!duration.value) return 0;
+  const removed = deletedSections.value.reduce((sum, s) => sum + Math.max(0, s.end - s.start), 0);
+  return Math.max(0, duration.value - removed);
+});
 
 // 按时间排序删除片段
 const sortSections = () => {
@@ -506,7 +519,7 @@ function next() {
                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
               </svg>
             </template>
-            开始记录
+            区间开始
           </UiButton>
           <UiButton @click="togglePlay">
             <template #icon>
@@ -526,7 +539,7 @@ function next() {
                 />
               </svg>
             </template>
-            结束记录
+            区间结束
           </UiButton>
         </div>
       </div>
@@ -570,7 +583,26 @@ function next() {
       </div>
 
       <!-- 删除片段列表 -->
-      <div class="deleted-list" style="max-height: 200px; overflow-y: auto; margin-top: 16px">
+      <template v-if="deletedSections.length > 0">
+        <UiAlert type="info" style="margin-top: 16px">
+          以下区间将在下载时被去除，点击时间可跳转
+        </UiAlert>
+        <div
+          style="
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 8px;
+            gap: 12px;
+          "
+        >
+          <span style="font-size: 13px; color: #52c41a">
+            拼接预计时长: {{ formatTimeInput(estimatedDuration) }}
+          </span>
+          <UiButton status="danger" @click="resetAll">重置全部</UiButton>
+        </div>
+      </template>
+      <div class="deleted-list" style="max-height: 200px; overflow-y: auto; margin-top: 8px">
         <div
           v-for="section in deletedSections"
           :key="section.id"
