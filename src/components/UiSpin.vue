@@ -115,7 +115,6 @@ withDefaults(
     transform: scale(1);
   }
 }
-
 </style>
 
 <style>

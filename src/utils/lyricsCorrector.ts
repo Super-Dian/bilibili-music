@@ -45,14 +45,11 @@ function normalizeDiffs(diffs: DiffPart[]): DiffPart[] {
           result.push({ value: removedPart.value.slice(0, matchLen), removed: true });
         }
 
-
         // changed 部分
         if (matchLen > 0) {
           result.push({ value: removedPart.value.slice(matchLen, removedLen), removed: true });
           result.push({ value: addedPart.value, added: true });
         }
-
-
       } else {
         // added 比 removed 长：拆分为 changed + 纯 added
         const matchLen = removedLen;
@@ -184,7 +181,9 @@ export function correctLyrics(
   let origText = onlineText;
   if (/\[\d{2}:\d{2}\.\d{2,3}\]/.test(origText)) {
     // 带时间戳格式：清理后去除时间戳
-    origText = cleanOriginalLyrics(origText).replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, "").replace(/\n/g, "");
+    origText = cleanOriginalLyrics(origText)
+      .replace(/\[\d{2}:\d{2}\.\d{2,3}\]/g, "")
+      .replace(/\n/g, "");
   } else {
     // 纯文本格式：去除音乐符号和空白
     origText = stripMusicNotes(origText).replace(/\n/g, "");
@@ -218,8 +217,7 @@ export function correctLyrics(
     // 纯 removed = 当前是 removed，且后面不是 added（或已是最后一个元素）
     // 只有纯 removed 才应该 pending，changed（removed + added 成对）应该立即换行
     if (pendingLineBreak) {
-      const isPureRemoved = part.removed &&
-        (idx + 1 >= diffs.length || !diffs[idx + 1].added);
+      const isPureRemoved = part.removed && (idx + 1 >= diffs.length || !diffs[idx + 1].added);
 
       if (!isPureRemoved) {
         // 不是纯 removed，执行换行
@@ -252,8 +250,7 @@ export function correctLyrics(
       if (!pendingLineBreak && lineIdx < lineBounds.length && aiCharCount >= lineBounds[lineIdx]) {
         if (i == part.value.length - 1) {
           pendingLineBreak = true;
-        }
-        else {
+        } else {
           // 如果当前 part 还有剩余字符，说明换行点在 part 内部，立即换行
           result.push([Math.round(aiBody[lineIdx].from * 1000), currentLine]);
           currentLine = "";

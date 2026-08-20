@@ -34,7 +34,10 @@ defineEmits(["update:modelValue", "input", "change", "focus", "blur"]);
     :placeholder="placeholder"
     :disabled="disabled"
     :readonly="readonly"
-    @input="$emit('update:modelValue', ($event.target as HTMLInputElement).value); $emit('input', $event)"
+    @input="
+      $emit('update:modelValue', ($event.target as HTMLInputElement).value);
+      $emit('input', $event);
+    "
     @change="$emit('change', $event)"
     @focus="$emit('focus', $event)"
     @blur="$emit('blur', $event)"
@@ -95,7 +98,6 @@ defineEmits(["update:modelValue", "input", "change", "focus", "blur"]);
 .ui-input-error:focus {
   box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.15);
 }
-
 </style>
 
 <style>

@@ -169,7 +169,6 @@ function selectCover(url: string | undefined) {
   border-radius: 6px;
   object-fit: cover;
 }
-
 </style>
 
 <style>

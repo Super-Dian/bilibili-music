@@ -41,6 +41,7 @@ The app is a modal with a vertical steps sidebar:
 No Vuex/Pinia. `src/data.ts` holds all wizard state in a single `reactive()` object (`fromData`) and a `userConfig` object persisted via GM_getValue/GM_setValue with auto-save on change.
 
 Key `fromData` fields:
+
 - `lyricsData: Lyrics | null` — `[timestamp_ms, text][]` pairs for audio embedding
 - `clipRanges: ClipRanges | null` — `[[start_ms, end_ms], ...]` delete ranges
 - `externalLyrics: boolean` — save lyrics as standalone `.lrc` file instead of embedding
@@ -49,6 +50,7 @@ Key `fromData` fields:
 - `usedefaultconfig: boolean` — auto-apply saved default rules
 
 Key `userConfig` fields:
+
 - `openai: { host, key, modal }` — OpenAI-compatible API for AI lyrics correction
 
 ### Auto-imports
@@ -71,12 +73,14 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 ### Lyrics System (lyrics.vue + lyricsCorrector.ts)
 
 **Online Lyrics Search** (two-step API):
+
 - `onlineLyricsApis` defines search sources (currently LuoXueAPI at `api.vkeys.cn`).
 - Step 1: `searchOnlineLyrics()` queries `?word=歌曲名` → returns `{ data: [{ id, name }] }`.
 - Step 2: Watcher on `onlineLyricsIndex` fetches lyrics via `detailUrl + ?id=songId` → returns `{ data: { lrc } }`.
 - `lyricsIdMap` caches `compositeKey → songId` mapping between steps.
 
 **Lyrics Workshop Modal** (fullscreen):
+
 - Left panel: editable textarea (`_editBody`) for the selected subtitle track.
 - Right panel tabs:
   - **在线歌词** — search, select, toggle formatting (timeAxis/blankChar/metaInfo/stripMeta), editable preview with diff view toggle, replace/undo/smart-correct buttons.
@@ -84,6 +88,7 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
   - **结果预览** — final lyrics with ♪ note formatting.
 
 **Smart Correction** (`src/utils/lyricsCorrector.ts`):
+
 - `correctLyrics(aiBody, onlineText)` — character-level diff correction.
 - `cleanOriginalLyrics(text)` — strips LRC tags, metadata (`key:value`/`key-value` format), title lines (`歌名 - 歌手`).
 - Algorithm: `diffChars(origText, aiText)` → reconstruct by keeping unchanged+removed, skipping added → split back into AI's original line boundaries.
@@ -95,17 +100,20 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 - **Pending Line Break Logic**: When `aiCharCount` reaches line boundary, waits for pending `removed` blocks before executing line break. Only pure `removed` (not `changed`) triggers pending behavior.
 
 **Online Lyrics with Time Axis**:
+
 - `parseLrcToLyrics(lrcText)` — parses LRC format into `Array<[ms, text]>` with time axis.
 - "使用在线歌词" switch in lyrics workshop enables automatic replacement with online lyrics time axis.
 - "第一句歌词开始时间" input (mm:ss format) allows adjusting the offset between video and online lyrics.
 - `useOnlineLyrics` flag controls: disables max-length validation, enables OK button, disables smart correction.
 
 **External Lyrics** (`fromData.externalLyrics`):
+
 - When enabled, `audio.vue` saves the LRC string as a standalone `.lrc` file via FileSaver instead of embedding in audio metadata.
 
 ### Audio Processing (audio.vue)
 
 **FFmpeg Pipeline**:
+
 - Cover embedding uses `-c:v copy` (not `-c:v mjpeg`) to avoid progressive JPEG decode hangs in single-thread WASM mode.
 - `processLyrics()` adjusts timestamps: subtracts deleted clip ranges, applies speed multiplier, filters out lyrics in deleted ranges.
 - `formatLrc(ms)` converts milliseconds to `[MM:SS.mmm]` format.
@@ -128,29 +136,29 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 
 ### 已完成的组件替换
 
-| 组件 | 替换为 | 数量 | 状态 |
-|------|--------|------|------|
-| `<a-button>` | `UiButton` | 32 | ✅ 完成 |
-| `<a-input>` | `UiInput` | 12 | ✅ 完成 |
-| `<a-textarea>` | `UiTextarea` | 5 | ✅ 完成 |
-| `<a-checkbox>` | 自定义 div | 9 | ✅ 完成 |
-| `<a-space>` | CSS flex | 7 | ✅ 完成 |
-| `<a-form-item>` | `UiFormItem` | 8 | ✅ 完成 |
-| `<a-form>` | 原生 form | 3 | ✅ 完成 |
-| `<a-button-group>` | `UiButtonGroup` | 3 | ✅ 已创建组件 |
-| `<a-input-group>` | `UiInputGroup` | 3 | ✅ 已创建组件 |
-| `<a-list>` | 原生 div | 1 | ✅ 完成 |
-| `<a-collapse>` | `details/summary` | 1 | ✅ 完成 |
-| `<a-spin>` | `UiSpin` | 4 | ✅ 完成 |
-| `<a-alert>` | `UiAlert` | 4 | ✅ 已创建组件 |
-| `<a-result>` | `UiResult` | 4 | ✅ 完成 |
-| `<a-select>` | `UiSelect` | 3 | ✅ 已创建组件 |
-| `<a-modal>` | `UiModal` | 2 | ✅ 已创建组件 |
-| `<a-tabs>` | `UiTabs` | 1 | ✅ 已创建组件 |
-| `<a-steps>` | `UiSteps` | 1 | ✅ 已创建组件 |
-| `<a-dropdown>` | `UiDropdown` | 3 | ✅ 已创建组件 |
-| `<a-image>` | `<img>` | 1 | ✅ 完成 |
-| `<a-trigger>` | 自定义下拉 | 1 | ✅ 完成 |
+| 组件               | 替换为            | 数量 | 状态          |
+| ------------------ | ----------------- | ---- | ------------- |
+| `<a-button>`       | `UiButton`        | 32   | ✅ 完成       |
+| `<a-input>`        | `UiInput`         | 12   | ✅ 完成       |
+| `<a-textarea>`     | `UiTextarea`      | 5    | ✅ 完成       |
+| `<a-checkbox>`     | 自定义 div        | 9    | ✅ 完成       |
+| `<a-space>`        | CSS flex          | 7    | ✅ 完成       |
+| `<a-form-item>`    | `UiFormItem`      | 8    | ✅ 完成       |
+| `<a-form>`         | 原生 form         | 3    | ✅ 完成       |
+| `<a-button-group>` | `UiButtonGroup`   | 3    | ✅ 已创建组件 |
+| `<a-input-group>`  | `UiInputGroup`    | 3    | ✅ 已创建组件 |
+| `<a-list>`         | 原生 div          | 1    | ✅ 完成       |
+| `<a-collapse>`     | `details/summary` | 1    | ✅ 完成       |
+| `<a-spin>`         | `UiSpin`          | 4    | ✅ 完成       |
+| `<a-alert>`        | `UiAlert`         | 4    | ✅ 已创建组件 |
+| `<a-result>`       | `UiResult`        | 4    | ✅ 完成       |
+| `<a-select>`       | `UiSelect`        | 3    | ✅ 已创建组件 |
+| `<a-modal>`        | `UiModal`         | 2    | ✅ 已创建组件 |
+| `<a-tabs>`         | `UiTabs`          | 1    | ✅ 已创建组件 |
+| `<a-steps>`        | `UiSteps`         | 1    | ✅ 已创建组件 |
+| `<a-dropdown>`     | `UiDropdown`      | 3    | ✅ 已创建组件 |
+| `<a-image>`        | `<img>`           | 1    | ✅ 完成       |
+| `<a-trigger>`      | 自定义下拉        | 1    | ✅ 完成       |
 
 ### 新增的自定义组件
 
@@ -193,6 +201,7 @@ dist/wasm-music.user.js  367.19 kB │ gzip: 81.80 kB
 ### 迁移完成的工作
 
 #### 1. 歌词工作台（lyrics.vue）
+
 - 智能去除元信息：新增"智能去除元信息（纯文本）"选项，用于智能纠错对比
 - `cleanOriginalLyricsPlain()` 函数：返回纯文本格式（无时间戳）
 - `correctLyrics()` 函数：支持纯文本或带时间戳格式输入
@@ -200,16 +209,19 @@ dist/wasm-music.user.js  367.19 kB │ gzip: 81.80 kB
 - 成功提示：从"共修正 X 行"改为"共替换 X 个字符"
 
 #### 2. 音频处理（ffmpeg.ts）
+
 - 缓存日志：添加缓存命中/未命中日志输出
 - 下载日志：添加下载开始/完成日志（含文件大小）
 - CDN 日志：添加 CDN 源尝试/成功/失败日志
 - 初始化日志：添加环境预检、加载模式、初始化状态日志
 
 #### 3. 消息提示（message.ts）
+
 - 深色模式适配：检测 `body` 的 `arco-theme` 或 `data-theme` 属性
 - 样式变化：背景色 `#fff` → `#2a2a2a`，文字颜色 `#18191c` → `#e0e0e0`
 
 #### 4. 剧集选择（picker.vue + App.vue）
+
 - 接入主程序窗口：移除自定义弹窗，嵌入 App.vue 的 UiModal
 - 动态宽度：picker 步骤时 900px，其他步骤 520px
 - 侧栏隐藏：picker 步骤时隐藏侧栏步骤条
@@ -219,11 +231,13 @@ dist/wasm-music.user.js  367.19 kB │ gzip: 81.80 kB
 - 样式统一：使用 UiAlert 替代 picker-hint
 
 #### 5. 批量下载（episode.ts）
+
 - 自动模式修复：修复 `activeVideoData` 未设置导致批量下载停止的问题
 - 手动模式修复：修复多剧集手动模式下重复显示 picker 步骤的问题
 - 日志输出：添加 `launchNextEpisode`、`finishEpisodeItem`、`finishEpisodeDownload` 等函数的日志
 
 #### 6. 拖动功能（UiModal.vue）
+
 - Header 拖动：按住 header 可以拖动窗口
 - 状态管理：`isDragging`、`dragOffset`、`modalPosition`
 - 鼠标事件：`mousedown`、`mousemove`、`mouseup`
@@ -235,7 +249,6 @@ dist/wasm-music.user.js  367.19 kB │ gzip: 81.80 kB
 - Arco 组件已由自定义组件替换；删除 Arco 选择器前必须先做全仓引用检查。`body[arco-theme="dark"]` 仍是宿主页面主题同步的兼容桥接，不应当作无效代码整体删除。
 - CSS 清理须保持单集/批量流程、侧栏导航、歌词工作台、Modal 拖动和深色模式行为；至少执行 `npm run build:tsc`、`npm test`（需要 Bun 运行时）、`npm run lint`、`npm run fmt:check` 并比较构建体积。
 - 当前 Code Review 已修复 `UiSteps` 零基导航契约和消息正文的 HTML 注入问题；后续维护应继续优先保证状态机和宿主页面安全。
-
 
 1. ~~移除 Arco Design 依赖~~ ✅ 已完成
 2. ~~完善深色模式适配~~ ✅ 已完成

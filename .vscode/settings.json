@@ -13,7 +13,5 @@
   "files.associations": {
     "*.css": "tailwindcss"
   },
-  "githubPullRequests.ignoredPullRequestBranches": [
-    "master"
-  ]
+  "githubPullRequests.ignoredPullRequestBranches": ["master"]
 }

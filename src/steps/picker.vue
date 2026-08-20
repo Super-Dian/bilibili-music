@@ -44,9 +44,7 @@ const searchText = ref("");
 const activeCategory = ref("");
 // 默认显示当前视频所在的页
 const activePage = ref(
-  props.currentIndex >= 0
-    ? Math.floor(Math.max(0, props.currentIndex) / 20) + 1
-    : 1
+  props.currentIndex >= 0 ? Math.floor(Math.max(0, props.currentIndex) / 20) + 1 : 1,
 );
 const selectedIndexes = ref<Set<number>>(
   new Set(
@@ -260,9 +258,8 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
     <div class="picker-header">
       <h2 class="picker-title">选择要下载的{{ itemLabel }}</h2>
       <p class="picker-subtitle">
-        {{ pickerMeta?.title ? `《${pickerMeta.title}》：` : "" }}{{
-          pickerMeta?.subtitle || "勾选一个就是单项下载；勾选多个会按列表顺序逐个下载。"
-        }}
+        {{ pickerMeta?.title ? `《${pickerMeta.title}》：` : ""
+        }}{{ pickerMeta?.subtitle || "勾选一个就是单项下载；勾选多个会按列表顺序逐个下载。" }}
       </p>
     </div>
 
@@ -271,25 +268,25 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
       <UiButton @click="selectCurrent">只选{{ currentLabel }}</UiButton>
       <UiButton @click="selectAll" :disabled="filteredIndexes.length === 0">全选结果</UiButton>
       <UiButton @click="clearSelection">清空选择</UiButton>
-      <UiButton
-        @click="toggleRename"
-        :disabled="selectedIndexes.size === 0"
-      >
-        {{ renameVisible ? "返回选择列表" : `编辑所选标题${selectedIndexes.size ? `（${selectedIndexes.size}）` : ""}` }}
+      <UiButton @click="toggleRename" :disabled="selectedIndexes.size === 0">
+        {{
+          renameVisible
+            ? "返回选择列表"
+            : `编辑所选标题${selectedIndexes.size ? `（${selectedIndexes.size}）` : ""}`
+        }}
       </UiButton>
     </div>
 
     <!-- Query (search + filter) -->
     <div v-if="!renameVisible" class="picker-query">
-      <UiInput
-        v-model="searchText"
-        placeholder="搜索标题 / BV号"
-        style="flex: 1"
-      />
+      <UiInput v-model="searchText" placeholder="搜索标题 / BV号" style="flex: 1" />
       <UiSelect
         v-if="nativeCategories.length > 1"
         v-model="activeCategory"
-        :options="[{ label: '全部分类', value: '' }, ...nativeCategories.map(c => ({ label: c, value: c }))]"
+        :options="[
+          { label: '全部分类', value: '' },
+          ...nativeCategories.map((c) => ({ label: c, value: c })),
+        ]"
         style="width: 140px"
       />
     </div>
@@ -308,9 +305,20 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
           :checked="selectedIndexes.has(index)"
           @change="toggleSelect(index)"
         />
-        <span class="picker-index">{{ episodes[index]._wasmMusicPickerLabel || `P${episodes[index].page}` }}</span>
-        <span class="picker-name" :title="episodes[index].bvid ? `${episodes[index]._wasmMusicPickerTitle || episodes[index].part || episodes[index].title} · ${episodes[index].bvid}` : ''">
-          {{ episodes[index]._wasmMusicPickerTitle || episodes[index].part || episodes[index].title }}
+        <span class="picker-index">{{
+          episodes[index]._wasmMusicPickerLabel || `P${episodes[index].page}`
+        }}</span>
+        <span
+          class="picker-name"
+          :title="
+            episodes[index].bvid
+              ? `${episodes[index]._wasmMusicPickerTitle || episodes[index].part || episodes[index].title} · ${episodes[index].bvid}`
+              : ''
+          "
+        >
+          {{
+            episodes[index]._wasmMusicPickerTitle || episodes[index].part || episodes[index].title
+          }}
           <span v-if="index === currentIndex" class="picker-current-badge">当前</span>
         </span>
         <span class="picker-time">{{ formatEpisodeDuration(episodes[index].duration) }}</span>
@@ -320,7 +328,9 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
     <!-- Pagination -->
     <div v-if="!renameVisible && totalPages > 1" class="picker-pagination">
       <UiButton :disabled="activePage <= 1" @click="activePage--">上一页</UiButton>
-      <span class="picker-page-info">第 {{ activePage }}/{{ totalPages }} 页 · 共 {{ filteredIndexes.length }} 项</span>
+      <span class="picker-page-info"
+        >第 {{ activePage }}/{{ totalPages }} 页 · 共 {{ filteredIndexes.length }} 项</span
+      >
       <UiButton :disabled="activePage >= totalPages" @click="activePage++">下一页</UiButton>
     </div>
 
@@ -361,9 +371,10 @@ onUnmounted(() => document.removeEventListener("keydown", onKeyDown, true));
         每个项目分别手动确认（可单独修改标题、作者、文件名、封面和字幕）
       </UiCheckbox>
       <UiCheckbox v-model="isAuto" :disabled="autoDisabled">
-        {{ savedRule
-          ? "使用已保存规则（作者、封面、字幕、剪辑范围与倍速）自动完成；标题和文件名使用所选列表"
-          : "尚未保存默认规则：先手动设置第一项，其余项目复用作者、封面、字幕、剪辑范围与倍速"
+        {{
+          savedRule
+            ? "使用已保存规则（作者、封面、字幕、剪辑范围与倍速）自动完成；标题和文件名使用所选列表"
+            : "尚未保存默认规则：先手动设置第一项，其余项目复用作者、封面、字幕、剪辑范围与倍速"
         }}
       </UiCheckbox>
       <UiAlert type="info" style="margin-top: 10px">

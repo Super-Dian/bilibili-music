@@ -25,7 +25,10 @@ defineEmits(["update:activeKey", "change"]);
         v-for="tab in tabs"
         :key="tab.key"
         :class="['ui-tabs-tab', activeKey === tab.key && 'ui-tabs-tab-active']"
-        @click="$emit('update:activeKey', tab.key); $emit('change', tab.key)"
+        @click="
+          $emit('update:activeKey', tab.key);
+          $emit('change', tab.key);
+        "
       >
         {{ tab.title }}
       </div>
@@ -68,7 +71,6 @@ defineEmits(["update:activeKey", "change"]);
 .ui-tabs-content {
   min-height: 100px;
 }
-
 </style>
 
 <style>

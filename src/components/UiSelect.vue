@@ -28,7 +28,10 @@ defineEmits(["update:modelValue", "change"]);
     :class="['ui-select', disabled && 'ui-select-disabled']"
     :value="modelValue"
     :disabled="disabled"
-    @change="$emit('update:modelValue', ($event.target as HTMLSelectElement).value); $emit('change', $event)"
+    @change="
+      $emit('update:modelValue', ($event.target as HTMLSelectElement).value);
+      $emit('change', $event);
+    "
   >
     <option v-if="placeholder" value="" disabled>{{ placeholder }}</option>
     <option
@@ -71,7 +74,6 @@ defineEmits(["update:modelValue", "change"]);
   color: #c9ccd0;
   cursor: not-allowed;
 }
-
 </style>
 
 <style>

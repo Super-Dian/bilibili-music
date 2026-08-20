@@ -107,7 +107,6 @@ const charCount = computed(() => (props.modelValue || "").length);
   font-size: 12px;
   color: #c9ccd0;
 }
-
 </style>
 
 <style>

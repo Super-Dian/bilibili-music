@@ -79,9 +79,7 @@ export function normalizeRecordProcessingRule(
   // 输出格式：验证是否为支持的格式
   const supportedFormats = ["m4a", "mp3", "flac", "ogg"];
   const outputFormat =
-    rule?.outputFormat && supportedFormats.includes(rule.outputFormat)
-      ? rule.outputFormat
-      : "m4a";
+    rule?.outputFormat && supportedFormats.includes(rule.outputFormat) ? rule.outputFormat : "m4a";
 
   // 外置歌词：布尔值，默认 false
   const externalLyrics = Boolean(rule?.externalLyrics);

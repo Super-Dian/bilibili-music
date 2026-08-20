@@ -64,7 +64,7 @@ function handleHeaderMouseDown(event: MouseEvent) {
 
   const target = event.target as HTMLElement;
   // 排除按钮点击
-  if (target.closest('.ui-modal-close')) return;
+  if (target.closest(".ui-modal-close")) return;
 
   isDragging.value = true;
   const modal = modalRef.value;
@@ -78,10 +78,10 @@ function handleHeaderMouseDown(event: MouseEvent) {
       x: rect.left,
       y: rect.top,
     };
-    modal.style.position = 'fixed';
+    modal.style.position = "fixed";
     modal.style.left = `${rect.left}px`;
     modal.style.top = `${rect.top}px`;
-    modal.style.margin = '0';
+    modal.style.margin = "0";
   }
   event.preventDefault();
 }
@@ -103,13 +103,13 @@ function handleMouseUp() {
 }
 
 onMounted(() => {
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
+  document.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
-  document.removeEventListener('mousemove', handleMouseMove);
-  document.removeEventListener('mouseup', handleMouseUp);
+  document.removeEventListener("mousemove", handleMouseMove);
+  document.removeEventListener("mouseup", handleMouseUp);
 });
 </script>
 
@@ -120,10 +120,14 @@ onUnmounted(() => {
         ref="modalRef"
         class="ui-modal"
         :class="{ 'ui-modal-fullscreen': fullscreen }"
-        :style="{ width: fullscreen ? '100%' : (typeof width === 'number' ? `${width}px` : width) }"
+        :style="{ width: fullscreen ? '100%' : typeof width === 'number' ? `${width}px` : width }"
         @click.stop
       >
-        <div class="ui-modal-header" @mousedown="handleHeaderMouseDown" :style="{ cursor: fullscreen ? 'default' : 'move' }">
+        <div
+          class="ui-modal-header"
+          @mousedown="handleHeaderMouseDown"
+          :style="{ cursor: fullscreen ? 'default' : 'move' }"
+        >
           <span class="ui-modal-title">{{ title }}</span>
           <button class="ui-modal-close" @click="close">×</button>
         </div>
@@ -214,7 +218,6 @@ onUnmounted(() => {
   border-top: 1px solid #e3e5e7;
   flex-shrink: 0;
 }
-
 </style>
 
 <style>

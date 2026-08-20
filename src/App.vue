@@ -127,11 +127,7 @@ function onNext() {
 /** picker 步骤确认选择 */
 async function onPickerConfirm(selection: EpisodeSelection) {
   try {
-    await processEpisodeSelection(
-      episodeSession.allEpisodes,
-      episodeSession.pickerMeta,
-      selection,
-    );
+    await processEpisodeSelection(episodeSession.allEpisodes, episodeSession.pickerMeta, selection);
     // 调用 launchNextEpisode 处理第一个剧集
     // launchNextEpisode 会设置 activeVideoData 并调用 appTransitionHandler
     // appTransitionHandler 会调用 initializeEpisode 来初始化第一个剧集
@@ -198,10 +194,14 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   // 多集且未选择时停在 picker 步骤(0)，否则从 clip(1) 开始
   // 批量模式下，如果已经选择过剧集（isBatch为true），则不再显示picker步骤
   // 单个下载时，如果已经有 activeVideoData，也不再显示 picker 步骤
-  const shouldShowPicker = hasPickerStep.value && !episodeSession.isBatch && !episodeSession.activeVideoData && !episodeSession.queue.length;
+  const shouldShowPicker =
+    hasPickerStep.value &&
+    !episodeSession.isBatch &&
+    !episodeSession.activeVideoData &&
+    !episodeSession.queue.length;
   // 动态步骤数组：有picker时 [picker, clip, info, ...]，无picker时 [clip, info, ...]
   // picker步骤=0，clip步骤=1（有picker时）或0（无picker时）
-  current.value = shouldShowPicker ? 0 : (hasPickerStep.value ? 1 : 0);
+  current.value = shouldShowPicker ? 0 : hasPickerStep.value ? 1 : 0;
   const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
     ? null
     : document.querySelector<HTMLDivElement & { __vue__: any }>(".tag .bgm-tag");
@@ -293,7 +293,10 @@ function onOpen() {
   >
     <template #footer>
       <!-- picker 步骤时不显示 App 的 footer，由 picker 组件自己的 footer 替代 -->
-      <div v-if="!(hasPickerStep && current === 0)" style="display: flex; justify-content: space-between">
+      <div
+        v-if="!(hasPickerStep && current === 0)"
+        style="display: flex; justify-content: space-between"
+      >
         <div style="display: flex; gap: 8px">
           <UiButton @click="checkSide"> 侧栏 </UiButton>
         </div>
@@ -312,7 +315,7 @@ function onOpen() {
         direction="vertical"
         size="small"
         v-show="sideShow && !(hasPickerStep && current === 0)"
-        :items="stepLabels.map(title => ({ title }))"
+        :items="stepLabels.map((title) => ({ title }))"
       />
       <div
         class="step-content"
@@ -338,12 +341,16 @@ function onOpen() {
         <component
           v-else
           :is="steps[current]"
-          v-bind="current === 0 && hasPickerStep ? {
-            episodes: episodeSession.allEpisodes,
-            currentIndex: episodeSession.currentEpisodeIndex,
-            pickerMeta: episodeSession.pickerMeta,
-            savedRule: getActiveDefaultRule(),
-          } : {}"
+          v-bind="
+            current === 0 && hasPickerStep
+              ? {
+                  episodes: episodeSession.allEpisodes,
+                  currentIndex: episodeSession.currentEpisodeIndex,
+                  pickerMeta: episodeSession.pickerMeta,
+                  savedRule: getActiveDefaultRule(),
+                }
+              : {}
+          "
           @prev="onPrev"
           @next="onNext"
           @backToPicker="handleBackToPicker"

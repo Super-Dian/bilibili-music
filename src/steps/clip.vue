@@ -13,9 +13,14 @@ interface DeletedSection {
 }
 
 let video: HTMLVideoElement | null = null;
+let timelineEl: HTMLElement | null = null;
 let ratechangeHandler: ((this: HTMLVideoElement, ev: Event) => any) | null = null;
+let rafId = 0;
+let seekTarget: number | null = null;
 const currentTime = ref(0);
 const duration = ref(0);
+// 虚拟位置：驱动蓝色指针，与 video.currentTime 解耦
+const displayTime = ref(0);
 const deletedSections = ref<DeletedSection[]>([]);
 const isRecording = ref(false);
 const tempStart = ref(0);
@@ -29,10 +34,18 @@ const selectedSpeed = ref<number>(1);
 // 添加时间提示和拖动状态
 const isDragging = ref(false);
 const hoverTime = ref<number | null>(null);
-const tooltipStyle = ref({
-  left: "0px",
-  display: "none",
-});
+// 复用 tooltipStyle 对象，避免每次创建新对象
+const tooltipState = { left: "0px", display: "none" };
+const tooltipStyle = ref({ ...tooltipState });
+
+// timeupdate 驱动：播放时由视频自身通知时间变化，同步到 displayTime
+const handleTimeSync = () => {
+  if (video) {
+    const t = video.currentTime;
+    displayTime.value = t;
+    currentTime.value = t;
+  }
+};
 
 // 格式化时间显示
 const formatTime = (time: number) => {
@@ -48,22 +61,28 @@ const calculateTimeFromEvent = (event: MouseEvent, element: HTMLElement) => {
   return (offsetX / rect.width) * duration.value;
 };
 
-// 处理鼠标移动
+// 处理鼠标移动（节流：使用 requestAnimationFrame）
 const handleTimelineMouseMove = (event: MouseEvent) => {
-  const timeline = event.currentTarget as HTMLElement;
-  const time = calculateTimeFromEvent(event, timeline);
-  hoverTime.value = time;
+  const timeline = (event.currentTarget as HTMLElement) || timelineEl;
+  if (!timeline) return;
 
-  // 更新提示框位置
-  tooltipStyle.value = {
-    left: `${event.clientX}px`,
-    display: "block",
-  };
+  if (rafId) cancelAnimationFrame(rafId);
+  rafId = requestAnimationFrame(() => {
+    const time = calculateTimeFromEvent(event, timeline);
+    hoverTime.value = time;
 
-  // 如果正在拖动，更新视频时间
-  if (isDragging.value && video) {
-    video.currentTime = time;
-  }
+    // 复用 tooltipState 对象，只更新变化的属性
+    tooltipState.left = `${event.clientX}px`;
+    tooltipState.display = "block";
+    tooltipStyle.value = { ...tooltipState };
+
+    // 拖动时：立即移动指针（视觉响应），记录 seek 目标（mouseup 后 seek）
+    if (isDragging.value) {
+      displayTime.value = time;
+      currentTime.value = time;
+      seekTarget = time;
+    }
+  });
 };
 
 // 处理鼠标离开
@@ -81,32 +100,28 @@ const handleTimelineMouseDown = (event: MouseEvent) => {
   document.addEventListener("mouseup", handleDocumentMouseUp);
 };
 
-// 处理文档鼠标移动（拖动时）
+// 处理文档鼠标移动（拖动时，使用缓存的 timelineEl）
 const handleDocumentMouseMove = (event: MouseEvent) => {
-  if (isDragging.value) {
-    const timeline = document.querySelector(".timeline") as HTMLElement;
-    if (timeline) {
-      handleTimelineMouseMove({
-        ...event,
-        currentTarget: timeline,
-      } as MouseEvent);
-    }
+  if (isDragging.value && timelineEl) {
+    handleTimelineMouseMove({
+      ...event,
+      currentTarget: timelineEl,
+    } as MouseEvent);
   }
 };
 
-// 处理文档鼠标松开
+// 处理文档鼠标松开（拖动结束后一次性 seek）
 const handleDocumentMouseUp = () => {
   isDragging.value = false;
   hoverTime.value = null;
   tooltipStyle.value.display = "none";
+  // 拖动结束后执行实际 seek
+  if (seekTarget !== null && video) {
+    video.currentTime = seekTarget;
+    seekTarget = null;
+  }
   document.removeEventListener("mousemove", handleDocumentMouseMove);
   document.removeEventListener("mouseup", handleDocumentMouseUp);
-};
-
-// 更新当前时间和视频总长度
-const updateTime = () => {
-  currentTime.value = video?.currentTime ?? 0;
-  duration.value = video?.duration ?? 0;
 };
 
 // 从当前开始删除（删除从当前到结尾的部分）
@@ -203,6 +218,45 @@ const tempSection = computed(() => {
   };
 });
 
+// 预计算合并后的删除区间（已排序、无重叠），用于试听时二分查找
+const mergedDeletedRanges = computed(() => {
+  const sections = deletedSections.value;
+  if (sections.length === 0) return [];
+  const sorted = [...sections].sort((a, b) => a.start - b.start);
+  const merged: [number, number][] = [];
+  let cur: [number, number] = [sorted[0].start, sorted[0].end];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i].start <= cur[1]) {
+      cur = [cur[0], Math.max(cur[1], sorted[i].end)];
+    } else {
+      merged.push(cur);
+      cur = [sorted[i].start, sorted[i].end];
+    }
+  }
+  merged.push(cur);
+  return merged;
+});
+
+// 二分查找：判断时间是否在某个删除区间内，返回跳转目标或 -1
+const findSkipTarget = (time: number): number => {
+  const ranges = mergedDeletedRanges.value;
+  let lo = 0,
+    hi = ranges.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const [s, e] = ranges[mid];
+    if (time < s) {
+      hi = mid - 1;
+    } else if (time >= e) {
+      lo = mid + 1;
+    } else {
+      // time 在 [s, e) 内，跳转到 e
+      return e;
+    }
+  }
+  return -1;
+};
+
 // 修改试听功能，添加跳过删除片段的逻辑
 const startAudition = () => {
   if (isAuditioning.value) {
@@ -222,21 +276,15 @@ const startAudition = () => {
   }
 };
 
-// 添加视频时间更新处理函数
+// 添加视频时间更新处理函数（主要用于试听跳转，指针由 rAF 驱动）
 const handleTimeUpdate = () => {
   if (!video) return;
 
-  updateTime();
-
-  // 试听时检查是否在删除片段中
+  // 试听时检查是否在删除片段中（二分查找优化）
   if (isAuditioning.value) {
-    const currentVideoTime = video.currentTime;
-    for (const section of deletedSections.value) {
-      if (currentVideoTime >= section.start && currentVideoTime < section.end) {
-        // 如果在删除片段中，跳到片段结束位置
-        video.currentTime = section.end;
-        break;
-      }
+    const target = findSkipTarget(video.currentTime);
+    if (target !== -1) {
+      video.currentTime = target;
     }
   }
 };
@@ -269,13 +317,16 @@ const handleEnded = () => {
 
 onMounted(() => {
   video = document.querySelector(`.bpx-player-video-wrap video`);
+  timelineEl = document.querySelector(`.timeline`);
   if (video) {
     video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("timeupdate", handleTimeSync);
     video.addEventListener("ended", handleEnded);
     video.addEventListener("play", handlePlay);
     video.addEventListener("pause", handlePause);
     currentTime.value = video.currentTime;
     duration.value = video.duration;
+    displayTime.value = video.currentTime;
 
     // 初始化倍速值，尝试读取 B 站播放器的 playbackRate
     selectedSpeed.value = video.playbackRate || 1;
@@ -294,8 +345,11 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+  if (rafId) cancelAnimationFrame(rafId);
+  timelineEl = null;
   if (video) {
     video.removeEventListener("timeupdate", handleTimeUpdate);
+    video.removeEventListener("timeupdate", handleTimeSync);
     video.removeEventListener("ended", handleEnded);
     video.removeEventListener("play", handlePlay);
     video.removeEventListener("pause", handlePause);
@@ -311,7 +365,63 @@ watch(selectedSpeed, (val) => {
   fromData.speed = val;
 });
 
-// 添加进度条点击跳转
+// 时间输入框
+const timeInput = ref("0:00");
+const isTimeInputFocused = ref(false);
+
+// 将秒数格式化为 mm:ss
+const formatTimeInput = (sec: number) => {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+};
+
+// 解析 mm:ss 或 m:ss 或纯秒数，返回秒数；无效返回 NaN
+const parseTimeInput = (val: string): number => {
+  const trimmed = val.trim();
+  // 纯数字视为秒数
+  if (/^\d+(\.\d+)?$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  // mm:ss 或 m:ss
+  const match = trimmed.match(/^(\d+):(\d{1,2})$/);
+  if (match) {
+    return Number(match[1]) * 60 + Number(match[2]);
+  }
+  return Number.NaN;
+};
+
+// displayTime 变化时同步到输入框（输入框聚焦时不同步，避免干扰用户输入）
+watch(displayTime, (t) => {
+  if (!isTimeInputFocused.value) {
+    timeInput.value = formatTimeInput(t);
+  }
+});
+
+// 用户按下回车或失焦时跳转
+const seekToTimeInput = () => {
+  const sec = parseTimeInput(timeInput.value);
+  if (Number.isNaN(sec)) {
+    // 输入无效，回退为当前时间
+    timeInput.value = formatTimeInput(displayTime.value);
+    return;
+  }
+  // 溢出判断：钳制到 [0, duration]
+  const clamped = Math.max(0, Math.min(sec, duration.value));
+
+  displayTime.value = clamped;
+  currentTime.value = clamped;
+
+  if (video) {
+    requestAnimationFrame(() => {
+      video!.currentTime = clamped;
+    });
+  }
+  // 回退为格式化后的值
+  timeInput.value = formatTimeInput(clamped);
+};
+
+// 添加进度条点击跳转（立即移动指针，异步 seek 不阻塞 UI）
 const handleTimelineClick = (event: MouseEvent) => {
   const timeline = event.currentTarget as HTMLElement;
   const rect = timeline.getBoundingClientRect();
@@ -319,8 +429,15 @@ const handleTimelineClick = (event: MouseEvent) => {
   const percentage = offsetX / rect.width;
   const newTime = percentage * duration.value;
 
+  // 立即移动指针（视觉响应）
+  displayTime.value = newTime;
+  currentTime.value = newTime;
+
+  // 异步 seek（不阻塞 UI）
   if (video) {
-    video.currentTime = newTime;
+    requestAnimationFrame(() => {
+      video!.currentTime = newTime;
+    });
   }
 };
 
@@ -349,27 +466,44 @@ function next() {
 <template>
   <div class="montage-container">
     <UiSpin :loading="isAuditioning">
-      <!-- 倍速控制 -->
-      <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px">
-        <label style="font-size: 13px">倍速：</label>
-        <select v-model.number="selectedSpeed" class="speed-select">
-          <option v-for="s in speedOptions" :key="s" :value="s">{{ s }}x</option>
-        </select>
+      <!-- 倍速控制 + 时间输入 -->
+      <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 16px">
+        <div style="display: flex; align-items: center; gap: 8px">
+          <label style="font-size: 13px">倍速：</label>
+          <select v-model.number="selectedSpeed" class="speed-select">
+            <option v-for="s in speedOptions" :key="s" :value="s">{{ s }}x</option>
+          </select>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px">
+          <label style="font-size: 13px">时间：</label>
+          <input
+            v-model="timeInput"
+            class="time-input"
+            placeholder="0:00"
+            @focus="isTimeInputFocused = true"
+            @blur="
+              isTimeInputFocused = false;
+              seekToTimeInput();
+            "
+            @keydown.enter="($event.target as HTMLInputElement).blur()"
+          />
+          <span style="font-size: 12px; color: #999">/ {{ formatTimeInput(duration) }}</span>
+        </div>
       </div>
       <!-- 控制按钮 -->
       <div class="control-buttons">
         <div class="control-row">
           <UiButton @click="endAtCurrent">从这开头</UiButton>
-          <UiButton @click="startFromCurrent">从这结尾</UiButton>
+          <UiButton @click="startFromCurrent">到这结尾</UiButton>
         </div>
         <div class="control-row">
           <UiButton type="primary" @click="startRecording" :disabled="isRecording">
             <template #icon>
               <svg v-if="!isPlaying" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M8 5v14l11-7z"/>
+                <path d="M8 5v14l11-7z" />
               </svg>
               <svg v-else viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
               </svg>
             </template>
             开始记录
@@ -377,17 +511,19 @@ function next() {
           <UiButton @click="togglePlay">
             <template #icon>
               <svg v-if="!isPlaying" viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M8 5v14l11-7z"/>
+                <path d="M8 5v14l11-7z" />
               </svg>
               <svg v-else viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
               </svg>
             </template>
           </UiButton>
           <UiButton @click="endRecording" :disabled="!isRecording" type="primary">
             <template #icon>
               <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                <path
+                  d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                />
               </svg>
             </template>
             结束记录
@@ -425,7 +561,7 @@ function next() {
         </div>
         <div
           class="current-time-marker"
-          :style="{ left: `${(currentTime / duration) * 100}%` }"
+          :style="{ left: `calc(${(displayTime / duration) * 100}% - 1px)` }"
         ></div>
         <!-- 添加时间提示 -->
         <div v-if="hoverTime !== null" class="time-tooltip" :style="tooltipStyle">
@@ -439,7 +575,13 @@ function next() {
           v-for="section in deletedSections"
           :key="section.id"
           class="deleted-list-item"
-          style="display: flex; justify-content: space-between; align-items: center; padding: 8px; border-bottom: 1px solid #e3e5e7"
+          style="
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            border-bottom: 1px solid #e3e5e7;
+          "
         >
           <span style="margin-right: 10px">
             <a @click="seekTo(section.start)">{{ section.start.toFixed(2) }}s</a>
@@ -449,17 +591,21 @@ function next() {
           <UiButton status="danger" @click="removeSection(section.id)">
             <template #icon>
               <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                <path
+                  d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                />
               </svg>
             </template>
           </UiButton>
         </div>
       </div>
     </UiSpin>
-    <div style="display: flex; justify-content: center; align-items: center; margin: 20px 0; gap: 10px">
+    <div
+      style="display: flex; justify-content: center; align-items: center; margin: 20px 0; gap: 10px"
+    >
       <UiButton v-if="episodeSession.hasMultiplePages" @click="backToPicker"> 返回选择 </UiButton>
       <UiButton @click="startAudition">
-        {{ !isAuditioning ? '试听' : '暂停' }}
+        {{ !isAuditioning ? "试听" : "暂停" }}
       </UiButton>
       <UiButton type="primary" @click="next"> 下一步 </UiButton>
     </div>
@@ -471,7 +617,8 @@ function next() {
   padding: 20px;
 }
 
-.speed-select {
+.speed-select,
+.time-input {
   padding: 6px 12px;
   font-size: 14px;
   border: 1px solid #c9ccd0;
@@ -482,7 +629,14 @@ function next() {
   outline: none;
 }
 
-.speed-select:focus {
+.time-input {
+  width: 72px;
+  font-family: monospace;
+  cursor: text;
+}
+
+.speed-select:focus,
+.time-input:focus {
   border-color: #00aeec;
   box-shadow: 0 0 0 2px rgba(0, 174, 236, 0.15);
 }
@@ -516,6 +670,7 @@ function next() {
 
 .deleted-segment {
   position: absolute;
+  top: 0;
   height: 100%;
   background: #ff4d4f; /* 删除部分显示红色 */
   opacity: 0.6;
@@ -527,7 +682,6 @@ function next() {
   width: 2px;
   height: 100%;
   background: #1890ff;
-  transform: translateX(-50%);
 }
 
 .sections-list {
@@ -544,6 +698,7 @@ function next() {
 
 .recording-segment {
   position: absolute;
+  top: 0;
   height: 100%;
   background: #722ed1; /* 使用紫色表示正在记录 */
   opacity: 0.6;
@@ -561,13 +716,14 @@ function next() {
   top: -30px; /* 调整提示框位置 */
   z-index: 1;
 }
-
 </style>
 
 <style>
-/* 深色模式：下拉框 */
+/* 深色模式：下拉框、时间输入 */
 body[arco-theme="dark"] .speed-select,
-body[data-theme="dark"] .speed-select {
+body[data-theme="dark"] .speed-select,
+body[arco-theme="dark"] .time-input,
+body[data-theme="dark"] .time-input {
   background: #2a2a2a;
   color: #e0e0e0;
   border-color: #555;

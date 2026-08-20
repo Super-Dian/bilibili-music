@@ -21,7 +21,12 @@ withDefaults(
 const emit = defineEmits(["select"]);
 const isVisible = ref(false);
 const menuRef = ref<HTMLDivElement | null>(null);
-const menuStyle = ref<{ right?: string | number; left?: string | number; top?: string; bottom?: string }>({});
+const menuStyle = ref<{
+  right?: string | number;
+  left?: string | number;
+  top?: string;
+  bottom?: string;
+}>({});
 
 // 全局状态：记录当前打开的下拉菜单实例，确保同时只有一个打开
 let currentOpenDropdown: { close: () => void } | null = null;
@@ -171,7 +176,6 @@ onBeforeUnmount(() => {
 .ui-dropdown-item-disabled:hover {
   background: transparent;
 }
-
 </style>
 
 <style>

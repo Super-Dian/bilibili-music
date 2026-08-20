@@ -28,13 +28,13 @@ defineEmits(["change"]);
       :key="index"
       :class="[
         'ui-steps-item',
-        (index + 1) < current && 'ui-steps-item-finish',
-        (index + 1) === current && 'ui-steps-item-active',
+        index + 1 < current && 'ui-steps-item-finish',
+        index + 1 === current && 'ui-steps-item-active',
       ]"
       @click="$emit('change', index)"
     >
       <div class="ui-steps-icon">
-        <span v-if="(index + 1) < current">✓</span>
+        <span v-if="index + 1 < current">✓</span>
         <span v-else>{{ index + 1 }}</span>
       </div>
       <div class="ui-steps-content">
@@ -144,7 +144,6 @@ defineEmits(["change"]);
 .ui-steps-item-finish .ui-steps-tail {
   background: #00aeec;
 }
-
 </style>
 
 <style>

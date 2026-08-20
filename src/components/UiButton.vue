@@ -160,7 +160,6 @@ defineEmits(["click"]);
     transform: rotate(360deg);
   }
 }
-
 </style>
 
 <style>

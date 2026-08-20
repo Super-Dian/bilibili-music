@@ -24,12 +24,7 @@ function handleChange(event: Event) {
 </script>
 
 <template>
-  <label
-    :class="[
-      'ui-checkbox',
-      disabled && 'ui-checkbox-disabled',
-    ]"
-  >
+  <label :class="['ui-checkbox', disabled && 'ui-checkbox-disabled']">
     <input
       type="checkbox"
       class="ui-checkbox-input"
@@ -39,7 +34,13 @@ function handleChange(event: Event) {
     />
     <span class="ui-checkbox-mark">
       <svg v-if="modelValue === true || modelValue === value" viewBox="0 0 12 12" fill="none">
-        <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path
+          d="M10 3L4.5 8.5L2 6"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
       </svg>
       <span v-else-if="indeterminate" class="ui-checkbox-indeterminate"></span>
     </span>
@@ -126,7 +127,6 @@ function handleChange(event: Event) {
   background: #c9ccd0;
   border-color: #c9ccd0;
 }
-
 </style>
 
 <style>

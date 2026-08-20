@@ -16,7 +16,11 @@ withDefaults(
     <label
       v-if="label"
       class="ui-form-item-label"
-      :style="labelWidth ? { width: typeof labelWidth === 'number' ? `${labelWidth}px` : labelWidth } : undefined"
+      :style="
+        labelWidth
+          ? { width: typeof labelWidth === 'number' ? `${labelWidth}px` : labelWidth }
+          : undefined
+      "
     >
       {{ label }}
     </label>
@@ -48,7 +52,6 @@ withDefaults(
   flex: 1;
   min-width: 0;
 }
-
 </style>
 
 <style>
