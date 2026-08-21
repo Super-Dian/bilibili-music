@@ -119,6 +119,30 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 - `formatLrc(ms)` converts milliseconds to `[MM:SS.mmm]` format.
 - LRC header: `[ti:...]`, `[ar:...]`, `[al:...]`, `[re:ocyss/wasm-music]`, `[url:...]`.
 
+### Clip Timeline（剪辑时间轴）
+
+- `src/steps/clip.vue` — 音频剪辑界面，支持区间删除、倍速、时间轴拖动
+- 性能优化：鼠标移动使用 `requestAnimationFrame` 节流，避免高频 `mousemove` 导致卡顿
+- 虚拟位置：`displayTime` ref 与 `video.currentTime` 解耦，由 `timeupdate` 事件驱动同步
+- tooltip 复用对象引用，仅更新变化属性，减少 Vue 响应式开销
+
+### TaskCenter（任务中心）
+
+- `src/taskCenter.ts` — 任务队列状态管理、调度、持久化，纯逻辑层不包含 DOM 操作
+- `src/components/TaskCenter.vue` — 任务中心 UI，作为独立 Vue 应用挂载到 `#bilibili-music-task-center`
+- 订阅机制：`subscribeTaskCenter(listener)` 监听状态变化，组件通过 `getTaskCenterState()` / `getTaskCenterRuntime()` 获取快照
+- `panelOpen` 为组件内局部 `ref`，外部（如 `clearFinishedDownloadTasks`）无法访问；调用清除时需在组件内同步重置
+
+### FloatingEntry（悬浮入口）
+
+- `src/components/FloatingEntry.vue` — 悬浮入口按钮，仅在 `/video/` 和 `/list/` 路径下显示
+- 作为独立 Vue 应用挂载到 `#bilibili-music-floating-entry`（`document.documentElement`）
+
+### 深色模式同步
+
+- `syncDarkMode()` 同时设置 `document.documentElement` 和 `document.body` 的 `arco-theme` 属性
+- 自定义组件的深色样式使用 `html[arco-theme="dark"]` 或 `html[data-theme="dark"]` 选择器（非 `body`）
+
 ### Key Files
 
 - `src/data.ts` — Centralized reactive state (fromData, userConfig)
@@ -242,11 +266,31 @@ dist/wasm-music.user.js  367.19 kB │ gzip: 81.80 kB
 - 状态管理：`isDragging`、`dragOffset`、`modalPosition`
 - 鼠标事件：`mousedown`、`mousemove`、`mouseup`
 
+#### 7. TaskCenter / FloatingEntry Vue 组件化
+
+- `initTaskCenterUI()` (DOM 操作) → `TaskCenter.vue` (Vue 组件)，独立挂载到 `#bilibili-music-task-center`
+- `initFloatingEntry()` (DOM 操作) → `FloatingEntry.vue` (Vue 组件)，独立挂载到 `#bilibili-music-floating-entry`
+- `taskCenter.ts` 新增 `getTaskCenterActions()` 导出，移除了旧的 DOM 渲染函数
+- 深色模式选择器统一使用 `html[arco-theme="dark"]` / `html[data-theme="dark"]`（非 `body`）
+- `syncDarkMode()` 同时设置 `document.documentElement` 和 `document.body` 的 `arco-theme`
+
+#### 8. 剪辑时间轴性能优化（clip.vue）
+
+- `requestAnimationFrame` 节流鼠标移动事件，减少高频渲染
+- 虚拟位置 `displayTime` 与 `video.currentTime` 解耦，由 `timeupdate` 驱动
+- tooltip 对象复用引用，仅更新变化属性
+
+#### 9. TaskCenter panelOpen 修复
+
+- `clearFinishedDownloadTasks` 在 `taskCenter.ts` 中无法访问组件内 `panelOpen` ref
+- 修复：清除按钮的 `@click` 同时执行 `panelOpen = false; clearFinishedDownloadTasks()`
+
 ### CSS 精简与维护约定
 
 - Tailwind CSS v4 通过 `@tailwindcss/vite` 接入，入口为 `src/style.css`；自定义 UI 组件主要使用 `.ui-*` 样式，不要重新引入已删除的通用 `.btn`/`.input` 工具类。
 - 多 BV 剧集选择界面的有效样式位于 `src/steps/picker.vue` 的 scoped `.picker-*` 规则；旧的 `.wasm-music-episode-*` 选择器已清理，不应恢复。
-- Arco 组件已由自定义组件替换；删除 Arco 选择器前必须先做全仓引用检查。`body[arco-theme="dark"]` 仍是宿主页面主题同步的兼容桥接，不应当作无效代码整体删除。
+- Arco 组件已由自定义组件替换；删除 Arco 选择器前必须先做全仓引用检查。`html[arco-theme="dark"]` 和 `body[arco-theme="dark"]` 仍是宿主页面主题同步的兼容桥接，不应当作无效代码整体删除。
+- TaskCenter 和 FloatingEntry 已从 `taskCenter.ts` 的 DOM 操作迁移到独立 Vue 组件；`taskCenter.ts` 仅保留状态管理和调度逻辑。
 - CSS 清理须保持单集/批量流程、侧栏导航、歌词工作台、Modal 拖动和深色模式行为；至少执行 `npm run build:tsc`、`npm test`（需要 Bun 运行时）、`npm run lint`、`npm run fmt:check` 并比较构建体积。
 - 当前 Code Review 已修复 `UiSteps` 零基导航契约和消息正文的 HTML 注入问题；后续维护应继续优先保证状态机和宿主页面安全。
 
