@@ -198,7 +198,7 @@ function closePanel() {
           v-if="!hasActive && !hasPending"
           class="wasm-music-task-btn"
           type="button"
-          @click="clearFinishedDownloadTasks"
+          @click="panelOpen = false; clearFinishedDownloadTasks()"
         >
           清除记录
         </button>
