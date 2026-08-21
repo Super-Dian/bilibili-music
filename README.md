@@ -46,7 +46,7 @@
 ## 🚀 安装使用
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 浏览器扩展
-2. 点击安装脚本：[GreasyFork](https://greasyfork.org/zh-CN/scripts/) 或 [GitHub](https://github.com/ocyss/bilibili-music)
+2. 点击安装脚本：[GreasyFork](https://greasyfork.org/zh-CN/scripts/) 或 [GitHub](https://github.com/Ocyss/wasm-music)
 3. 访问平台视频页面，点击播放器下方的下载按钮
 
 ## 🔧 技术栈
@@ -84,7 +84,7 @@
 
 ## 🔗 相关链接
 
-- [GitHub 仓库](https://github.com/ocyss/bilibili-music)
+- [GitHub 仓库](https://github.com/Ocyss/wasm-music)
 - [GreasyFork](https://greasyfork.org/zh-CN/scripts/)
 
 ## 🙏 致谢
@@ -98,10 +98,10 @@
 
 ## 📊 Star 趋势
 
-<a href="https://star-history.com/#ocyss/bilibili-music&Date">
+<a href="https://star-history.com/#Ocyss/wasm-music&Date">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=ocyss/bilibili-music&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=ocyss/bilibili-music&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=ocyss/bilibili-music&type=Date" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Ocyss/wasm-music&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Ocyss/wasm-music&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Ocyss/wasm-music&type=Date" />
  </picture>
 </a>

@@ -4,10 +4,11 @@ import { GM_getResourceURL, GM_registerMenuCommand, unsafeWindow } from "$";
 import { createApp } from "vue";
 
 import App from "@/App.vue";
+import FloatingEntry from "@/components/FloatingEntry.vue";
+import TaskCenter from "@/components/TaskCenter.vue";
 import { defaultData } from "@/data";
 import { configureEpisodeAppLauncher, openMusicApp } from "@/episode";
-import { initFloatingEntry } from "@/floatingEntry";
-import { initTaskCenterUI, updateTaskCenterRuntime } from "@/taskCenter";
+import { updateTaskCenterRuntime } from "@/taskCenter";
 import { drop } from "@/utils/drop";
 import { preflightFFmpegEnvironment } from "@/utils/ffmpeg";
 import { logger } from "@/utils/logger";
@@ -25,10 +26,12 @@ function detectDarkMode(): boolean {
   );
 }
 
-/** 同步深色模式到 body arco-theme */
+/** 同步深色模式到 body 和 html 的 arco-theme */
 function syncDarkMode() {
+  const theme = detectDarkMode() ? "dark" : "light";
+  document.documentElement.setAttribute("arco-theme", theme);
   if (document.body) {
-    document.body.setAttribute("arco-theme", detectDarkMode() ? "dark" : "light");
+    document.body.setAttribute("arco-theme", theme);
   }
 }
 
@@ -59,8 +62,20 @@ configureEpisodeAppLauncher(() => {
 
 const main = () => void openMusicApp();
 
-initFloatingEntry(main);
-initTaskCenterUI();
+// 挂载悬浮入口 Vue 组件
+const floatingEntryEl = document.createElement("div");
+floatingEntryEl.id = "bilibili-music-floating-entry";
+document.documentElement.appendChild(floatingEntryEl);
+const floatingEntryApp = createApp(FloatingEntry, { onOpen: main });
+floatingEntryApp.mount(floatingEntryEl);
+
+// 挂载任务中心 Vue 组件
+const taskCenterEl = document.createElement("div");
+taskCenterEl.id = "bilibili-music-task-center";
+(document.body || document.documentElement).appendChild(taskCenterEl);
+const taskCenterApp = createApp(TaskCenter);
+taskCenterApp.mount(taskCenterEl);
+
 const ffmpegPreflight = preflightFFmpegEnvironment();
 updateTaskCenterRuntime({
   ffmpegStatus: ffmpegPreflight.supported ? "ready" : "error",
