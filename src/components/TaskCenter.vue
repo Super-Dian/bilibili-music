@@ -530,7 +530,7 @@ function closePanel() {
 html[arco-theme="dark"] .wasm-music-task-panel,
 html[data-theme="dark"] .wasm-music-task-panel {
   color: #f1f2f3;
-  background: rgba(31, 31, 31, 0.98);
+  background: #2a2a2a;
   border-color: #444;
 }
 
