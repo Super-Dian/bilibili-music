@@ -929,7 +929,10 @@ async function fetchOnlineSearch(api: (typeof onlineLyricsApis)[number], word: s
             }))
         : [];
       const result = { songs: list, expiresAt: Date.now() + SEARCH_CACHE_TTL };
-      onlineSearchCache.set(key, result);
+      // 仅当搜索结果不为空时才写入缓存，避免空结果导致后续无法重新搜索
+      if (list.length > 0) {
+        onlineSearchCache.set(key, result);
+      }
       return result;
     })
     .finally(() => onlineSearchPending.delete(key));
@@ -957,7 +960,10 @@ async function fetchOnlineLyrics(api: (typeof onlineLyricsApis)[number], songId:
       if (typeof lrc !== "string" || !lrc) throw new Error("响应中未找到歌词");
       const yrc = typeof res?.data?.yrc === "string" ? res.data.yrc : "";
       logger.info("[lyrics] 歌词详情:", { lrcLength: lrc.length, yrcLength: yrc.length });
-      onlineLyricsCache.set(key, { lrc, yrc, expiresAt: Date.now() + DETAIL_CACHE_TTL });
+      // 仅当歌词内容不为空时才写入缓存，避免空结果导致后续无法重新搜索
+      if (lrc.length > 0) {
+        onlineLyricsCache.set(key, { lrc, yrc, expiresAt: Date.now() + DETAIL_CACHE_TTL });
+      }
       return { lrc, yrc };
     })
     .finally(() => onlineLyricsPending.delete(key));
@@ -1056,11 +1062,61 @@ function editLyrics(item: SubTitle) {
   searchOnlineLyrics();
   visible.value = true;
 }
+
+/**
+ * 打开歌词工作台（常驻按钮调用）
+ * @param item - 可选的字幕项，如果未提供则创建空字幕对象
+ */
+function openWorkshop(item?: SubTitle) {
+  if (item) {
+    // 有字幕：使用现有逻辑
+    editLyrics(item);
+  } else {
+    // 无字幕：创建空的 SubTitle 对象，允许用户使用在线歌词
+    const emptySubtitle: Subtitle2 = {
+      id: 0,
+      lan: "ai",
+      lan_doc: "AI 字幕",
+      is_lock: false,
+      subtitle_url: "",
+      type: 0,
+      id_str: "empty",
+      ai_type: 0,
+      ai_status: 0,
+      data: {
+        font_size: 0.5,
+        font_color: "#ffffff",
+        background_alpha: 0.5,
+        background_color: "#ffffff",
+        Stroke: "none",
+        type: "AI",
+        lang: "ai-zh",
+        version: "0",
+        body: [],
+        _editBody: "",
+        _lyricsBody: [],
+      },
+    };
+    editLyrics(emptySubtitle);
+  }
+}
 </script>
 
 <template>
   <UiSpin :loading="!fromData.playerData && !error">
     <form @submit.prevent>
+      <div class="lyrics-workshop-header" v-if="fromData.playerData">
+        <UiButton type="primary" @click="openWorkshop()">
+          <template #icon>
+            <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
+              <path
+                d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
+              />
+            </svg>
+          </template>
+          歌词工作台
+        </UiButton>
+      </div>
       <UiResult
         v-if="error"
         status="error"
@@ -1087,13 +1143,6 @@ function editLyrics(item: SubTitle) {
               <div class="lyrics-card-content">
                 <div class="lyrics-card-header">
                   <span class="lyrics-card-title">{{ item.lan_doc }}</span>
-                  <button class="lyrics-card-btn" @click.stop="editLyrics(item)">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="14" height="14">
-                      <path
-                        d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"
-                      />
-                    </svg>
-                  </button>
                 </div>
 
                 <div v-if="item.data" class="lyrics-card-preview">
@@ -1482,11 +1531,25 @@ function editLyrics(item: SubTitle) {
   padding: 12px;
 }
 
+.lyrics-workshop-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid #e3e5e7;
+  margin-bottom: 12px;
+}
+
 /* 深色模式 */
 body[arco-theme="dark"] .lyrics-card,
 body[data-theme="dark"] .lyrics-card {
   border-color: #444;
   background: #2a2a2a;
+}
+
+body[arco-theme="dark"] .lyrics-workshop-header,
+body[data-theme="dark"] .lyrics-workshop-header {
+  border-bottom-color: #444;
 }
 
 body[arco-theme="dark"] .lyrics-card:hover,
