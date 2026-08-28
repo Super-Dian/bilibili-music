@@ -158,6 +158,13 @@ onMounted(() => {
   handleTitleSelect(titleFormat);
   handleAuthorSelect(authorFormat);
   handleFileSelect(fileFormat);
+
+  // Vue 渲染时 v-model 会将旧值回写到 fromData.title，需要在 nextTick 重新应用
+  const savedTitle = fromData.title;
+  nextTick(() => {
+    fromData.title = savedTitle;
+  });
+
   applyBatchTitleOverride();
 });
 </script>
