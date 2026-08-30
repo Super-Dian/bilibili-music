@@ -1064,40 +1064,53 @@ function editLyrics(item: SubTitle) {
 }
 
 /**
+ * 创建空的 SubTitle 对象，允许用户使用在线歌词
+ */
+function createEmptySubtitle(): Subtitle2 {
+  return {
+    id: 0,
+    lan: "ai",
+    lan_doc: "AI 字幕",
+    is_lock: false,
+    subtitle_url: "",
+    type: 0,
+    id_str: "empty",
+    ai_type: 0,
+    ai_status: 0,
+    data: {
+      font_size: 0.5,
+      font_color: "#ffffff",
+      background_alpha: 0.5,
+      background_color: "#ffffff",
+      Stroke: "none",
+      type: "AI",
+      lang: "ai-zh",
+      version: "0",
+      body: [],
+      _editBody: "",
+      _lyricsBody: [],
+    },
+  };
+}
+
+/**
  * 打开歌词工作台（常驻按钮调用）
- * @param item - 可选的字幕项，如果未提供则创建空字幕对象
+ * @param item - 可选的字幕项，如果未提供则根据当前选中的字幕自动匹配，未选则为空
  */
 function openWorkshop(item?: SubTitle) {
   if (item) {
-    // 有字幕：使用现有逻辑
     editLyrics(item);
+  } else if (subtitle.value.length > 0) {
+    // 有选中的字幕：查找对应字幕项
+    const selected = subtitles.value.find((s) => s.id_str === subtitle.value[0]);
+    if (selected) {
+      editLyrics(selected);
+    } else {
+      editLyrics(createEmptySubtitle());
+    }
   } else {
-    // 无字幕：创建空的 SubTitle 对象，允许用户使用在线歌词
-    const emptySubtitle: Subtitle2 = {
-      id: 0,
-      lan: "ai",
-      lan_doc: "AI 字幕",
-      is_lock: false,
-      subtitle_url: "",
-      type: 0,
-      id_str: "empty",
-      ai_type: 0,
-      ai_status: 0,
-      data: {
-        font_size: 0.5,
-        font_color: "#ffffff",
-        background_alpha: 0.5,
-        background_color: "#ffffff",
-        Stroke: "none",
-        type: "AI",
-        lang: "ai-zh",
-        version: "0",
-        body: [],
-        _editBody: "",
-        _lyricsBody: [],
-      },
-    };
-    editLyrics(emptySubtitle);
+    // 未选中字幕或视频没有字幕：使用空字幕
+    editLyrics(createEmptySubtitle());
   }
 }
 </script>
