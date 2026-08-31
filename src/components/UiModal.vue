@@ -115,34 +115,72 @@ onUnmounted(() => {
 
 <template>
   <Teleport to="body">
-    <div v-if="visible" class="ui-modal-mask" @click="handleMaskClick" @keydown="handleKeydown">
-      <div
-        ref="modalRef"
-        class="ui-modal"
-        :class="{ 'ui-modal-fullscreen': fullscreen }"
-        :style="{ width: fullscreen ? '100%' : typeof width === 'number' ? `${width}px` : width }"
-        @click.stop
-      >
+    <Transition name="ui-modal" appear>
+      <div v-if="visible" class="ui-modal-mask" @click="handleMaskClick" @keydown="handleKeydown">
         <div
-          class="ui-modal-header"
-          @mousedown="handleHeaderMouseDown"
-          :style="{ cursor: fullscreen ? 'default' : 'move' }"
+          ref="modalRef"
+          class="ui-modal"
+          :class="{ 'ui-modal-fullscreen': fullscreen }"
+          :style="{ width: fullscreen ? '100%' : typeof width === 'number' ? `${width}px` : width }"
+          @click.stop
         >
-          <span class="ui-modal-title">{{ title }}</span>
-          <button class="ui-modal-close" @click="close">×</button>
-        </div>
-        <div class="ui-modal-body">
-          <slot />
-        </div>
-        <div v-if="$slots.footer" class="ui-modal-footer">
-          <slot name="footer" />
+          <div
+            class="ui-modal-header"
+            @mousedown="handleHeaderMouseDown"
+            :style="{ cursor: fullscreen ? 'default' : 'move' }"
+          >
+            <span class="ui-modal-title">{{ title }}</span>
+            <button class="ui-modal-close" @click="close">×</button>
+          </div>
+          <div class="ui-modal-body">
+            <slot />
+          </div>
+          <div v-if="$slots.footer" class="ui-modal-footer">
+            <slot name="footer" />
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 
 <style scoped>
+/* 模态框打开/关闭动画 */
+.ui-modal-enter-active {
+  transition: opacity 0.25s ease-out;
+}
+
+.ui-modal-enter-active .ui-modal {
+  transition:
+    transform 0.25s ease-out,
+    opacity 0.25s ease-out;
+}
+
+.ui-modal-leave-active {
+  transition: opacity 0.2s ease-in;
+}
+
+.ui-modal-leave-active .ui-modal {
+  transition:
+    transform 0.2s ease-in,
+    opacity 0.2s ease-in;
+}
+
+.ui-modal-enter-from,
+.ui-modal-leave-to {
+  opacity: 0;
+}
+
+.ui-modal-enter-from .ui-modal {
+  opacity: 0;
+  transform: translateY(-20px) scale(0.95);
+}
+
+.ui-modal-leave-to .ui-modal {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
 .ui-modal-mask {
   position: fixed;
   inset: 0;

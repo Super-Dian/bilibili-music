@@ -127,7 +127,8 @@ function closePanel() {
     </button>
 
     <!-- 任务面板 -->
-    <section v-if="panelOpen" class="wasm-music-task-panel" data-testid="wasm-music-task-panel">
+    <Transition name="wasm-music-task-panel">
+      <section v-if="panelOpen" class="wasm-music-task-panel" data-testid="wasm-music-task-panel">
       <!-- 头部 -->
       <header class="wasm-music-task-header">
         <div>
@@ -230,6 +231,7 @@ function closePanel() {
         </article>
       </div>
     </section>
+    </Transition>
   </div>
 </template>
 
@@ -507,6 +509,31 @@ function closePanel() {
 
 .wasm-music-task-row.is-success .wasm-music-task-progress span {
   background: #12b76a;
+}
+
+/* 面板打开/关闭动画 */
+.wasm-music-task-panel-enter-active {
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.2s ease-out;
+}
+
+.wasm-music-task-panel-leave-active {
+  transition:
+    opacity 0.15s ease-in,
+    transform 0.15s ease-in;
+}
+
+.wasm-music-task-panel-enter-from,
+.wasm-music-task-panel-leave-to {
+  opacity: 0;
+  transform: translateY(8px) scale(0.96);
+}
+
+.wasm-music-task-panel-enter-to,
+.wasm-music-task-panel-leave-from {
+  opacity: 1;
+  transform: translateY(0) scale(1);
 }
 
 @media (max-width: 640px) {
