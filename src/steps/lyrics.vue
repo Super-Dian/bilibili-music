@@ -220,6 +220,11 @@ onMounted(() => {
 
 const visible = ref(false);
 
+// 歌词工作台全屏弹窗打开时，隐藏悬浮按钮防止遮挡
+watch(visible, (v) => {
+  document.documentElement.classList.toggle("hide-floating-buttons", v);
+});
+
 const editLyricsData = ref<SubTitle | null>(null);
 
 type LyricsMode = "ai" | "ai-corrected" | "online";
@@ -1732,5 +1737,11 @@ body[arco-theme="dark"] .diff-added {
 body[arco-theme="dark"] .diff-removed {
   background-color: #3a1a1a;
   color: #ff6b6b;
+}
+
+/* 歌词工作台全屏弹窗打开时，隐藏悬浮按钮防止遮挡 */
+html.hide-floating-buttons .wasm-music-floating-entry,
+html.hide-floating-buttons .wasm-music-task-center {
+  display: none !important;
 }
 </style>
