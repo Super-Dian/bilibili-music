@@ -175,10 +175,20 @@ async function readAsset(
     );
     if (cache) {
       const cachedBytes = bytes.slice(0);
-      void cache
-        .put(cacheKey, new Response(cachedBytes, downloaded.responseInit))
-        .then(() => logger.info(`[FFmpeg] 缓存写入成功: ${fileName}`))
-        .catch((error) => logger.warn("写入 FFmpeg 缓存失败", error));
+      try {
+        // 只保留必要的 status 和 Content-Type header，避免 Vary 等 headers 影响缓存匹配
+        await cache.put(
+          cacheKey,
+          new Response(cachedBytes, {
+            status: 200,
+            statusText: "OK",
+            headers: { "Content-Type": mimeType },
+          }),
+        );
+        logger.info(`[FFmpeg] 缓存写入成功: ${fileName}`);
+      } catch (error) {
+        logger.warn("写入 FFmpeg 缓存失败", error);
+      }
     }
   } else {
     if (signal?.aborted) throw createAbortError();
