@@ -319,6 +319,7 @@ async function main() {
       signal: controller.signal,
     });
     let audioUrl: string | undefined;
+    let inputIsFlac = false;
     const dash = res?.data?.dash;
     if (!dash) {
       throw new Error("playurl 未返回可用音轨");
@@ -326,15 +327,18 @@ async function main() {
     /* 优先无损，其次杜比，最后选择普通音轨中码率最高的一条。 */
     if (dash.flac?.audio) {
       audioUrl = dash.flac.audio.base_url || dash.flac.audio.baseUrl;
+      inputIsFlac = true;
     }
     if (!audioUrl && Array.isArray(dash.dolby?.audio) && dash.dolby.audio.length > 0) {
       audioUrl = dash.dolby.audio[0].base_url || dash.dolby.audio[0].baseUrl;
+      inputIsFlac = false;
     }
     if (!audioUrl && Array.isArray(dash.audio) && dash.audio.length > 0) {
       const bestAudio = dash.audio.reduce((prev: any, current: any) =>
         prev.bandwidth > current.bandwidth ? prev : current,
       );
       audioUrl = bestAudio.base_url || bestAudio.baseUrl;
+      inputIsFlac = false;
     }
     if (!audioUrl) {
       throw new Error("playurl 音轨缺少下载地址");
@@ -417,7 +421,9 @@ async function main() {
       lastStreamLabel = speedLabel;
     }
     // 根据格式和是否需要滤镜选择编解码器
-    const needReencode = fromData.speed !== 1 || filterChains.length > 0 || !formatConfig.copyCodec;
+    // 如果输入是 FLAC 但输出不是 FLAC（如 M4A），需要重编码为 AAC
+    const needReencode =
+      fromData.speed !== 1 || filterChains.length > 0 || !formatConfig.copyCodec || (inputIsFlac && fromData.outputFormat !== "flac");
     if (needReencode) {
       if (formatConfig.codec === "aac") {
         processArgs.push("-c:a", "aac", "-q:a", "2");
