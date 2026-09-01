@@ -1,10 +1,71 @@
-import { GM_getValue, GM_setValue } from "$";
+import { unsafeWindow } from "$";
 
 import { clone } from "@/utils/deepmerge";
 import { logger } from "@/utils/logger";
 
-const STORAGE_KEY = "wasm_music_download_tasks_v1";
 const SCHEMA_VERSION = 1;
+
+// 为每个标签页生成唯一标识
+// 使用 sessionStorage 持久化，确保刷新后保持不变
+// 关闭标签页时，浏览器会自动清除 sessionStorage
+const TAB_ID = (() => {
+  const STORAGE_KEY_TAB_ID = "wasm_music_tab_id";
+
+  // 获取页面的 sessionStorage（Tampermonkey 沙箱环境需要使用 unsafeWindow）
+  const getPageSessionStorage = (): Storage | null => {
+    try {
+      if (typeof unsafeWindow !== "undefined" && unsafeWindow.sessionStorage) {
+        return unsafeWindow.sessionStorage;
+      }
+    } catch {
+      // unsafeWindow 不可用
+    }
+    try {
+      if (typeof sessionStorage !== "undefined") {
+        return sessionStorage;
+      }
+    } catch {
+      // sessionStorage 不可用
+    }
+    return null;
+  };
+
+  const pageSessionStorage = getPageSessionStorage();
+
+  // 尝试从 sessionStorage 恢复
+  try {
+    if (pageSessionStorage) {
+      const existing = pageSessionStorage.getItem(STORAGE_KEY_TAB_ID);
+      if (existing) {
+        return existing;
+      }
+    }
+  } catch {
+    // 读取失败，忽略
+  }
+
+  // 生成新的 ID
+  let newId: string;
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    newId = crypto.randomUUID();
+  } else {
+    newId = `tab-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+
+  // 存储到 sessionStorage
+  try {
+    if (pageSessionStorage) {
+      pageSessionStorage.setItem(STORAGE_KEY_TAB_ID, newId);
+    }
+  } catch {
+    // 写入失败，忽略
+  }
+
+  return newId;
+})();
+
+// 每个标签页的任务存储在独立的 sessionStorage key 中
+const STORAGE_KEY = `wasm_music_download_tasks_${TAB_ID}`;
 
 export type DownloadTaskStatus =
   | "queued"
@@ -102,6 +163,25 @@ function formatError(reason: unknown) {
   }
 }
 
+// 获取 sessionStorage 的辅助函数
+const getSessionStorage = (): Storage | null => {
+  try {
+    if (typeof unsafeWindow !== "undefined" && unsafeWindow.sessionStorage) {
+      return unsafeWindow.sessionStorage;
+    }
+  } catch {
+    // unsafeWindow 不可用
+  }
+  try {
+    if (typeof sessionStorage !== "undefined") {
+      return sessionStorage;
+    }
+  } catch {
+    // sessionStorage 不可用
+  }
+  return null;
+};
+
 function normalizeStoredState(value: unknown): DownloadTaskState {
   if (!value || typeof value !== "object") {
     return emptyState();
@@ -112,6 +192,8 @@ function normalizeStoredState(value: unknown): DownloadTaskState {
   }
   const now = Date.now();
   let interrupted = false;
+
+  // 不过滤任务，直接使用（因为每个标签页有独立的 storage key）
   const tasks = raw.tasks
     .filter((task): task is DownloadTaskItem => Boolean(task?.id && task?.bvid))
     .map((task) => {
@@ -124,6 +206,7 @@ function normalizeStoredState(value: unknown): DownloadTaskState {
         progress: normalizeProgress(task.progress),
       };
     });
+
   return {
     schemaVersion: SCHEMA_VERSION,
     batchId: raw.batchId || null,
@@ -141,7 +224,22 @@ function normalizeStoredState(value: unknown): DownloadTaskState {
   };
 }
 
-let state = normalizeStoredState(GM_getValue<DownloadTaskState | null>(STORAGE_KEY, null));
+// 从 sessionStorage 读取初始状态
+let state = normalizeStoredState(
+  (() => {
+    try {
+      const storage = getSessionStorage();
+      if (storage) {
+        const raw = storage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+      }
+    } catch {
+      // 读取失败，忽略
+    }
+    return null;
+  })(),
+);
+
 let runtime: TaskCenterRuntime = {
   ffmpegStatus: "idle",
   ffmpegMessage: "尚未检查 FFmpeg 运行环境",
@@ -165,7 +263,10 @@ function persist(immediate = false) {
   const write = () => {
     persistTimer = null;
     try {
-      GM_setValue(STORAGE_KEY, clone(state));
+      const storage = getSessionStorage();
+      if (storage) {
+        storage.setItem(STORAGE_KEY, JSON.stringify(clone(state)));
+      }
     } catch (error) {
       logger.warn("保存下载任务状态失败", error);
     }

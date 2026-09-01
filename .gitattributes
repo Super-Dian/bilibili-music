@@ -1,0 +1,24 @@
+# 设置默认行为，在 commit 时转换为 LF，在 checkout 时转换为 CRLF
+* text=auto
+
+# 明确指定文本文件使用 LF
+*.ts text eol=lf
+*.vue text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.toml text eol=lf
+*.rs text eol=lf
+
+# 二进制文件不转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.wasm binary
+*.zip binary

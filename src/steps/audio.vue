@@ -423,7 +423,10 @@ async function main() {
     // 根据格式和是否需要滤镜选择编解码器
     // 如果输入是 FLAC 但输出不是 FLAC（如 M4A），需要重编码为 AAC
     const needReencode =
-      fromData.speed !== 1 || filterChains.length > 0 || !formatConfig.copyCodec || (inputIsFlac && fromData.outputFormat !== "flac");
+      fromData.speed !== 1 ||
+      filterChains.length > 0 ||
+      !formatConfig.copyCodec ||
+      (inputIsFlac && fromData.outputFormat !== "flac");
     if (needReencode) {
       if (formatConfig.codec === "aac") {
         processArgs.push("-c:a", "aac", "-q:a", "2");

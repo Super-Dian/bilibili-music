@@ -133,6 +133,16 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 - 订阅机制：`subscribeTaskCenter(listener)` 监听状态变化，组件通过 `getTaskCenterState()` / `getTaskCenterRuntime()` 获取快照
 - `panelOpen` 为组件内局部 `ref`，外部（如 `clearFinishedDownloadTasks`）无法访问；调用清除时需在组件内同步重置
 
+**跨标签页隔离（sessionStorage 方案）**：
+
+- 每个标签页有独立的 `TAB_ID`，通过 `unsafeWindow.sessionStorage` 持久化，刷新后保持不变
+- 任务存储在 `sessionStorage["wasm_music_download_tasks_${TAB_ID}"]` 中，每个标签页独立存储
+- **刷新保留**：`sessionStorage` 自动保留，任务不会丢失
+- **关闭清除**：浏览器自动清除 `sessionStorage`，无需手动清理逻辑
+- **标签页隔离**：不同标签页的 `sessionStorage` 互不可见，天然隔离
+- **无需清理逻辑**：移除了 `beforeunload`/`unload`/`visibilitychange` 事件监听，避免刷新时误清理
+- `DownloadTaskState` 接口不再需要 `tabId` 字段，因为每个标签页有独立的 storage key
+
 ### FloatingEntry（悬浮入口）
 
 - `src/components/FloatingEntry.vue` — 悬浮入口按钮，仅在 `/video/` 和 `/list/` 路径下显示
@@ -160,24 +170,24 @@ Vue APIs (`ref`, `computed`, `watch`, etc.) are auto-imported via `unplugin-auto
 
 ### 组件列表
 
-| 组件               | 用途             | 功能特性                           |
-| ------------------ | ---------------- | ---------------------------------- |
-| `UiButton`         | 通用按钮         | primary/secondary/outline/text 类型 |
-| `UiInput`          | 输入框           | 支持 v-model                       |
-| `UiTextarea`       | 文本域           | 支持 v-model                       |
-| `UiCheckbox`       | 复选框           | 支持 v-model                       |
-| `UiSpace`          | 间距容器         | flex 布局                          |
-| `UiFormItem`       | 表单项           | 表单布局                           |
-| `UiButtonGroup`    | 按钮组           | 按钮组合                           |
-| `UiInputGroup`     | 输入框组         | 输入框组合                         |
-| `UiSpin`           | 加载动画         | 加载状态                           |
-| `UiAlert`          | 提示框           | 信息提示                           |
-| `UiResult`         | 结果展示         | 操作结果                           |
-| `UiSelect`         | 下拉选择         | 下拉选择                           |
-| `UiTabs`           | 标签页           | 标签切换                           |
-| `UiSteps`          | 步骤条           | 步骤导航                           |
-| `UiDropdown`       | 下拉菜单         | 下拉菜单                           |
-| `UiModal`          | 模态框           | 支持拖动功能                       |
+| 组件            | 用途     | 功能特性                            |
+| --------------- | -------- | ----------------------------------- |
+| `UiButton`      | 通用按钮 | primary/secondary/outline/text 类型 |
+| `UiInput`       | 输入框   | 支持 v-model                        |
+| `UiTextarea`    | 文本域   | 支持 v-model                        |
+| `UiCheckbox`    | 复选框   | 支持 v-model                        |
+| `UiSpace`       | 间距容器 | flex 布局                           |
+| `UiFormItem`    | 表单项   | 表单布局                            |
+| `UiButtonGroup` | 按钮组   | 按钮组合                            |
+| `UiInputGroup`  | 输入框组 | 输入框组合                          |
+| `UiSpin`        | 加载动画 | 加载状态                            |
+| `UiAlert`       | 提示框   | 信息提示                            |
+| `UiResult`      | 结果展示 | 操作结果                            |
+| `UiSelect`      | 下拉选择 | 下拉选择                            |
+| `UiTabs`        | 标签页   | 标签切换                            |
+| `UiSteps`       | 步骤条   | 步骤导航                            |
+| `UiDropdown`    | 下拉菜单 | 下拉菜单                            |
+| `UiModal`       | 模态框   | 支持拖动功能                        |
 
 ### 深色模式支持
 

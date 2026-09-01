@@ -129,108 +129,111 @@ function closePanel() {
     <!-- 任务面板 -->
     <Transition name="wasm-music-task-panel">
       <section v-if="panelOpen" class="wasm-music-task-panel" data-testid="wasm-music-task-panel">
-      <!-- 头部 -->
-      <header class="wasm-music-task-header">
-        <div>
-          <strong>{{ state.title }}</strong>
-          <small
-            >成功 {{ successCount }} · 失败 {{ failedCount }} · 共 {{ state.tasks.length }}</small
+        <!-- 头部 -->
+        <header class="wasm-music-task-header">
+          <div>
+            <strong>{{ state.title }}</strong>
+            <small
+              >成功 {{ successCount }} · 失败 {{ failedCount }} · 共 {{ state.tasks.length }}</small
+            >
+          </div>
+          <button
+            class="wasm-music-task-close"
+            type="button"
+            aria-label="收起任务中心"
+            @click="closePanel"
           >
+            ×
+          </button>
+        </header>
+
+        <!-- 总进度条 -->
+        <div class="wasm-music-task-overall">
+          <span :style="{ width: `${overallProgress}%` }"></span>
         </div>
-        <button
-          class="wasm-music-task-close"
-          type="button"
-          aria-label="收起任务中心"
-          @click="closePanel"
-        >
-          ×
-        </button>
-      </header>
 
-      <!-- 总进度条 -->
-      <div class="wasm-music-task-overall">
-        <span :style="{ width: `${overallProgress}%` }"></span>
-      </div>
+        <!-- FFmpeg 状态 -->
+        <div class="wasm-music-task-diagnostics" :class="`is-${runtime.ffmpegStatus}`">
+          FFmpeg：{{ runtime.ffmpegMessage }}
+        </div>
 
-      <!-- FFmpeg 状态 -->
-      <div class="wasm-music-task-diagnostics" :class="`is-${runtime.ffmpegStatus}`">
-        FFmpeg：{{ runtime.ffmpegMessage }}
-      </div>
+        <!-- 控制按钮 -->
+        <div class="wasm-music-task-controls">
+          <button
+            v-if="hasPending && !state.paused"
+            class="wasm-music-task-btn"
+            data-testid="wasm-music-task-pause"
+            type="button"
+            @click="handlePause"
+          >
+            当前项完成后暂停
+          </button>
+          <button
+            v-if="state.paused && hasPending"
+            class="wasm-music-task-btn is-primary"
+            data-testid="wasm-music-task-resume"
+            type="button"
+            @click="handleResume"
+          >
+            继续队列
+          </button>
+          <button
+            v-if="!hasActive && !hasPending && hasFailed"
+            class="wasm-music-task-btn is-primary"
+            data-testid="wasm-music-task-retry"
+            type="button"
+            @click="handleRetry"
+          >
+            重试失败项
+          </button>
+          <button
+            v-if="hasActive || hasPending"
+            class="wasm-music-task-btn is-danger"
+            data-testid="wasm-music-task-cancel"
+            type="button"
+            @click="handleCancel"
+          >
+            取消任务
+          </button>
+          <button
+            v-if="!hasActive && !hasPending"
+            class="wasm-music-task-btn"
+            type="button"
+            @click="
+              panelOpen = false;
+              clearFinishedDownloadTasks();
+            "
+          >
+            清除记录
+          </button>
+        </div>
 
-      <!-- 控制按钮 -->
-      <div class="wasm-music-task-controls">
-        <button
-          v-if="hasPending && !state.paused"
-          class="wasm-music-task-btn"
-          data-testid="wasm-music-task-pause"
-          type="button"
-          @click="handlePause"
-        >
-          当前项完成后暂停
-        </button>
-        <button
-          v-if="state.paused && hasPending"
-          class="wasm-music-task-btn is-primary"
-          data-testid="wasm-music-task-resume"
-          type="button"
-          @click="handleResume"
-        >
-          继续队列
-        </button>
-        <button
-          v-if="!hasActive && !hasPending && hasFailed"
-          class="wasm-music-task-btn is-primary"
-          data-testid="wasm-music-task-retry"
-          type="button"
-          @click="handleRetry"
-        >
-          重试失败项
-        </button>
-        <button
-          v-if="hasActive || hasPending"
-          class="wasm-music-task-btn is-danger"
-          data-testid="wasm-music-task-cancel"
-          type="button"
-          @click="handleCancel"
-        >
-          取消任务
-        </button>
-        <button
-          v-if="!hasActive && !hasPending"
-          class="wasm-music-task-btn"
-          type="button"
-          @click="panelOpen = false; clearFinishedDownloadTasks()"
-        >
-          清除记录
-        </button>
-      </div>
-
-      <!-- 任务列表 -->
-      <div class="wasm-music-task-list">
-        <article
-          v-for="(task, index) in state.tasks"
-          :key="task.id"
-          class="wasm-music-task-row"
-          :class="`is-${task.status}`"
-          :data-task-id="task.id"
-        >
-          <div class="wasm-music-task-row-top">
-            <span class="wasm-music-task-label" :title="`${task.bvid} · P${task.page}`">
-              {{ index + 1 }}. {{ task.label }}
-            </span>
-            <span class="wasm-music-task-status">
-              {{ statusLabel(task.status) }}
-            </span>
-          </div>
-          <div class="wasm-music-task-stage">
-            {{ task.error || task.stage }}
-          </div>
-          <div class="wasm-music-task-progress">
-            <span :style="{ width: `${task.progress ?? 0}%` }"></span>
-          </div>
-        </article>
-      </div>
-    </section>
+        <!-- 任务列表 -->
+        <div class="wasm-music-task-list">
+          <article
+            v-for="(task, index) in state.tasks"
+            :key="task.id"
+            class="wasm-music-task-row"
+            :class="`is-${task.status}`"
+            :data-task-id="task.id"
+          >
+            <div class="wasm-music-task-row-top">
+              <span class="wasm-music-task-label" :title="`${task.bvid} · P${task.page}`">
+                {{ index + 1 }}. {{ task.label }}
+              </span>
+              <span class="wasm-music-task-status">
+                {{ statusLabel(task.status) }}
+              </span>
+            </div>
+            <div class="wasm-music-task-stage">
+              {{ task.error || task.stage }}
+            </div>
+            <div class="wasm-music-task-progress">
+              <span :style="{ width: `${task.progress ?? 0}%` }"></span>
+            </div>
+          </article>
+        </div>
+      </section>
     </Transition>
   </div>
 </template>
