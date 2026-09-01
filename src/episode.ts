@@ -887,9 +887,15 @@ function startStoredDownloadTasks(
     const episode = clone(task.payload) as unknown as EpisodeVideoData;
     episode._wasmMusicTaskId = task.id;
     episode._wasmMusicHydrated = true;
-    episode._wasmMusicCurrent = false;
-    episode._wasmMusicSkipMontage = true;
-    episode._wasmMusicSkipDomMetadata = true;
+    // 恢复原始的 _wasmMusicCurrent 值，而不是强制设置为 false
+    // 从 payload 中读取原始的 _wasmMusicCurrent 值
+    const originalCurrent = (task.payload as Record<string, unknown>)._wasmMusicCurrent as
+      | boolean
+      | undefined;
+    episode._wasmMusicCurrent = originalCurrent ?? false;
+    // 根据是否是当前视频来决定是否跳过剪辑步骤
+    episode._wasmMusicSkipMontage = !episode._wasmMusicCurrent;
+    episode._wasmMusicSkipDomMetadata = !episode._wasmMusicCurrent;
     return episode;
   });
   prepareDownloadTaskRetry(tasks.map((task) => task.id));

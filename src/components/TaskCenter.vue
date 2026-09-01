@@ -242,7 +242,7 @@ function closePanel() {
 .wasm-music-task-center {
   position: fixed;
   right: 18px;
-  bottom: 78px;
+  bottom: 80px;
   z-index: 10070;
 }
 
@@ -303,7 +303,7 @@ function closePanel() {
 .wasm-music-task-panel {
   position: fixed;
   right: 76px;
-  bottom: 20px;
+  bottom: 80px;
   z-index: 10080;
   display: flex;
   flex-direction: column;

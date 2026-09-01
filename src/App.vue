@@ -256,7 +256,8 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
       handleOk();
     }, 100);
   } else if (activeEpisode?._wasmMusicSkipMontage) {
-    current.value = 2;
+    // 不是当前视频时，跳过剪辑步骤，从info步骤开始
+    current.value = hasPickerStep.value ? 2 : 1;
     Message.info("所选视频不是当前正在播放的视频，已跳过音频剪辑步骤");
   }
   preparing.value = false;
