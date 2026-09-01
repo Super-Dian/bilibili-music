@@ -136,7 +136,7 @@ function findAudioSourceWebpage(buffer: Uint8Array): string | null {
       }
     }
 
-    logger.debug("bilibili_drop", frameId, frameSize);
+    // 拖拽日志已禁用
     pos += frameSize;
   }
 

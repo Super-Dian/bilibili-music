@@ -92,7 +92,7 @@ elmGetter.each(".tag-panel .tag .bgm-tag", (elm) => {
     event.preventDefault();
     main();
   };
-  logger.info({ msg: "音乐姬注入成功!", elm, download });
+  logger.info("[初始化] 音乐姬注入成功");
 
   elm.appendChild(download);
   return true;
@@ -104,7 +104,7 @@ const initFileOpen = () => {
   }
 
   const file = document.createElement("div");
-  logger.debug("开始初始化 File 拖选框", file);
+  // File 拖选框初始化日志已禁用
   file.id = "bilibili-music-file";
   file.style.cssText = `
     position: fixed;

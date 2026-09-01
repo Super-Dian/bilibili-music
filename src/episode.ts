@@ -616,20 +616,12 @@ function cleanupMountedApp() {
 }
 
 export function launchNextEpisode() {
-  logger.info("[Episode] launchNextEpisode 开始", {
-    paused: episodeSession.paused,
-    queueLength: episodeSession.queue.length,
-    isBatch: episodeSession.isBatch,
-    auto: episodeSession.auto,
-  });
-
   if (episodeSession.paused) {
     setDownloadTaskBatchPaused(true);
     return;
   }
   const nextVideoData = episodeSession.queue.shift();
   if (!nextVideoData) {
-    logger.info("[Episode] 队列为空，没有下一个剧集");
     return;
   }
   if (!appLauncher) {
@@ -642,22 +634,9 @@ export function launchNextEpisode() {
     nextVideoData._wasmMusicTaskId,
     episodeSession.auto ? "正在应用预设" : "等待用户确认设置",
   );
-  logger.info("[Episode] activeVideoData 已设置", {
-    bvid: nextVideoData.bvid,
-    page: nextVideoData.page,
-    taskId: nextVideoData._wasmMusicTaskId,
-  });
-
-  logger.info("[Episode] 准备启动下一个剧集", {
-    bvid: nextVideoData.bvid,
-    page: nextVideoData.page,
-    hasApp: Boolean(episodeSession.app),
-    hasRoot: Boolean(episodeSession.root),
-    hasTransitionHandler: Boolean(appTransitionHandler),
-  });
+  logger.info(`[任务] 开始处理: ${nextVideoData.part || nextVideoData.title || nextVideoData.bvid}`);
 
   if (episodeSession.app && episodeSession.root && appTransitionHandler) {
-    logger.info("[Episode] 尝试使用现有窗口切换分集");
     try {
       void Promise.resolve(appTransitionHandler(nextVideoData)).catch((error) => {
         logger.error("在现有下载窗口中切换分集失败", error);
@@ -672,8 +651,6 @@ export function launchNextEpisode() {
     }
   }
 
-  // 首项需要创建窗口；只有窗口异常丢失或未注册切换处理器时才回退重建。
-  logger.info("[Episode] 创建新窗口");
   cleanupMountedApp();
   try {
     const { app, root } = appLauncher();
@@ -693,20 +670,8 @@ function finishEpisodeItem(
   outputName?: string,
 ) {
   const activeVideoData = episodeSession.activeVideoData;
-  logger.info("[Episode] finishEpisodeItem 调用", {
-    status,
-    isBatch: episodeSession.isBatch,
-    hasActiveVideoData: Boolean(activeVideoData),
-    settling: episodeSession.settling,
-    queueLength: episodeSession.queue.length,
-  });
 
   if (!episodeSession.isBatch || !activeVideoData || episodeSession.settling) {
-    logger.warn("[Episode] finishEpisodeItem 跳过", {
-      isBatch: episodeSession.isBatch,
-      hasActiveVideoData: Boolean(activeVideoData),
-      settling: episodeSession.settling,
-    });
     return false;
   }
 
@@ -741,10 +706,6 @@ function finishEpisodeItem(
 
   episodeSession.advanceTimer = setTimeout(() => {
     episodeSession.advanceTimer = null;
-    logger.info("[Episode] advanceTimer 触发", {
-      queueLength: episodeSession.queue.length,
-      paused: episodeSession.paused,
-    });
     if (episodeSession.queue.length > 0) {
       if (episodeSession.paused) {
         episodeSession.activeVideoData = null;
@@ -752,7 +713,6 @@ function finishEpisodeItem(
         Message.info("下载队列已暂停，可从任务中心继续");
         return;
       }
-      logger.info("[Episode] 继续下一个剧集");
       launchNextEpisode();
       return;
     }
@@ -761,7 +721,6 @@ function finishEpisodeItem(
     const succeeded = episodeSession.succeeded;
     const failed = episodeSession.failed;
     const results = clone(episodeSession.results);
-    logger.info("批量下载任务结束", { total, succeeded, failed, results });
     episodeSession.activeVideoData = null;
     episodeSession.isBatch = false;
     episodeSession.auto = false;
@@ -776,6 +735,7 @@ function finishEpisodeItem(
     episodeSession.paused = false;
     cleanupMountedApp();
     const summary = `批量下载任务已完成：成功 ${succeeded}，失败 ${failed}，共 ${total} 项`;
+    logger.info(`[任务] ${summary}`);
     if (failed > 0) {
       Message.warning(summary);
     } else {
@@ -786,11 +746,6 @@ function finishEpisodeItem(
 }
 
 export function finishEpisodeDownload(outputName?: string) {
-  logger.info("[Episode] finishEpisodeDownload 调用", {
-    isBatch: episodeSession.isBatch,
-    hasActiveVideoData: Boolean(episodeSession.activeVideoData),
-    activeVideoDataId: episodeSession.activeVideoData?._wasmMusicTaskId,
-  });
   if (!episodeSession.isBatch) {
     return completeDownloadTask(episodeSession.activeVideoData?._wasmMusicTaskId, outputName);
   }
@@ -1006,19 +961,16 @@ export async function openMusicApp() {
   episodeSession.opening = true;
   try {
     const { episodes, currentIndex, pickerMeta } = await loadEpisodeData();
-    // 存储剧集数据到 session，供 App.vue 中的 picker 步骤使用
     episodeSession.allEpisodes = episodes;
     episodeSession.currentEpisodeIndex = currentIndex;
     episodeSession.pickerMeta = pickerMeta;
     episodeSession.hasMultiplePages = episodes.length > 1;
 
     if (episodes.length <= 1) {
-      // 单集：直接处理，无需 picker
       const selection = { indexes: [0], useDefault: false, manualEach: false, titleOverrides: {} };
       await processEpisodeSelection(episodes, pickerMeta, selection);
       launchNextEpisode();
     } else {
-      // 多集：直接挂载 App.vue，由 picker 步骤处理
       cleanupMountedApp();
       const { app, root } = appLauncher!();
       episodeSession.root = root;

@@ -271,7 +271,7 @@ export function correctLyrics(
     result.push([Math.round(aiBody[lineIdx].from * 1000), currentLine]);
   }
 
-  logger.info("[lyricsCorrector] 修改 " + diffCount + " 个字符");
+  // 歌词修正日志已禁用
 
   return { lyrics: result, diffCount };
 }

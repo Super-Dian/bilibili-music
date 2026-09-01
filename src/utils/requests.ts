@@ -66,7 +66,7 @@ export function request<TContext, TResponseType extends ResponseType = "json">({
           abort();
           return;
         }
-        logger.debug("music-log/requests", { url, data, method, headers, ck });
+        // 请求日志已禁用
         const xhr = GM_xmlhttpRequest<TContext, TResponseType>({
           method,
           url,

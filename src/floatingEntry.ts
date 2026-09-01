@@ -40,7 +40,7 @@ export function initFloatingEntry(onOpen: () => void) {
       onOpen();
     });
     document.documentElement.appendChild(button);
-    logger.debug("永久悬浮入口已挂载", location.href);
+    // 悬浮入口挂载日志已禁用
   };
 
   ensureEntry();

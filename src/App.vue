@@ -70,13 +70,6 @@ function applyProcessingRule(rule: RecordData) {
 
 const handleOk = () => {
   const defaultRule = getActiveDefaultRule();
-  logger.info("[App] handleOk 调用", {
-    hasDefaultRule: Boolean(defaultRule),
-    isBatch: episodeSession.isBatch,
-    hasActiveVideoData: Boolean(episodeSession.activeVideoData),
-  });
-  logger.info("默认规则:", { hasRule: Boolean(defaultRule) });
-  //return false;
   if (!defaultRule) {
     Message.error("未找到默认规则");
     return false;
@@ -84,8 +77,6 @@ const handleOk = () => {
   applyProcessingRule(defaultRule);
   fromData.usedefaultconfig = true;
   onNext();
-  // visible.value = false;
-  //return false;
 };
 
 const handleCancel = () => {
@@ -116,11 +107,6 @@ function onPrev() {
 }
 
 function onNext() {
-  logger.info("[App] onNext 调用", {
-    current: current.value,
-    stepsLength: steps.value.length,
-    nextValue: Math.min(steps.value.length - 1, current.value + 1),
-  });
   current.value = Math.min(steps.value.length - 1, current.value + 1);
 }
 
@@ -172,13 +158,6 @@ function getEpisodeLabel(videoData: EpisodeVideoData | null) {
 async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   const sequence = ++initializationSequence;
   const episodeLabel = getEpisodeLabel(activeEpisode);
-  logger.info("[App] initializeEpisode 开始", {
-    episodeLabel,
-    isBatch: episodeSession.isBatch,
-    auto: episodeSession.auto,
-    completed: episodeSession.completed,
-    total: episodeSession.total,
-  });
   preparing.value = true;
   preparingLabel.value = episodeSession.isBatch
     ? `正在准备 ${episodeSession.completed + 1}/${episodeSession.total}：${episodeLabel}`
@@ -187,20 +166,14 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
     ? `批量任务 ${episodeSession.completed + 1}/${episodeSession.total} · ${episodeLabel}`
     : "";
 
-  // 先卸载上一项的步骤组件，再清空共享数据；外层 Modal 始终保留。
   await nextTick();
   if (sequence !== initializationSequence) return;
   reset();
-  // 多集且未选择时停在 picker 步骤(0)，否则从 clip(1) 开始
-  // 批量模式下，如果已经选择过剧集（isBatch为true），则不再显示picker步骤
-  // 单个下载时，如果已经有 activeVideoData，也不再显示 picker 步骤
   const shouldShowPicker =
     hasPickerStep.value &&
     !episodeSession.isBatch &&
     !episodeSession.activeVideoData &&
     !episodeSession.queue.length;
-  // 动态步骤数组：有picker时 [picker, clip, info, ...]，无picker时 [clip, info, ...]
-  // picker步骤=0，clip步骤=1（有picker时）或0（无picker时）
   current.value = shouldShowPicker ? 0 : hasPickerStep.value ? 1 : 0;
   const bgmTag = activeEpisode?._wasmMusicSkipDomMetadata
     ? null
@@ -217,7 +190,6 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
 
   const music_id = bgmTag?.__vue__?.$props?.info?.music_id;
   if (music_id) {
-    logger.debug("获取到的Music ID:", music_id, bgmTag?.__vue__);
     try {
       const res = await fetch(
         "https://api.bilibili.com/x/copyright-music-publicity/bgm/detail?" +
@@ -236,10 +208,6 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
   if (sequence !== initializationSequence) return;
 
   if (episodeSession.auto) {
-    logger.info("[App] 自动模式处理", {
-      completed: episodeSession.completed,
-      total: episodeSession.total,
-    });
     const defaultRule = getActiveDefaultRule();
     if (defaultRule) {
       applyProcessingRule(defaultRule);
@@ -249,14 +217,11 @@ async function initializeEpisode(activeEpisode: EpisodeVideoData | null) {
     Message.info(
       `正在自动处理 ${episodeSession.completed + 1}/${episodeSession.total}：${episodeSession.activeVideoData?.part}`,
     );
-    // 自动模式下，延迟调用 handleOk 进入下一步
     setTimeout(() => {
       if (sequence !== initializationSequence) return;
-      logger.info("[App] 自动模式调用 handleOk");
       handleOk();
     }, 100);
   } else if (activeEpisode?._wasmMusicSkipMontage) {
-    // 不是当前视频时，跳过剪辑步骤，从info步骤开始
     current.value = hasPickerStep.value ? 2 : 1;
     Message.info("所选视频不是当前正在播放的视频，已跳过音频剪辑步骤");
   }

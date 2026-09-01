@@ -20,7 +20,7 @@ export const userConfig = reactive(
 );
 
 watch(userConfig, (newVal) => {
-  logger.debug("write userConfig", newVal);
+  // 配置变更日志已禁用
   GM_setValue("userConfig", clone(newVal));
 });
 
