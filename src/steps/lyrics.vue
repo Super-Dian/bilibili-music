@@ -875,6 +875,8 @@ function handleOk() {
 
   subtitleEditMode.value = lyricsMode.value;
   subtitleEdit.value = JSON.parse(JSON.stringify(editLyricsData.value));
+  // 工作台确认后有歌词数据，重置 noSubtitle 以便 next() 正常嵌入
+  noSubtitle.value = false;
   visible.value = false;
 }
 
@@ -1024,8 +1026,10 @@ function editLyrics(item: SubTitle) {
     originalAiText.value = originalAiBody.value
       .map((item) => item.content.replaceAll(/(^♪ )|( ♪$)/g, ""))
       .join("\n");
-    lyricsMode.value = "ai";
-    subtitleEditMode.value = "ai";
+    // 没有 AI 字幕时默认使用 online 模式，跳过行数校验
+    const hasAiBody = editLyricsData.value.data.body.length > 0;
+    lyricsMode.value = hasAiBody ? "ai" : "online";
+    subtitleEditMode.value = hasAiBody ? "ai" : "online";
     originalEditBody.value = "";
     originalParsedLyrics.value = [];
     lyricsStartTime.value = "";

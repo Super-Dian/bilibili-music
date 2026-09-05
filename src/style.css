@@ -1,5 +1,37 @@
 @import "tailwindcss";
 
+/*
+  Tailwind preflight 会将 img/svg/video/canvas/audio/iframe/embed/object 设置为 display:block
+  这会影响宿主页面（Bilibili）的元素，需要撤销这些元素的全局 display:block，
+  并在我们的 app 容器内重新应用
+*/
+img,
+svg,
+video,
+canvas,
+audio,
+iframe,
+embed,
+object {
+  display: inline;
+  vertical-align: baseline;
+}
+
+#bilibili-music-vue,
+#bilibili-music-floating-entry,
+#bilibili-music-task-center {
+  svg,
+  video,
+  canvas,
+  audio,
+  iframe,
+  embed,
+  object {
+    display: block;
+    vertical-align: middle;
+  }
+}
+
 /* 自定义主题 */
 @theme {
   --color-bili-blue: #00aeec;

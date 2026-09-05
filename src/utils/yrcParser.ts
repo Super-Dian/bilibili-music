@@ -52,28 +52,45 @@ export function parseYrc(yrcText: string): WordLyrics {
 
     const words: WordTiming[] = [];
     let lineText = "";
-    // 匹配 char(startMs,durMs) — 每个字及其时间信息
-    const charPattern = /([^(]+)\((\d+),(\d+)\)/g;
-    let match;
-    let lastEnd = 0;
-
-    while ((match = charPattern.exec(rest)) !== null) {
-      const text = match[1];
-      const startMs = Number(match[2]);
-      const durMs = Number(match[3]);
-      for (const ch of text) {
-        words.push({ startMs, durMs, text: ch });
-        lineText += ch;
-      }
-      lastEnd = match.index + match[0].length;
+    // 匹配 (startMs,durMs) 时间标记，用于定位切分点
+    const timingPattern = /\((\d+),(\d+)\)/g;
+    const timings: Array<{ startMs: number; durMs: number; index: number; length: number }> = [];
+    let tm;
+    while ((tm = timingPattern.exec(rest)) !== null) {
+      timings.push({
+        startMs: Number(tm[1]),
+        durMs: Number(tm[2]),
+        index: tm.index,
+        length: tm[0].length,
+      });
     }
 
-    // 处理末尾没有 (startMs,durMs) 的剩余文本
-    if (lastEnd < rest.length) {
-      const trailing = rest.slice(lastEnd);
-      for (const ch of trailing) {
+    if (timings.length === 0) {
+      // 没有时间标记，整行作为无时间轴文本
+      for (const ch of rest) {
         words.push({ startMs: lineStartMs, durMs: 0, text: ch });
         lineText += ch;
+      }
+    } else {
+      // 第一个时间标记之前的文本，使用行起始时间
+      const leading = rest.slice(0, timings[0].index);
+      for (const ch of leading) {
+        words.push({ startMs: lineStartMs, durMs: 0, text: ch });
+        lineText += ch;
+      }
+      // 将 rest 按时间标记切分为文本段，每段继承其后面那个标记的时间戳
+      // segments[i] = 标记 i 和标记 i+1 之间的文本 → 用 timings[i+1] 的时间
+      // 最后一段 = 最后一个标记之后的文本 → 用最后一个标记的时间
+      for (let i = 0; i < timings.length; i++) {
+        const textStart = timings[i].index + timings[i].length;
+        const textEnd = i + 1 < timings.length ? timings[i + 1].index : rest.length;
+        const text = rest.slice(textStart, textEnd);
+        // 该段文本后面紧跟的标记的时间戳
+        const ts = i + 1 < timings.length ? timings[i + 1] : timings[i];
+        for (const ch of text) {
+          words.push({ startMs: ts.startMs, durMs: ts.durMs, text: ch });
+          lineText += ch;
+        }
       }
     }
 

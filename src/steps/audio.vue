@@ -705,7 +705,7 @@ const saveDefault = () => {
       :status="status"
       :title="error ?? `${stepIndex + 1}/${steps.length}:${steps[stepIndex]}`"
     >
-      <template #icon v-if="status === null">
+      <template #icon v-if="!status">
         <div class="loader">
           <svg class="circle-outer" viewBox="0 0 86 86">
             <circle class="back" cx="43" cy="43" r="40"></circle>
