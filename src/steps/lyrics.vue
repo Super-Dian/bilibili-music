@@ -798,8 +798,21 @@ function applyEnhancedLyrics() {
   Message.success(`已启用逐字歌词（${wordLyrics.length} 行）`);
 }
 
-/** 智能纠错：用在线歌词纠正 AI 字幕的错别字 */
+/** 智能纠错：用在线歌词纠正 AI 字幕的错别字，再次点击取消纠错 */
 function smartCorrectLyrics() {
+  // 取消纠错：恢复为原始 AI 歌词
+  if (lyricsMode.value === "ai-corrected") {
+    if (originalEditBody.value) {
+      editLyricsData.value!.data!._editBody = originalEditBody.value;
+    }
+    editLyricsData.value!.data!._lyricsBody = [];
+    lyricsMode.value = "ai";
+    subtitleEditMode.value = "ai";
+    originalEditBody.value = "";
+    Message.success("已取消智能纠错");
+    return;
+  }
+
   if (!onlineLyrics.value) {
     Message.warning("请先搜索并加载在线歌词");
     return;
@@ -1284,11 +1297,11 @@ function openWorkshop(item?: SubTitle) {
             </UiAlert>
             <div style="margin: 10px 0; display: flex; align-items: center; gap: 8px">
               <UiButton
-                type="outline"
+                :type="lyricsMode === 'ai-corrected' ? 'primary' : 'outline'"
                 :disabled="!onlineLyrics || useOnlineLyrics"
                 @click="smartCorrectLyrics"
               >
-                智能纠错
+                {{ lyricsMode === "ai-corrected" ? "✓ 已纠错" : "智能纠错" }}
               </UiButton>
               <UiCheckbox v-model="lyricsBodySwitch.stripMetaPlain"
                 >智能保留歌词正文（纯文本）</UiCheckbox
