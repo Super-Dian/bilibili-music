@@ -845,7 +845,7 @@ function smartCorrectLyrics() {
 
 function handleLeftPanelPaste(event: ClipboardEvent) {
   const text = event.clipboardData?.getData("text") || "";
-  if (/\[\d{1,2}:\d{2}[\.:]\d{2,3}\]/.test(text)) {
+  if (/\[\d{1,2}:\d{2}[.:]\d{2,3}\]/.test(text)) {
     Message.warning("检测到带时间轴的歌词，请粘贴到右侧「在线歌词」面板并点击「使用在线歌词」");
   }
 }
