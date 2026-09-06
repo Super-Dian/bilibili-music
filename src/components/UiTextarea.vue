@@ -20,7 +20,7 @@ const props = withDefaults(
   },
 );
 
-defineEmits(["update:modelValue", "input", "change", "focus", "blur"]);
+defineEmits(["update:modelValue", "input", "change", "focus", "blur", "paste"]);
 
 const charCount = computed(() => (props.modelValue || "").length);
 </script>
@@ -46,6 +46,7 @@ const charCount = computed(() => (props.modelValue || "").length);
       @change="$emit('change', $event)"
       @focus="$emit('focus', $event)"
       @blur="$emit('blur', $event)"
+      @paste="$emit('paste', $event)"
     ></textarea>
     <span v-if="showWordLimit" class="ui-textarea-word-limit">
       {{ charCount }}{{ maxLength ? `/${maxLength}` : "" }}

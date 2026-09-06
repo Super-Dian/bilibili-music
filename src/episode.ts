@@ -634,7 +634,9 @@ export function launchNextEpisode() {
     nextVideoData._wasmMusicTaskId,
     episodeSession.auto ? "正在应用预设" : "等待用户确认设置",
   );
-  logger.info(`[任务] 开始处理: ${nextVideoData.part || nextVideoData.title || nextVideoData.bvid}`);
+  logger.info(
+    `[任务] 开始处理: ${nextVideoData.part || nextVideoData.title || nextVideoData.bvid}`,
+  );
 
   if (episodeSession.app && episodeSession.root && appTransitionHandler) {
     try {

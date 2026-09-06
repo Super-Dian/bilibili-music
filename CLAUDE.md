@@ -10,14 +10,14 @@ bilibili-music is a Tampermonkey userscript that injects into Bilibili video pag
 
 | Command             | Purpose                                |
 | ------------------- | -------------------------------------- |
-| `bun run dev`       | Start Vite dev server                  |
-| `bun run build`     | Build the userscript (output: `dist/`) |
-| `bun run build:tsc` | Type-check with vue-tsc, then build    |
-| `bun run fmt`       | Format with oxfmt                      |
-| `bun run lint`      | Lint with oxlint (type-aware)          |
-| `bun run lint:fix`  | Auto-fix lint issues                   |
+| `npm run dev`       | Start Vite dev server                  |
+| `npm run build`     | Build the userscript (output: `dist/`) |
+| `npm run build:tsc` | Type-check with vue-tsc, then build    |
+| `npm run fmt`       | Format with oxfmt                      |
+| `npm run lint`      | Lint with oxlint (type-aware)          |
+| `npm run lint:fix`  | Auto-fix lint issues                   |
 
-**Package manager**: Bun. **Linter/formatter**: oxlint + oxfmt (Oxc toolchain, not ESLint/Prettier).
+**Package manager**: npm. **Linter/formatter**: oxlint + oxfmt (Oxc toolchain, not ESLint/Prettier).
 
 ## Architecture
 
