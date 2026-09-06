@@ -20,10 +20,16 @@ onMounted(() => {
     state.value = getTaskCenterState();
     runtime.value = getTaskCenterRuntime();
   });
+  window.addEventListener("wasm-music-close-task-panel", handleClosePanelEvent);
+  document.addEventListener("mousemove", handleMouseMove);
+  document.addEventListener("mouseup", handleMouseUp);
 });
 
 onUnmounted(() => {
   unsubscribe?.();
+  window.removeEventListener("wasm-music-close-task-panel", handleClosePanelEvent);
+  document.removeEventListener("mousemove", handleMouseMove);
+  document.removeEventListener("mouseup", handleMouseUp);
 });
 
 const unfinishedCount = computed(
@@ -105,6 +111,55 @@ function togglePanel() {
 function closePanel() {
   panelOpen.value = false;
 }
+
+// ---- 主窗口打开时自动关闭面板 ----
+function handleClosePanelEvent() {
+  panelOpen.value = false;
+}
+
+// ---- 拖拽功能 ----
+const panelRef = ref<HTMLElement | null>(null);
+const isDragging = ref(false);
+const dragOffset = ref({ x: 0, y: 0 });
+const panelStyle = ref<Record<string, string>>({});
+
+function handleHeaderMouseDown(event: MouseEvent) {
+  if (event.button !== 0) return;
+  // 排除按钮点击
+  if ((event.target as HTMLElement).closest(".wasm-music-task-close")) return;
+
+  const panel = panelRef.value;
+  if (!panel) return;
+
+  isDragging.value = true;
+  const rect = panel.getBoundingClientRect();
+  dragOffset.value = {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top,
+  };
+  panelStyle.value = {
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    right: "auto",
+    bottom: "auto",
+  };
+  event.preventDefault();
+}
+
+function handleMouseMove(event: MouseEvent) {
+  if (!isDragging.value) return;
+  const newX = event.clientX - dragOffset.value.x;
+  const newY = event.clientY - dragOffset.value.y;
+  panelStyle.value = {
+    ...panelStyle.value,
+    left: `${newX}px`,
+    top: `${newY}px`,
+  };
+}
+
+function handleMouseUp() {
+  isDragging.value = false;
+}
 </script>
 
 <template>
@@ -128,9 +183,16 @@ function closePanel() {
 
     <!-- 任务面板 -->
     <Transition name="wasm-music-task-panel">
-      <section v-if="panelOpen" class="wasm-music-task-panel" data-testid="wasm-music-task-panel">
+      <section
+        v-if="panelOpen"
+        ref="panelRef"
+        class="wasm-music-task-panel"
+        :class="{ 'is-dragging': isDragging }"
+        :style="panelStyle"
+        data-testid="wasm-music-task-panel"
+      >
         <!-- 头部 -->
-        <header class="wasm-music-task-header">
+        <header class="wasm-music-task-header" @mousedown="handleHeaderMouseDown">
           <div>
             <strong>{{ state.title }}</strong>
             <small
@@ -320,12 +382,23 @@ function closePanel() {
   backdrop-filter: blur(12px);
 }
 
+.wasm-music-task-panel.is-dragging {
+  transition: none;
+  user-select: none;
+}
+
+.wasm-music-task-panel.is-dragging .wasm-music-task-header {
+  cursor: grabbing;
+}
+
 .wasm-music-task-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 15px 16px 11px;
+  cursor: move;
+  user-select: none;
 }
 
 .wasm-music-task-header > div {

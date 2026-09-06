@@ -8,7 +8,7 @@ import FloatingEntry from "@/components/FloatingEntry.vue";
 import TaskCenter from "@/components/TaskCenter.vue";
 import { defaultData } from "@/data";
 import { configureEpisodeAppLauncher, openMusicApp } from "@/episode";
-import { updateTaskCenterRuntime } from "@/taskCenter";
+import { closeTaskCenterPanel, updateTaskCenterRuntime } from "@/taskCenter";
 import { drop } from "@/utils/drop";
 import { preflightFFmpegEnvironment } from "@/utils/ffmpeg";
 import { logger } from "@/utils/logger";
@@ -52,6 +52,7 @@ if (document.body) {
 GM_getResourceURL("wasm_music_backend_bg");
 
 configureEpisodeAppLauncher(() => {
+  closeTaskCenterPanel();
   const el = document.createElement("div");
   el.id = "bilibili-music-vue";
   document.body.appendChild(el);

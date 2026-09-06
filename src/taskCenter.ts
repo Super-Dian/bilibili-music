@@ -293,6 +293,11 @@ export function subscribeTaskCenter(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
+/** 派发事件关闭 TaskCenter 面板（供主窗口打开时调用） */
+export function closeTaskCenterPanel() {
+  window.dispatchEvent(new CustomEvent("wasm-music-close-task-panel"));
+}
+
 export function configureTaskCenterActions(nextActions: Partial<TaskCenterActions>) {
   actions = { ...actions, ...nextActions };
 }
