@@ -112,6 +112,14 @@ function closePanel() {
   panelOpen.value = false;
 }
 
+function handleClearAndClose() {
+  panelOpen.value = false;
+  // 等待退出动画完成后再清除任务
+  setTimeout(() => {
+    clearFinishedDownloadTasks();
+  }, 200);
+}
+
 // ---- 主窗口打开时自动关闭面板 ----
 function handleClosePanelEvent() {
   panelOpen.value = false;
@@ -261,10 +269,7 @@ function handleMouseUp() {
             v-if="!hasActive && !hasPending"
             class="wasm-music-task-btn"
             type="button"
-            @click="
-              panelOpen = false;
-              clearFinishedDownloadTasks();
-            "
+            @click="handleClearAndClose"
           >
             清除记录
           </button>
